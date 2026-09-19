@@ -1,0 +1,8 @@
+{
+  "name": "Arcana RPG Companion",
+  "description": "Mobile-first RPG companion app with magical minimalist aesthetic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
