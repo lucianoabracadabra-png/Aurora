@@ -246,8 +246,7 @@ const StatIntersectionBox = ({ title, theme, children, manaSpent, manaTotal, onM
     <BentoBox 
       ref={ref}
       title={title} 
-      className={`transition-all duration-700 outline-none ${isInView ? themeGlows[theme] : baseBorder[theme]}`}
-      titleClassName={`transition-colors duration-700 ${isInView ? titleThemeColors[theme] : baseBorder[theme]}`}
+      titleClassName={titleThemeColors[theme as keyof typeof titleThemeColors]}
     >
       {/* SEÇÃO DE MANA DO EIXO COM BARRA DE ENERGIA E CONTROLADORES */}
       <div className="flex flex-col gap-2.5 bg-white/[0.02] border border-white/5 rounded-2xl p-3 sm:p-3.5 mb-6 shadow-inner relative overflow-hidden">

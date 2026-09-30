@@ -344,7 +344,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200"
       onClick={(e) => {
         e.stopPropagation();
         onClose();
@@ -355,7 +355,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
       }}
     >
       <div 
-        className={`bg-[#050508] border border-white/10 rounded-[2rem] w-full max-w-lg shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col relative transition-all duration-200 animate-in fade-in zoom-in-95 duration-200 ease-out ${
+        className={`bg-[#0b0816]/95 border border-white/15 rounded-[2rem] w-full max-w-lg shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl overflow-hidden flex flex-col relative transition-all duration-200 animate-in fade-in zoom-in-95 ease-out ${
           showAttributePicker ? 'min-h-[580px]' : 'min-h-[460px]'
         }`}
         onClick={e => e.stopPropagation()}

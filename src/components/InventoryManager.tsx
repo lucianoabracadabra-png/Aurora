@@ -1884,7 +1884,7 @@ export const InventoryManager: React.FC<Props> = ({
         {/* Cabeçalho da Mochila */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+            <div className="w-10 h-10 aspect-square rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
               <Backpack size={20} className="text-amber-400" />
             </div>
             <div>
@@ -1914,10 +1914,10 @@ export const InventoryManager: React.FC<Props> = ({
         </div>
 
         {/* BOLSA DE RIQUEZAS NO TOPO (O, P, C) */}
-        <div className="bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-amber-600/10 border border-amber-500/20 rounded-2xl p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-sm w-full">
-          {/* Lado Esquerdo: Ícone + Título (Em linha única sem quebras) */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+        <div className="bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-amber-600/10 border border-amber-500/20 rounded-2xl p-3.5 sm:p-4 flex flex-col gap-3 shadow-sm w-full">
+          {/* Linha 1: Ícone + Título */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 aspect-square rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
               <Coins size={20} className="drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
             </div>
             <span className="text-xs uppercase font-bold tracking-wider text-amber-300 whitespace-nowrap select-none">
@@ -1925,52 +1925,54 @@ export const InventoryManager: React.FC<Props> = ({
             </span>
           </div>
 
-          {/* Lado Direito: Caixinhas das moedas e botões de ação (+ e Lista) */}
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap sm:flex-nowrap justify-end shrink-0">
+          {/* Linha 2: Espalhada uniformemente de ponta a ponta em 5 colunas */}
+          <div className="grid grid-cols-5 gap-2 sm:gap-2.5 w-full items-center">
             {/* Ouro (O) */}
-            <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-xl border border-amber-500/30 shadow-inner select-none shrink-0" title="Ouro (O)">
+            <div className="flex items-center justify-center gap-1.5 bg-black/60 px-2 sm:px-3 py-2 rounded-xl border border-amber-500/30 shadow-inner select-none w-full h-9 sm:h-10" title="Ouro (O)">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)] inline-block shrink-0" />
-              <span className="font-mono font-bold text-amber-300 text-xs sm:text-sm">{normalizedCurrency.gold}</span>
+              <span className="font-mono font-bold text-amber-300 text-xs sm:text-sm truncate">{normalizedCurrency.gold}</span>
               <span className="text-[11px] text-amber-400 font-bold uppercase tracking-wider">O</span>
             </div>
 
             {/* Prata (P) - 0 a 99 (100 P = 1 O) */}
-            <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-xl border border-slate-300/30 shadow-inner select-none shrink-0" title="Prata (P) - 0 a 99 (100 P vira 1 O)">
+            <div className="flex items-center justify-center gap-1.5 bg-black/60 px-2 sm:px-3 py-2 rounded-xl border border-slate-300/30 shadow-inner select-none w-full h-9 sm:h-10" title="Prata (P) - 0 a 99 (100 P vira 1 O)">
               <span className="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.8)] inline-block shrink-0" />
-              <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm">{normalizedCurrency.silver}</span>
+              <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm truncate">{normalizedCurrency.silver}</span>
               <span className="text-[11px] text-slate-300 font-bold uppercase tracking-wider">P</span>
             </div>
 
             {/* Cobre (C) - 0 a 99 (100 C = 1 P) */}
-            <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1.5 rounded-xl border border-orange-500/30 shadow-inner select-none shrink-0" title="Cobre (C) - 0 a 99 (100 C vira 1 P)">
+            <div className="flex items-center justify-center gap-1.5 bg-black/60 px-2 sm:px-3 py-2 rounded-xl border border-orange-500/30 shadow-inner select-none w-full h-9 sm:h-10" title="Cobre (C) - 0 a 99 (100 C vira 1 P)">
               <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.8)] inline-block shrink-0" />
-              <span className="font-mono font-bold text-orange-300 text-xs sm:text-sm">{normalizedCurrency.copper}</span>
+              <span className="font-mono font-bold text-orange-300 text-xs sm:text-sm truncate">{normalizedCurrency.copper}</span>
               <span className="text-[11px] text-orange-400 font-bold uppercase tracking-wider">C</span>
             </div>
 
-            {/* Botãozinho de + para abrir pop-up de movimentação de moedas */}
-            {!readonly && (
+            {/* Botão de + para movimentar moedas */}
+            {!readonly ? (
               <button
                 type="button"
                 onClick={() => {
                   setMoveOpType('income');
                   setIsCurrencyModalOpen(true);
                 }}
-                className="w-8 h-8 sm:w-8 sm:h-8 rounded-xl bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-300 hover:text-amber-100 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center transition-all shadow-[0_0_12px_rgba(245,158,11,0.2)] cursor-pointer shrink-0"
+                className="w-full h-9 sm:h-10 rounded-xl bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-300 hover:text-amber-100 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center transition-all shadow-[0_0_12px_rgba(245,158,11,0.2)] cursor-pointer"
                 title="Movimentar Moedas (Incrementar / Decrementar)"
               >
-                <Plus size={16} className="stroke-[3]" />
+                <Plus size={18} className="stroke-[3]" />
               </button>
+            ) : (
+              <div className="w-full h-9 sm:h-10 rounded-xl bg-black/30 border border-white/5 opacity-30" />
             )}
 
-            {/* Botãozinho com ícone de lista para abrir o modal de histórico de transações */}
+            {/* Botão de Histórico (Lista) */}
             <button
               type="button"
               onClick={() => setIsHistoryModalOpen(true)}
-              className="w-8 h-8 sm:w-8 sm:h-8 rounded-xl bg-black/60 hover:bg-black/90 active:scale-95 text-amber-300/80 hover:text-amber-300 border border-white/15 hover:border-amber-500/50 flex items-center justify-center transition-all shadow-sm cursor-pointer shrink-0"
+              className="w-full h-9 sm:h-10 rounded-xl bg-black/60 hover:bg-black/90 active:scale-95 text-amber-300/80 hover:text-amber-300 border border-white/15 hover:border-amber-500/50 flex items-center justify-center transition-all shadow-sm cursor-pointer"
               title="Histórico de Transações da Bolsa"
             >
-              <List size={15} className="stroke-[2.5]" />
+              <List size={16} className="stroke-[2.5]" />
             </button>
           </div>
         </div>

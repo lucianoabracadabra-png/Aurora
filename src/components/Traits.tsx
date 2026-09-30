@@ -225,11 +225,11 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
       {/* ========================================================================= */}
       {selectedTrait && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200"
           onClick={handleCloseDetailModal}
         >
           <div
-            className="bg-[#0a0716] border border-white/15 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            className="bg-[#0b0816]/95 border border-white/15 rounded-[2rem] max-w-lg w-full p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Cabeçalho do Modal */}
@@ -418,11 +418,11 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
       {/* ========================================================================= */}
       {isCreating && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200"
           onClick={() => setIsCreating(false)}
         >
           <div
-            className="bg-[#0a0716] border border-violet-500/40 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            className="bg-[#0b0816]/95 border border-white/15 rounded-[2rem] max-w-lg w-full p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
