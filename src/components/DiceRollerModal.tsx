@@ -15,6 +15,16 @@ export type DiceRollRequest =
       name: string;
       dots: number;
       theme: 'rose' | 'cyan' | 'emerald' | 'violet';
+    }
+  | {
+      type: 'damage';
+      name: string;
+      actionName?: string;
+      formula: string;
+      damageType: string;
+      ap?: number;
+      precision?: number;
+      theme?: 'rose' | 'cyan' | 'emerald' | 'violet' | 'amber';
     };
 
 type Props = {
@@ -59,6 +69,14 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
   };
   const [skillResults, setSkillResults] = useState<SkillDieRoll[]>([]);
   const [skillDiceCount, setSkillDiceCount] = useState<number>(1);
+
+  // Damage Roll State
+  type DamageDieResult = {
+    dieIndex: number;
+    sides: number;
+    val: number;
+  };
+  const [damageResults, setDamageResults] = useState<DamageDieResult[]>([]);
 
   // Attribute summing state
   type SelectedAttrInfo = {
@@ -112,6 +130,8 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
 
     if (request.type === 'attribute') {
       setSelectedDie('d8');
+    } else if (request.type === 'damage') {
+      executeDamageRoll(request.formula);
     } else {
       const count = Math.max(1, request.dots);
       setSkillDiceCount(count);
@@ -263,7 +283,31 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
     }, 300);
   };
 
+  const executeDamageRoll = (formula: string) => {
+    setIsRolling(true);
+    setDamageResults([]);
+
+    const match = formula.toLowerCase().match(/(\d+)?d(\d+)/);
+    const count = match && match[1] ? parseInt(match[1], 10) : 1;
+    const sides = match && match[2] ? parseInt(match[2], 10) : 6;
+
+    setTimeout(() => {
+      const rolls: DamageDieResult[] = [];
+      for (let i = 0; i < count; i++) {
+        rolls.push({
+          dieIndex: i,
+          sides,
+          val: Math.floor(Math.random() * sides) + 1
+        });
+      }
+      setDamageResults(rolls);
+      setIsRolling(false);
+    }, 250);
+  };
+
   if (!request) return null;
+
+  const currentTheme = request.theme || (request.type === 'damage' ? 'amber' : 'rose');
 
   const themeColors = {
     rose: {
@@ -289,8 +333,14 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
       border: 'border-violet-500/40',
       glow: 'shadow-[0_0_20px_rgba(167,139,250,0.3)]',
       bgGlow: 'bg-violet-500/10'
+    },
+    amber: {
+      text: 'text-amber-400',
+      border: 'border-amber-500/40',
+      glow: 'shadow-[0_0_20px_rgba(245,158,11,0.3)]',
+      bgGlow: 'bg-amber-500/10'
     }
-  }[request.theme];
+  }[currentTheme];
 
   const modalContent = (
     <div 
@@ -442,7 +492,9 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
                   ? 'Rolagem de Atributo' 
                   : request.type === 'personality' 
                     ? 'Rolagem de Personalidade' 
-                    : 'Rolagem de Perícia'}
+                    : request.type === 'damage'
+                      ? `Rolagem de Dano • ${request.actionName || 'Golpe'}`
+                      : 'Rolagem de Perícia'}
               </span>
               <h3 className={`font-bold text-lg text-white flex items-center gap-2 ${themeColors.text} drop-shadow-[0_0_8px_currentColor]`}>
                 {request.name}
@@ -568,6 +620,83 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
               >
                 <RotateCcw size={15} className={isRolling ? 'animate-spin' : ''} />
                 {attributeResult === null ? `Girar Dado (${selectedDie})` : `Rolar Novamente (${selectedDie})`}
+              </button>
+            </div>
+          ) : request.type === 'damage' ? (
+            /* DAMAGE ROLL UI */
+            <div className="flex flex-col gap-5">
+              {/* Formula and type badge */}
+              <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl p-3 text-xs">
+                <span className="text-white/60">Fórmula do Golpe:</span>
+                <div className="flex items-center gap-2 font-mono">
+                  <span className="text-amber-400 font-bold text-sm bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20">
+                    {request.formula}
+                  </span>
+                  <span className="text-white/50 uppercase text-[10px] font-semibold">
+                    {request.damageType === 'cor' ? 'Cortante' : request.damageType === 'per' ? 'Perfurante' : request.damageType === 'esm' ? 'Esmagamento' : request.damageType}
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Result Display */}
+              <div className="bg-black/30 border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[160px] relative overflow-hidden">
+                <div className="absolute inset-0 bg-radial from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+                
+                {damageResults.length === 0 ? (
+                  <div className="text-center py-4">
+                    <span className="text-xs uppercase tracking-widest text-white/40 block mb-1">Aguardando golpe</span>
+                    <span className="text-xl font-mono text-white/60 font-bold">Rolar Dano</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 relative z-10 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-center">
+                      <span className={`text-6xl font-black tracking-tight font-mono ${isRolling ? 'scale-110 opacity-70 blur-xs' : 'scale-100'} text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.6)]`}>
+                        {damageResults.reduce((acc, d) => acc + d.val, 0)}
+                      </span>
+                    </div>
+
+                    {/* Individual dice if more than 1 */}
+                    {damageResults.length > 1 && (
+                      <div className="flex items-center gap-2 text-xs font-mono text-white/60">
+                        <span>Faces:</span>
+                        {damageResults.map((d, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white font-bold">
+                            {d.val}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Combat Properties Badges: AP & Precision */}
+                    <div className="flex items-center gap-3 pt-2">
+                      <div className="flex items-center gap-1.5 text-xs bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 px-3 py-1 rounded-full">
+                        <span className="text-[10px] uppercase tracking-wider font-bold">AP:</span>
+                        <span className="font-mono font-bold">{request.ap ?? 0}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-1 rounded-full">
+                        <span className="text-[10px] uppercase tracking-wider font-bold">Precisão:</span>
+                        <span className="font-mono font-bold">+{request.precision ?? 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <button
+                type="button"
+                disabled={isRolling}
+                onClick={() => executeDamageRoll(request.formula)}
+                className={`w-full py-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  isRolling 
+                    ? 'opacity-50 cursor-not-allowed border-white/10 text-white/40' 
+                    : damageResults.length === 0
+                      ? `${themeColors.border} ${themeColors.bgGlow} ${themeColors.text} ${themeColors.glow} hover:brightness-125`
+                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white hover:border-white/20'
+                }`}
+              >
+                <RotateCcw size={15} className={isRolling ? 'animate-spin' : ''} />
+                {damageResults.length === 0 ? `Rolar Dano (${request.formula})` : `Rolar Novamente (${request.formula})`}
               </button>
             </div>
           ) : (

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData } from './initialState';
-import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw } from 'lucide-react';
+import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory } from './types';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { Identity } from './components/Identity';
@@ -14,6 +14,9 @@ import { Traits } from './components/Traits';
 import { DotRating } from './components/DotRating';
 import { HealthTracker } from './components/HealthTracker';
 import { DiceRollerModal, DiceRollRequest } from './components/DiceRollerModal';
+import { InventoryManager } from './components/InventoryManager';
+import { GalaxyAuroraBackground } from './components/GalaxyAuroraBackground';
+import { UserGuideModal } from './components/UserGuideModal';
 import { CustomSkill } from './types';
 
 const AttributeInput = ({ label, value, onChange, theme, readonly, onRoll }: {
@@ -230,7 +233,6 @@ const StatIntersectionBox = ({ title, theme, children, manaSpent, manaTotal, onM
   };
 
   const adjustMana = (delta: number) => {
-    // Note: delta is applied to current mana. So +1 current mana means -1 manaSpent, and vice-versa.
     const newCurrent = Math.min(manaTotal, Math.max(0, currentMana + delta));
     onManaChange(manaTotal - newCurrent);
   };
@@ -256,7 +258,7 @@ const StatIntersectionBox = ({ title, theme, children, manaSpent, manaTotal, onM
             </span>
           </div>
 
-          <div className="flex items-baseline gap-1">
+          <div className="flex items-baseline gap-2">
             <span className={`text-xl font-black font-mono tracking-tight drop-shadow-[0_0_12px_currentColor] ${titleThemeColors[theme as keyof typeof titleThemeColors]}`}>
               {currentMana}
             </span>
@@ -264,15 +266,15 @@ const StatIntersectionBox = ({ title, theme, children, manaSpent, manaTotal, onM
           </div>
         </div>
 
-        {/* Barra de Energia Dinâmica (Cresce e Esvazia) */}
-        <div className="relative w-full h-3.5 sm:h-4 rounded-full bg-black/60 border border-white/10 p-0.5 overflow-hidden shadow-inner flex items-center">
+        {/* Barra de Energia Dinâmica (Cresce e Esvazia - Altura Aumentada com animação fluida direta) */}
+        <div className="relative w-full h-5 sm:h-6 rounded-full bg-black/60 border border-white/10 p-1 overflow-hidden shadow-inner flex items-center">
           <div
-            className={`h-full rounded-full bg-gradient-to-r ${barGradients[theme as keyof typeof barGradients]} transition-all duration-300 ease-out relative shadow-[0_0_12px_rgba(255,255,255,0.3)]`}
+            className={`h-full rounded-full bg-gradient-to-r ${barGradients[theme as keyof typeof barGradients]} transition-all duration-700 ease-out relative shadow-[0_0_15px_rgba(255,255,255,0.3)]`}
             style={{ width: `${percent}%` }}
           >
             {/* Brilho da extremidade da barra quando tem mana */}
             {percent > 0 && (
-              <div className="absolute right-0 top-0 bottom-0 w-2 bg-white/70 rounded-full blur-[1px] shadow-[0_0_8px_white]" />
+              <div className="absolute right-0 top-0 bottom-0 w-2.5 bg-white/80 rounded-full blur-[1px] shadow-[0_0_10px_white]" />
             )}
           </div>
         </div>
@@ -412,6 +414,27 @@ export default function App() {
           parsed.traits = initialCharacterData.traits;
           parsed.abilities = initialCharacterData.abilities;
         }
+
+        // Ensure inventory exists and is populated
+        if (!parsed.inventory || !parsed.inventory.weapons || parsed.inventory.weapons.length === 0) {
+          parsed.inventory = initialCharacterData.inventory;
+        } else {
+          if (!parsed.inventory.generalItems || parsed.inventory.generalItems.length === 0) {
+            parsed.inventory.generalItems = initialCharacterData.inventory.generalItems;
+          }
+          if (!parsed.inventory.currency) {
+            parsed.inventory.currency = initialCharacterData.inventory.currency;
+          } else {
+            if (parsed.inventory.currency.silver > 100) parsed.inventory.currency.silver = 100;
+            if (parsed.inventory.currency.copper > 100) parsed.inventory.currency.copper = 100;
+            if (parsed.inventory.currency.gems && parsed.inventory.currency.gems.includes('lápis')) {
+              parsed.inventory.currency.gems = '';
+            }
+            if (!parsed.inventory.currency.history || parsed.inventory.currency.history.length === 0) {
+              parsed.inventory.currency.history = initialCharacterData.inventory.currency.history;
+            }
+          }
+        }
         
         return parsed;
       } catch (e) {
@@ -421,8 +444,9 @@ export default function App() {
     return initialCharacterData;
   });
   const [isIdentityExpanded, setIsIdentityExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'magic'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'inventory' | 'magic'>('profile');
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | null>(null);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const rollAttribute = (name: string, value: number, theme: 'rose' | 'cyan' | 'emerald') => {
     setDiceRollRequest({
@@ -449,6 +473,26 @@ export default function App() {
       dots: value,
       theme: 'violet',
     });
+  };
+
+  const rollDamage = (name: string, actionName: string, formula: string, damageType: string, ap?: number, precision?: number) => {
+    setDiceRollRequest({
+      type: 'damage',
+      name,
+      actionName,
+      formula,
+      damageType,
+      ap,
+      precision,
+      theme: 'amber',
+    });
+  };
+
+  const updateInventory = (updater: (prev: Inventory) => Inventory) => {
+    setData((prev) => ({
+      ...prev,
+      inventory: updater(prev.inventory || initialCharacterData.inventory),
+    }));
   };
 
   // Save to local storage whenever data changes
@@ -551,6 +595,7 @@ export default function App() {
     const handleScroll = () => {
       const profile = document.getElementById('profile');
       const stats = document.getElementById('stats');
+      const inventory = document.getElementById('inventory');
       const magic = document.getElementById('magic');
 
       if (!profile || !stats || !magic) return;
@@ -559,8 +604,10 @@ export default function App() {
 
       if (scrollPosition < stats.offsetTop) {
         setActiveTab('profile');
-      } else if (scrollPosition >= stats.offsetTop && scrollPosition < magic.offsetTop) {
+      } else if (inventory && scrollPosition < inventory.offsetTop) {
         setActiveTab('stats');
+      } else if (inventory && scrollPosition < magic.offsetTop) {
+        setActiveTab('inventory');
       } else {
         setActiveTab('magic');
       }
@@ -590,18 +637,25 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030014] text-slate-200 font-sans pb-24 selection:bg-violet-500/30 relative overflow-hidden">
-      {/* Magical Background Glows */}
-      <div className="fixed top-0 left-1/4 w-96 h-96 bg-violet-600/10 rounded-full blur-[128px] pointer-events-none" />
-      <div className="fixed bottom-0 right-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-[128px] pointer-events-none" />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.02)_0%,transparent_100%)] pointer-events-none" />
+    <div className="min-h-screen bg-[#02000c] text-slate-200 font-sans pb-24 selection:bg-violet-500/30 relative overflow-hidden">
+      {/* Dynamic Galaxy Aurora Background with 3 Parallax Star Layers */}
+      <GalaxyAuroraBackground />
 
       {/* Header */}
       <header className="sticky top-0 z-10 bg-[#030014]/60 backdrop-blur-2xl border-b border-white/5 px-6 py-5 flex items-center justify-between">
         <h1 className="text-sm tracking-[0.3em] font-light uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">
           Arcana
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Botão de Ajuda & Guia de Ferramentas / Usabilidade (?) */}
+          <button
+            onClick={() => setIsGuideOpen(true)}
+            className="w-8 h-8 rounded-full bg-white/[0.02] hover:bg-cyan-500/15 active:scale-95 border border-cyan-400/30 hover:border-cyan-400/60 flex items-center justify-center text-cyan-300 transition-all shadow-[0_0_15px_rgba(34,211,238,0.2)] cursor-pointer"
+            title="Guia de Ferramentas, Atalhos e Usabilidade (?)"
+          >
+            <HelpCircle size={15} className="text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
+          </button>
+
           <button 
             className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
               isEditing 
@@ -863,6 +917,16 @@ export default function App() {
           </StatIntersectionBox>
         </section>
 
+        {/* ARSENAL & INVENTÁRIO (MODO TÁTICO & COMPLETO) */}
+        <section id="inventory" className="flex flex-col gap-6">
+          <InventoryManager
+            inventory={data.inventory || initialCharacterData.inventory}
+            onUpdateInventory={updateInventory}
+            readonly={false}
+            onRollDamage={rollDamage}
+          />
+        </section>
+
         <section id="magic" className="flex flex-col gap-6">
           {/* DOMÍNIOS ELEMENTAIS - Solto no fundo */}
           <div className="flex flex-col gap-3 pt-2">
@@ -912,6 +976,7 @@ export default function App() {
             className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
               activeTab === 'profile' ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_15px_rgba(167,139,250,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
             }`}
+            title="Perfil & Saúde"
           >
             <User size={20} className={activeTab === 'profile' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
           </button>
@@ -920,14 +985,25 @@ export default function App() {
             className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
               activeTab === 'stats' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
             }`}
+            title="Atributos & Perícias"
           >
             <ScrollText size={20} className={activeTab === 'stats' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
+          </button>
+          <button
+            onClick={() => scrollToSection('inventory')}
+            className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
+              activeTab === 'inventory' ? 'bg-amber-500/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+            }`}
+            title="Equipamento & Inventário"
+          >
+            <Backpack size={20} className={activeTab === 'inventory' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
           </button>
           <button
             onClick={() => scrollToSection('magic')}
             className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
               activeTab === 'magic' ? 'bg-fuchsia-500/20 text-fuchsia-400 shadow-[0_0_15px_rgba(232,121,249,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
             }`}
+            title="Domínios & Magia"
           >
             <Sparkles size={20} className={activeTab === 'magic' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
           </button>
@@ -939,6 +1015,12 @@ export default function App() {
         request={diceRollRequest} 
         onClose={() => setDiceRollRequest(null)} 
         attributes={data.attributes}
+      />
+
+      {/* Guia de Ferramentas & Usabilidade (?) */}
+      <UserGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
     </div>
   );

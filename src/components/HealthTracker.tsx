@@ -34,6 +34,11 @@ const DamageBox: React.FC<{ value: DamageType; onChange: (v: DamageType) => void
       onClick={() => {
         if (!readonly) onChange(nextState[value]);
       }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (!readonly) onChange('none');
+      }}
+      title={!readonly ? "Clique para alternar dano • Clique duplo para limpar" : undefined}
     />
   );
 };
@@ -42,6 +47,7 @@ const BodyPart = ({
   label, 
   boxes, 
   onChange, 
+  onReset,
   readonly,
   columns = 4,
   icon
@@ -49,12 +55,19 @@ const BodyPart = ({
   label: string; 
   boxes: DamageType[]; 
   onChange: (index: number, v: DamageType) => void;
+  onReset?: () => void;
   readonly: boolean;
   columns?: number;
   icon?: React.ReactNode;
 }) => {
   return (
-    <div className="flex flex-col justify-between bg-[#0b0813]/70 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3.5 relative overflow-hidden h-full shadow-[0_4px_24px_rgba(0,0,0,0.35)] transition-all duration-300">
+    <div 
+      onDoubleClick={() => {
+        if (!readonly && onReset) onReset();
+      }}
+      title={!readonly ? `${label} (Clique duplo para limpar esta caixa)` : undefined}
+      className="flex flex-col justify-between bg-[#0b0813]/70 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3.5 relative overflow-hidden h-full shadow-[0_4px_24px_rgba(0,0,0,0.35)] transition-all duration-300 cursor-pointer"
+    >
       <div className="absolute inset-0 bg-gradient-to-b from-rose-500/[0.03] to-transparent pointer-events-none" />
       <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/70 mb-2 text-center flex flex-col items-center gap-1 select-none relative z-10">
         {icon}
@@ -78,43 +91,53 @@ const BodyPart = ({
 };
 
 export const HealthTracker: React.FC<Props> = ({ data, update, readonly = false }) => {
+  const clearPart = (part: keyof BodyHealth) => {
+    data[part].forEach((_, i) => update(part, i, 'none'));
+  };
+
   return (
     <div className="grid grid-cols-3 gap-2.5 sm:gap-4 w-full">
       <BodyPart 
-        label="Braço Esq. (12)" 
+        label="Braço Esq." 
         boxes={data.leftArm} 
         onChange={(i, v) => update('leftArm', i, v)} 
+        onReset={() => clearPart('leftArm')}
         readonly={readonly} 
       />
       <BodyPart 
-        label="Cabeça (8)" 
+        label="Cabeça" 
         boxes={data.head} 
         onChange={(i, v) => update('head', i, v)} 
+        onReset={() => clearPart('head')}
         readonly={readonly} 
       />
       <BodyPart 
-        label="Braço Dir. (12)" 
+        label="Braço Dir." 
         boxes={data.rightArm} 
         onChange={(i, v) => update('rightArm', i, v)} 
+        onReset={() => clearPart('rightArm')}
         readonly={readonly} 
       />
       
       <BodyPart 
-        label="Perna Esq. (16)" 
+        label="Perna Esq." 
         boxes={data.leftLeg} 
         onChange={(i, v) => update('leftLeg', i, v)} 
+        onReset={() => clearPart('leftLeg')}
         readonly={readonly} 
       />
       <BodyPart 
-        label="Torso (20)" 
+        label="Torso" 
         boxes={data.torso} 
         onChange={(i, v) => update('torso', i, v)} 
+        onReset={() => clearPart('torso')}
         readonly={readonly} 
       />
       <BodyPart 
-        label="Perna Dir. (16)" 
+        label="Perna Dir." 
         boxes={data.rightLeg} 
         onChange={(i, v) => update('rightLeg', i, v)} 
+        onReset={() => clearPart('rightLeg')}
         readonly={readonly} 
       />
     </div>
