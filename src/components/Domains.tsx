@@ -86,8 +86,8 @@ export const Domains: React.FC<Props> = ({ data, update, readonly = false }) => 
             title={readonly ? `${elem.label}: Nível ${value}` : `Clique para alterar nível de ${elem.label} (${value}/5)`}
             className={`relative flex flex-col items-center justify-between p-2.5 sm:p-4 rounded-2xl border transition-all duration-300 select-none overflow-hidden h-28 sm:h-36 shadow-[0_4px_24px_rgba(0,0,0,0.35)] ${
               isActive
-                ? `${elem.borderClass} bg-[#0b0813]/85 hover:border-white/30`
-                : 'border-white/10 bg-[#0b0813]/60 opacity-60 hover:opacity-90 hover:border-white/20'
+                ? `${elem.borderClass} bg-[#050508]/60 backdrop-blur-xl hover:border-white/30`
+                : 'border-white/10 bg-[#050508]/40 backdrop-blur-xl opacity-60 hover:opacity-90 hover:border-white/20'
             } ${readonly ? 'cursor-default' : 'cursor-pointer active:scale-95 hover:bg-white/[0.04]'}`}
           >
             {/* Background ambient element tint */}

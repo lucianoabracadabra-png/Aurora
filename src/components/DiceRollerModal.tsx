@@ -355,7 +355,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
       }}
     >
       <div 
-        className={`bg-[#050508] border border-white/10 rounded-[2rem] w-full max-w-lg shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col relative transition-all duration-200 ${
+        className={`bg-[#050508] border border-white/10 rounded-[2rem] w-full max-w-lg shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col relative transition-all duration-200 animate-in fade-in zoom-in-95 duration-200 ease-out ${
           showAttributePicker ? 'min-h-[580px]' : 'min-h-[460px]'
         }`}
         onClick={e => e.stopPropagation()}

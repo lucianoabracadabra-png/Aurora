@@ -25,11 +25,11 @@ export const Personality: React.FC<Props> = ({ data, update, readonly = false, o
           <div
             key={t.key}
             onClick={() => {
-              if (onRoll) onRoll(t.label, val);
+              if (readonly && onRoll) onRoll(t.label, val);
             }}
-            title={onRoll ? `Clique para rolar teste de ${t.label} (${val}d10)` : undefined}
+            title={readonly && onRoll ? `Clique para rolar teste de ${t.label} (${val}d10)` : undefined}
             className={`flex flex-col items-center justify-center p-4 transition-all duration-200 group select-none ${
-              onRoll ? 'cursor-pointer hover:bg-violet-500/[0.06] active:scale-95' : ''
+              readonly && onRoll ? 'cursor-pointer hover:bg-violet-500/[0.06] active:scale-95' : ''
             }`}
           >
             <div className="flex items-center gap-2 mb-2">

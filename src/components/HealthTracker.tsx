@@ -66,7 +66,7 @@ const BodyPart = ({
         if (!readonly && onReset) onReset();
       }}
       title={!readonly ? `${label} (Clique duplo para limpar esta caixa)` : undefined}
-      className="flex flex-col justify-between bg-[#0b0813]/70 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3.5 relative overflow-hidden h-full shadow-[0_4px_24px_rgba(0,0,0,0.35)] transition-all duration-300 cursor-pointer"
+      className="flex flex-col justify-between bg-[#050508]/40 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3.5 relative overflow-hidden h-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-300 cursor-pointer"
     >
       <div className="absolute inset-0 bg-gradient-to-b from-rose-500/[0.03] to-transparent pointer-events-none" />
       <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/70 mb-2 text-center flex flex-col items-center gap-1 select-none relative z-10">

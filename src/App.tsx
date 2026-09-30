@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData } from './initialState';
-import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory } from './types';
+import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData } from './types';
 import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
@@ -17,6 +17,7 @@ import { DiceRollerModal, DiceRollRequest } from './components/DiceRollerModal';
 import { InventoryManager } from './components/InventoryManager';
 import { GalaxyAuroraBackground } from './components/GalaxyAuroraBackground';
 import { UserGuideModal } from './components/UserGuideModal';
+import { FlowAndPatron } from './components/FlowAndPatron';
 import { CustomSkill } from './types';
 
 const AttributeInput = ({ label, value, onChange, theme, readonly, onRoll }: {
@@ -435,6 +436,10 @@ export default function App() {
             }
           }
         }
+
+        if (!parsed.flowAndPatron) {
+          parsed.flowAndPatron = initialCharacterData.flowAndPatron;
+        }
         
         return parsed;
       } catch (e) {
@@ -449,6 +454,7 @@ export default function App() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const rollAttribute = (name: string, value: number, theme: 'rose' | 'cyan' | 'emerald') => {
+    if (isEditing) return;
     setDiceRollRequest({
       type: 'attribute',
       name,
@@ -458,6 +464,7 @@ export default function App() {
   };
 
   const rollSkill = (name: string, dots: number, theme: 'rose' | 'cyan' | 'emerald') => {
+    if (isEditing) return;
     setDiceRollRequest({
       type: 'skill',
       name,
@@ -467,6 +474,7 @@ export default function App() {
   };
 
   const rollPersonality = (name: string, value: number) => {
+    if (isEditing) return;
     setDiceRollRequest({
       type: 'personality',
       name,
@@ -476,6 +484,7 @@ export default function App() {
   };
 
   const rollDamage = (name: string, actionName: string, formula: string, damageType: string, ap?: number, precision?: number) => {
+    if (isEditing) return;
     setDiceRollRequest({
       type: 'damage',
       name,
@@ -556,6 +565,13 @@ export default function App() {
     setData((prev) => ({ ...prev, traits: [...prev.traits, newTrait] }));
   };
 
+  const updateTrait = (updatedTrait: Trait) => {
+    setData((prev) => ({
+      ...prev,
+      traits: prev.traits.map((t) => (t.id === updatedTrait.id ? updatedTrait : t))
+    }));
+  };
+
   const removeTrait = (id: string) => {
     setData((prev) => ({ ...prev, traits: prev.traits.filter((t) => t.id !== id) }));
   };
@@ -589,6 +605,22 @@ export default function App() {
         [category]: prev.customSkills[category].filter(skill => skill.id !== id),
       }
     }));
+  };
+
+  const updateFlowAndPatron = (type: 'fluxo' | 'patrono', field: keyof FlowPatronData, value: any) => {
+    setData((prev) => {
+      const cur = prev.flowAndPatron || initialCharacterData.flowAndPatron!;
+      return {
+        ...prev,
+        flowAndPatron: {
+          ...cur,
+          [type]: {
+            ...cur[type],
+            [field]: value
+          }
+        }
+      };
+    });
   };
 
   useEffect(() => {
@@ -715,11 +747,15 @@ export default function App() {
             <Identity data={data.identity} update={updateIdentity} readonly={!isEditing} expanded={isIdentityExpanded} />
             
             <div 
-              className="mt-6 pt-6 border-t border-white/5 alignment-container"
+              className={`grid transition-all duration-500 ease-in-out alignment-container ${
+                isIdentityExpanded ? 'grid-rows-[1fr] opacity-100 mt-6 pt-6 border-t border-white/5' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+              }`}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-[10px] tracking-widest text-violet-400/60 uppercase font-medium mb-4">Alinhamento</h3>
-              <Alignment data={data.alignment} update={updateAlignment} readonly={!isEditing} expanded={isIdentityExpanded} />
+              <div className="overflow-hidden">
+                <h3 className="text-[10px] tracking-widest text-violet-400/60 uppercase font-medium mb-4">Alinhamento</h3>
+                <Alignment data={data.alignment} update={updateAlignment} readonly={!isEditing} expanded={isIdentityExpanded} />
+              </div>
             </div>
           </BentoBox>
 
@@ -733,8 +769,15 @@ export default function App() {
           </BentoBox>
 
           <BentoBox title="Vantagens & Desvantagens" titleClassName="text-violet-400">
-            <Traits data={data.traits} add={addTrait} remove={removeTrait} readonly={!isEditing} />
+            <Traits data={data.traits} add={addTrait} update={updateTrait} remove={removeTrait} readonly={!isEditing} />
           </BentoBox>
+
+          {/* FLUXO E PATRONO */}
+          <FlowAndPatron 
+            data={data.flowAndPatron || initialCharacterData.flowAndPatron!}
+            update={updateFlowAndPatron}
+            readonly={!isEditing}
+          />
 
           {/* PONTOS DE VIDA - Solto no fundo */}
           <div className="flex flex-col gap-3 pt-2">

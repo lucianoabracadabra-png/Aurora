@@ -110,7 +110,7 @@ const NaturezaElementCard: React.FC<ElementCardProps> = ({
 
   return (
     <div
-      className={`flex flex-col items-center justify-between bg-[#0b0813]/80 backdrop-blur-xl border rounded-2xl sm:rounded-3xl p-1.5 sm:p-3 relative overflow-hidden transition-all duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.4)] ${
+      className={`flex flex-col items-center justify-between bg-[#050508]/40 backdrop-blur-xl border rounded-2xl sm:rounded-3xl p-1.5 sm:p-3 relative overflow-hidden transition-all duration-300 shadow-[0_8px_32px_rgba(0,0,0,0.3)] ${
         isActive ? `${elem.borderColor} hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]` : 'border-white/10 opacity-75 hover:opacity-100'
       }`}
     >
@@ -119,12 +119,12 @@ const NaturezaElementCard: React.FC<ElementCardProps> = ({
         <div className={`absolute -top-8 -right-8 w-20 h-20 rounded-full ${elem.bgGlow} blur-2xl pointer-events-none`} />
       )}
 
-      {/* Column Header: Ícone com Clique Duplo para Resetar Natureza */}
+      {/* Column Header: Ícone com Clique Único para Resetar Natureza */}
       <div className="flex items-center justify-center relative w-full py-1.5 sm:py-2.5 z-10">
         <button
           type="button"
-          onDoubleClick={() => handleSpendChange(0)}
-          title={!readonly ? `${elem.name} (Clique duplo para restaurar toda a reserva)` : elem.name}
+          onClick={() => handleSpendChange(0)}
+          title={!readonly ? `${elem.name} (Clique para restaurar toda a reserva)` : elem.name}
           className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl hover:bg-white/10 active:scale-90 transition-all cursor-pointer select-none group"
         >
           <Icon 
@@ -150,17 +150,23 @@ const NaturezaElementCard: React.FC<ElementCardProps> = ({
         </div>
       </div>
 
-      {/* Vertical Bar Chamber */}
+      {/* Vertical Bar Chamber: Clique 1x para gastar, Clique 2x (duplo) para resetar */}
       <div className="relative w-full flex items-center justify-center my-1 sm:my-2 z-10">
         <div 
           className="relative w-7 sm:w-10 md:w-12 h-36 sm:h-48 md:h-56 rounded-full bg-black/50 border border-white/10 p-0.5 sm:p-1 flex flex-col justify-end overflow-hidden shadow-inner cursor-pointer"
           onClick={() => {
             if (!readonly) {
               if (spent < secondThreshold) handleSpendChange(spent + 1);
-              else handleSpendChange(0);
             }
           }}
-          title={!readonly ? `Clique para gastar (-1). Atual: ${currentMana}/${secondThreshold}` : undefined}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!readonly) {
+              handleSpendChange(0);
+            }
+          }}
+          title={!readonly ? `Clique para gastar (-1) • Clique duplo para resetar reserva. Atual: ${currentMana}/${secondThreshold}` : undefined}
         >
           {/* Background Subtle Division Lines */}
           <div className="absolute inset-x-0 bottom-1/4 border-b border-white/[0.04] pointer-events-none" />

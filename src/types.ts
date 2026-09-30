@@ -239,6 +239,18 @@ export type Inventory = {
   currency: Currency;
 };
 
+export type FlowPatronData = {
+  level: number;
+  hp: number; // 0 a 10
+  name?: string;
+  notes?: string;
+};
+
+export type FlowAndPatron = {
+  fluxo: FlowPatronData;
+  patrono: FlowPatronData;
+};
+
 export type CharacterData = {
   identity: Identity;
   alignment: Alignment;
@@ -253,4 +265,5 @@ export type CharacterData = {
   naturezaSpent: NaturezaSpent;
   health: BodyHealth;
   inventory: Inventory;
+  flowAndPatron?: FlowAndPatron;
 };

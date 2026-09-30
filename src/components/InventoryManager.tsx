@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Sword, 
   Shield, 
@@ -1094,6 +1094,14 @@ export const InventoryManager: React.FC<Props> = ({
     return (currency.history || []).slice(0, 3);
   }, [currency.history]);
 
+  useEffect(() => {
+    const handleTouch = () => {
+      setHoveredTooltip(null);
+    };
+    window.addEventListener('touchstart', handleTouch, { passive: true });
+    return () => window.removeEventListener('touchstart', handleTouch);
+  }, []);
+
   const handleSelectEquipCategory = (catKey: EquipmentCategoryKey) => {
     setSelectedEquipCategoryKey(catKey);
     const cat = EQUIPMENT_CATEGORIES.find(c => c.key === catKey);
@@ -1129,7 +1137,16 @@ export const InventoryManager: React.FC<Props> = ({
   // ---------------------------------------------------------------------------
   // HOVER & MOUSE MOVE DINÂMICO PARA O TOOLTIP FLUTUANTE
   // ---------------------------------------------------------------------------
+  const isTouchDevice = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(hover: none), (pointer: coarse)').matches || window.innerWidth < 768;
+  };
+
   const handleItemMouseMove = (item: AnyItem, e: React.MouseEvent) => {
+    if (isTouchDevice() || selectedItem || slotPickerTarget || editingItem || isAddModalOpen || isCurrencyModalOpen || isHistoryModalOpen) {
+      if (hoveredTooltip) setHoveredTooltip(null);
+      return;
+    }
     const tooltipWidth = 320;
     const tooltipHeight = 420;
     const padding = 16;
@@ -1152,6 +1169,10 @@ export const InventoryManager: React.FC<Props> = ({
   };
 
   const handleSlotMouseMove = (slotDef: SlotDefinition, e: React.MouseEvent) => {
+    if (isTouchDevice() || selectedItem || slotPickerTarget || editingItem || isAddModalOpen || isCurrencyModalOpen || isHistoryModalOpen) {
+      if (hoveredTooltip) setHoveredTooltip(null);
+      return;
+    }
     const tooltipWidth = 280;
     const tooltipHeight = 160;
     const padding = 16;
@@ -1462,17 +1483,19 @@ export const InventoryManager: React.FC<Props> = ({
                 <span className="text-white/50 uppercase ml-1">({item.thrust.type})</span>
                 <div className="text-[10px] text-white/60">AP {item.thrust.ap} • Prec. +{item.thrust.precision}</div>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRollDamage(item.name, 'Estocada', item.thrust.damage, item.thrust.type, item.thrust.ap, item.thrust.precision);
-                }}
-                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1 transition-all"
-                title="Rolar dano de estocada"
-              >
-                <Dices size={12} />
-                <span>Rolar</span>
-              </button>
+              {readonly && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRollDamage(item.name, 'Estocada', item.thrust.damage, item.thrust.type, item.thrust.ap, item.thrust.precision);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1 transition-all cursor-pointer"
+                  title="Rolar dano de estocada"
+                >
+                  <Dices size={12} />
+                  <span>Rolar</span>
+                </button>
+              )}
             </div>
 
             <div className="h-px bg-amber-500/20" />
@@ -1484,17 +1507,19 @@ export const InventoryManager: React.FC<Props> = ({
                 <span className="text-white/50 uppercase ml-1">({item.swing.type})</span>
                 <div className="text-[10px] text-white/60">AP {item.swing.ap} • Prec. +{item.swing.precision}</div>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRollDamage(item.name, 'Golpe', item.swing.damage, item.swing.type, item.swing.ap, item.swing.precision);
-                }}
-                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1 transition-all"
-                title="Rolar dano de golpe"
-              >
-                <Dices size={12} />
-                <span>Rolar</span>
-              </button>
+              {readonly && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRollDamage(item.name, 'Golpe', item.swing.damage, item.swing.type, item.swing.ap, item.swing.precision);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1 transition-all cursor-pointer"
+                  title="Rolar dano de golpe"
+                >
+                  <Dices size={12} />
+                  <span>Rolar</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1544,7 +1569,7 @@ export const InventoryManager: React.FC<Props> = ({
                   <button
                     onClick={(e) => { e.stopPropagation(); adjustArmorDurability(item.id, -1); }}
                     disabled={item.durabilityCurrent <= 0}
-                    className="p-1 rounded bg-white/5 hover:bg-white/15 text-slate-300 disabled:opacity-30"
+                    className="p-1 rounded bg-white/5 hover:bg-white/15 text-slate-300 disabled:opacity-30 cursor-pointer"
                     title="Diminuir Durabilidade"
                   >
                     <Minus size={10} />
@@ -1552,7 +1577,7 @@ export const InventoryManager: React.FC<Props> = ({
                   <button
                     onClick={(e) => { e.stopPropagation(); adjustArmorDurability(item.id, 1); }}
                     disabled={item.durabilityCurrent >= item.durabilityMax}
-                    className="p-1 rounded bg-white/5 hover:bg-white/15 text-slate-300 disabled:opacity-30"
+                    className="p-1 rounded bg-white/5 hover:bg-white/15 text-slate-300 disabled:opacity-30 cursor-pointer"
                     title="Reparar Durabilidade"
                   >
                     <Plus size={10} />
@@ -1572,17 +1597,19 @@ export const InventoryManager: React.FC<Props> = ({
               <span className="text-white/50 uppercase ml-1">({item.type})</span>
               <div className="text-[10px] text-white/60">AP {item.ap} • Prec. +{item.precision}</div>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRollDamage(item.name, 'Disparo', item.damage, item.type, item.ap, item.precision);
-              }}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1 transition-all"
-              title="Disparar Projétil"
-            >
-              <Dices size={12} />
-              <span>Disparar</span>
-            </button>
+            {readonly && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRollDamage(item.name, 'Disparo', item.damage, item.type, item.ap, item.precision);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1 transition-all cursor-pointer"
+                title="Disparar Projétil"
+              >
+                <Dices size={12} />
+                <span>Disparar</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -1717,6 +1744,7 @@ export const InventoryManager: React.FC<Props> = ({
         {/* Caixa de Equipamento Estilo WoW */}
         <button
           onClick={() => {
+            setHoveredTooltip(null);
             if (equippedItem) {
               setSelectedItem(equippedItem);
             } else {
@@ -1812,8 +1840,7 @@ export const InventoryManager: React.FC<Props> = ({
         <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-violet-500/10 rounded-full blur-[90px] pointer-events-none" />
 
         {/* Topo do Painel de Equipamentos */}
-        <div className="flex flex-col gap-3.5 border-b border-white/10 pb-4 relative z-10">
-          {/* Linha 1: Ícone com altura de 2 linhas e Título */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-4 relative z-10">
           <div className="flex items-center gap-3">
             {/* Ícone com altura de 2 linhas */}
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
@@ -1831,40 +1858,6 @@ export const InventoryManager: React.FC<Props> = ({
                 <span>{EQUIPMENT_SLOTS.filter(s => equippedBySlot.has(s.id)).length} / 14 equipados</span>
                 <span className="text-white/20">·</span>
                 <span>Carga: <strong className="text-amber-300 font-semibold">{formatWeight(equippedWeightG)}</strong></span>
-              </div>
-            </div>
-          </div>
-
-          {/* Linha 2 Dedicada: Soma da Defesa Ativa Consolidada em sua própria linha */}
-          <div className="w-full bg-black/60 border border-white/10 px-3.5 sm:px-4 py-2 rounded-2xl flex items-center justify-between gap-2 overflow-x-auto shadow-sm scrollbar-none">
-            <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase tracking-wider shrink-0 mr-1">
-              <Shield size={15} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-              <span className="hidden sm:inline">Defesa Consolidada:</span>
-            </div>
-            <div className="flex items-center gap-3 sm:gap-4 text-xs font-mono shrink-0 ml-auto">
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] uppercase tracking-wider text-white/40">Corte</span>
-                <span className="font-bold text-cyan-300">+{activeDefense.sumSlashing}</span>
-              </div>
-              <div className="flex flex-col items-center border-l border-white/10 pl-3 sm:pl-4">
-                <span className="text-[9px] uppercase tracking-wider text-white/40">Esmag.</span>
-                <span className="font-bold text-cyan-300">+{activeDefense.sumBludgeoning}</span>
-              </div>
-              <div className="flex flex-col items-center border-l border-white/10 pl-3 sm:pl-4">
-                <span className="text-[9px] uppercase tracking-wider text-white/40">Perf.</span>
-                <span className="font-bold text-cyan-300">+{activeDefense.sumPiercing}</span>
-              </div>
-              <div className="flex flex-col items-center border-l border-white/10 pl-3 sm:pl-4">
-                <span className="text-[9px] uppercase tracking-wider text-white/40">Cob.</span>
-                <span className="font-bold text-amber-300">{activeDefense.maxCoverage}</span>
-              </div>
-              <div className="flex flex-col items-center border-l border-white/10 pl-3 sm:pl-4">
-                <span className="text-[9px] uppercase tracking-wider text-white/40">Res.</span>
-                <span className="font-bold text-emerald-300">{activeDefense.maxResistance}</span>
-              </div>
-              <div className="flex flex-col items-center border-l border-white/10 pl-3 sm:pl-4">
-                <span className="text-[9px] uppercase tracking-wider text-amber-400/60">Equipado</span>
-                <span className="font-bold text-amber-300">{formatWeight(equippedWeightG)}</span>
               </div>
             </div>
           </div>
@@ -2149,7 +2142,10 @@ export const InventoryManager: React.FC<Props> = ({
                 return (
                   <button
                     key={`${item.category}_${item.id}`}
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => {
+                      setHoveredTooltip(null);
+                      setSelectedItem(item);
+                    }}
                     onDoubleClick={(e) => {
                       e.preventDefault();
                       toggleEquipAuto(item);
@@ -2204,7 +2200,10 @@ export const InventoryManager: React.FC<Props> = ({
                 return (
                   <div
                     key={`list_${item.category}_${item.id}`}
-                    onClick={() => setSelectedItem(item)}
+                    onClick={() => {
+                      setHoveredTooltip(null);
+                      setSelectedItem(item);
+                    }}
                     onDoubleClick={(e) => {
                       e.preventDefault();
                       toggleEquipAuto(item);
@@ -2299,7 +2298,7 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {/* 4. HOVER-BASED TOOLTIP FLUTUANTE (BORDA SEGUE A COR DA RARIDADE DO ITEM) */}
       {/* ========================================================================= */}
-      {hoveredTooltip && (
+      {hoveredTooltip && !selectedItem && !slotPickerTarget && !editingItem && !isAddModalOpen && !isCurrencyModalOpen && !isHistoryModalOpen && (
         <div 
           className="fixed z-50 pointer-events-none p-4 rounded-2xl bg-[#080512]/98 backdrop-blur-md w-80 animate-in fade-in duration-100 transition-all select-none"
           style={{
@@ -2352,7 +2351,7 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {slotPickerTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0c0818] border border-amber-500/40 rounded-3xl max-w-md w-full p-5 max-h-[85vh] flex flex-col gap-4 shadow-2xl">
+          <div className="bg-[#0c0818] border border-amber-500/40 rounded-3xl max-w-md w-full p-5 max-h-[85vh] flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                 <ArrowRightLeft size={16} />
@@ -2360,7 +2359,7 @@ export const InventoryManager: React.FC<Props> = ({
                   Equipar no Espaço: {EQUIPMENT_SLOTS.find(s => s.id === slotPickerTarget)?.label}
                 </span>
               </div>
-              <button onClick={() => setSlotPickerTarget(null)} className="text-white/40 hover:text-white">
+              <button onClick={() => setSlotPickerTarget(null)} className="text-white/40 hover:text-white cursor-pointer">
                 <X size={18} />
               </button>
             </div>
@@ -2432,7 +2431,7 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/30 rounded-3xl max-w-xl w-full p-5 sm:p-6 max-h-[92vh] overflow-y-auto shadow-2xl flex flex-col gap-4 text-xs">
+          <div className="bg-[#0b0816] border border-amber-500/30 rounded-3xl max-w-xl w-full p-5 sm:p-6 max-h-[92vh] overflow-y-auto shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                 <Plus size={18} className="stroke-[2.5]" />
@@ -2802,7 +2801,7 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {isCurrencyModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs">
+          <div className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                 <Coins size={18} />
@@ -2956,7 +2955,7 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {isHistoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs">
+          <div className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                 <History size={18} />
@@ -3021,13 +3020,13 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/40 rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col gap-4">
+          <div className="bg-[#0b0816] border border-amber-500/40 rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200 ease-out">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                 <Edit3 size={16} />
                 <span>Editar Propriedades do Item</span>
               </div>
-              <button onClick={() => setEditingItem(null)} className="text-white/40 hover:text-white">
+              <button onClick={() => setEditingItem(null)} className="text-white/40 hover:text-white cursor-pointer">
                 <X size={18} />
               </button>
             </div>

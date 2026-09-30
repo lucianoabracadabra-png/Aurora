@@ -199,7 +199,7 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
   };
 
   return (
-    <div className="relative">
+    <div className="relative transition-all duration-500 ease-in-out">
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -208,63 +208,69 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
         className="hidden" 
       />
 
-      {expanded ? (
-        <div className="flex flex-col sm:flex-row gap-5 items-center sm:items-start">
-          {/* Retrato 16:9 Vertical */}
-          <div className="identity-image-container flex flex-col items-center shrink-0">
-            <div 
-              id="character-portrait-card"
-              className="relative aspect-[9/16] w-36 sm:w-40 md:w-44 rounded-2xl overflow-hidden border border-white/10 bg-black/60 shadow-[0_12px_32px_rgba(0,0,0,0.7)] group/portrait cursor-pointer select-none transition-all duration-300 hover:border-violet-400/40 hover:shadow-[0_12px_32px_rgba(139,92,246,0.25)]"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLightbox(true);
-              }}
-              title={readonly ? "Clique para ver em tela cheia (16:9 vertical)" : "Retrato do Personagem (16:9 vertical)"}
-            >
-              <img 
-                src={imageSrc} 
-                alt={data.name || 'Retrato do Personagem'} 
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover transition-transform duration-500 group-hover/portrait:scale-105" 
-              />
-              
-              {/* Degradê superior e inferior */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/30 pointer-events-none" />
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-center sm:items-start transition-all duration-500 ease-in-out">
+        {/* Retrato 16:9 Vertical com transição suave de escala */}
+        <div className="identity-image-container flex flex-col items-center shrink-0 transition-all duration-500 ease-in-out">
+          <div 
+            id="character-portrait-card"
+            className={`relative aspect-[9/16] rounded-2xl overflow-hidden border border-white/10 bg-black/60 shadow-[0_12px_32px_rgba(0,0,0,0.7)] group/portrait cursor-pointer select-none transition-all duration-500 ease-in-out hover:border-violet-400/40 hover:shadow-[0_12px_32px_rgba(139,92,246,0.25)] ${
+              expanded 
+                ? 'w-36 sm:w-40 md:w-44' 
+                : 'w-14 sm:w-16'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLightbox(true);
+            }}
+            title={readonly ? "Clique para ver em tela cheia (16:9 vertical)" : "Retrato do Personagem (16:9 vertical)"}
+          >
+            <img 
+              src={imageSrc} 
+              alt={data.name || 'Retrato do Personagem'} 
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover/portrait:scale-105" 
+            />
+            
+            {/* Degradê superior e inferior */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/30 pointer-events-none" />
 
-              {/* Ícone de zoom para abrir lightbox */}
-              <div className="absolute top-2 right-2 p-1.5 rounded-md bg-black/50 backdrop-blur-md border border-white/10 text-white/70 opacity-0 group-hover/portrait:opacity-100 transition-opacity">
-                <ZoomIn size={12} />
-              </div>
+            {/* Ícone de zoom para abrir lightbox */}
+            <div className="absolute top-2 right-2 p-1.5 rounded-md bg-black/50 backdrop-blur-md border border-white/10 text-white/70 opacity-0 group-hover/portrait:opacity-100 transition-opacity">
+              <ZoomIn size={12} />
+            </div>
 
-              {/* Nome do personagem no rodapé do retrato */}
-              <div className="absolute bottom-2.5 inset-x-2 text-center pointer-events-none">
+            {/* Nome do personagem no rodapé do retrato (apenas expandido) */}
+            {expanded && (
+              <div className="absolute bottom-2.5 inset-x-2 text-center pointer-events-none transition-opacity duration-300">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-violet-200 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] truncate block">
                   {data.name || 'Personagem'}
                 </span>
               </div>
+            )}
 
-              {/* Botão de edição sobre a imagem quando não readonly */}
-              {!readonly && (
-                <div 
-                  className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover/portrait:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  <div className="p-2.5 rounded-full bg-violet-500/90 text-white shadow-[0_0_15px_rgba(139,92,246,0.6)]">
-                    <Camera size={18} />
-                  </div>
-                  <span className="text-[10px] text-white font-semibold uppercase tracking-wider text-center">
-                    Trocar Foto
-                  </span>
+            {/* Botão de edição sobre a imagem quando não readonly e expandido */}
+            {!readonly && expanded && (
+              <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover/portrait:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+              >
+                <div className="p-2.5 rounded-full bg-violet-500/90 text-white shadow-[0_0_15px_rgba(139,92,246,0.6)]">
+                  <Camera size={18} />
                 </div>
-              )}
-            </div>
+                <span className="text-[10px] text-white font-semibold uppercase tracking-wider text-center">
+                  Trocar Foto
+                </span>
+              </div>
+            )}
+          </div>
 
-            {/* Ações da imagem no modo edição */}
-            {!readonly && (
-              <div className="flex items-center gap-1.5 mt-2 w-full justify-center">
+          {/* Ações da imagem no modo edição com animação de expansão */}
+          {!readonly && (
+            <div className={`grid transition-all duration-500 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0 pointer-events-none'}`}>
+              <div className="overflow-hidden flex items-center gap-1.5 w-full justify-center">
                 <button
                   id="btn-upload-portrait"
                   type="button"
@@ -308,63 +314,63 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
                   </button>
                 )}
               </div>
-            )}
+            </div>
+          )}
+        </div>
+
+        {/* Campos de Identidade com transição suave */}
+        <div className="flex-1 min-w-0 w-full flex flex-col gap-2.5 transition-all duration-500 ease-in-out">
+          {/* Linha principal: Sempre visível (Nome) */}
+          <div className="w-full">
+            <InlineInput fullWidth label="Nome" value={data.name} onChange={(v) => update('name', v)} readonly={readonly} />
           </div>
 
-          {/* Campos de Identidade ao lado */}
-          <div className="flex-1 min-w-0 w-full grid grid-cols-2 gap-x-4 gap-y-3">
-            <InlineInput fullWidth label="Nome" value={data.name} onChange={(v) => update('name', v)} readonly={readonly} />
-            <InlineInput label="Altura" value={data.height} onChange={(v) => update('height', v)} readonly={readonly} />
-            <InlineInput label="Peso" value={data.weight} onChange={(v) => update('weight', v)} readonly={readonly} />
-            <InlineInput label="Cabelo" value={data.hair} onChange={(v) => update('hair', v)} readonly={readonly} />
-            <InlineInput label="Olhos" value={data.eyes} onChange={(v) => update('eyes', v)} readonly={readonly} />
-            <InlineInput label="Pele" value={data.skin} onChange={(v) => update('skin', v)} readonly={readonly} />
-            <InlineInput label="Idade" value={data.age} onChange={(v) => update('age', v)} readonly={readonly} />
+          {/* Campos intermediários expansíveis: Altura, Peso, Cabelo, Olhos, Pele, Idade */}
+          <div className={`grid transition-all duration-500 ease-in-out ${
+            expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+          }`}>
+            <div className="overflow-hidden grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+              <InlineInput label="Altura" value={data.height} onChange={(v) => update('height', v)} readonly={readonly} />
+              <InlineInput label="Peso" value={data.weight} onChange={(v) => update('weight', v)} readonly={readonly} />
+              <InlineInput label="Cabelo" value={data.hair} onChange={(v) => update('hair', v)} readonly={readonly} />
+              <InlineInput label="Olhos" value={data.eyes} onChange={(v) => update('eyes', v)} readonly={readonly} />
+              <InlineInput label="Pele" value={data.skin} onChange={(v) => update('skin', v)} readonly={readonly} />
+              <InlineInput label="Idade" value={data.age} onChange={(v) => update('age', v)} readonly={readonly} />
+            </div>
+          </div>
+
+          {/* Ideais: Sempre visível */}
+          <div className="w-full">
             <InlineInput fullWidth label="Ideais" value={data.ideals} onChange={(v) => update('ideals', v)} readonly={readonly} />
-            <InlineInput fullWidth label="Origem" value={data.origin} onChange={(v) => update('origin', v)} readonly={readonly} />
+          </div>
+
+          {/* Origem: Apenas no modo expandido */}
+          <div className={`grid transition-all duration-500 ease-in-out ${
+            expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+          }`}>
+            <div className="overflow-hidden w-full pt-1">
+              <InlineInput fullWidth label="Origem" value={data.origin} onChange={(v) => update('origin', v)} readonly={readonly} />
+            </div>
+          </div>
+
+          {/* Seletor de Idiomas: Sempre visível */}
+          <div className="w-full">
             <LanguageSelector selectedLanguages={data.languages} onChange={(v) => update('languages', v)} readonly={readonly} />
           </div>
         </div>
-      ) : (
-        /* Modo recolhido */
-        <div className="flex gap-4 items-center">
-          <div 
-            id="character-portrait-thumb"
-            className="identity-image-container relative aspect-[9/16] w-14 sm:w-16 rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-md shrink-0 cursor-pointer group/thumb hover:border-violet-400/40 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowLightbox(true);
-            }}
-            title="Clique para ver o retrato completo (16:9 vertical)"
-          >
-            <img 
-              src={imageSrc} 
-              alt={data.name || 'Retrato'} 
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300" 
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 pointer-events-none" />
-          </div>
-
-          <div className="flex-1 min-w-0 flex flex-col gap-2">
-            <InlineInput fullWidth label="Nome" value={data.name} onChange={(v) => update('name', v)} readonly={readonly} />
-            <InlineInput fullWidth label="Ideais" value={data.ideals} onChange={(v) => update('ideals', v)} readonly={readonly} />
-            <LanguageSelector selectedLanguages={data.languages} onChange={(v) => update('languages', v)} readonly={readonly} />
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Lightbox / Visualização em tela cheia do retrato */}
       {showLightbox && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
           onClick={(e) => {
             e.stopPropagation();
             setShowLightbox(false);
           }}
         >
           <div 
-            className="relative flex flex-col items-center max-h-[92vh] max-w-sm w-full"
+            className="relative flex flex-col items-center max-h-[92vh] max-w-sm w-full animate-in fade-in zoom-in-95 duration-200 ease-out"
             onClick={(e) => e.stopPropagation()}
           >
             <button

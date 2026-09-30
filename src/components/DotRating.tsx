@@ -28,10 +28,10 @@ export const DotRating: React.FC<DotRatingProps> = ({
   return (
     <div 
       onClick={() => {
-        if (onRoll) onRoll();
+        if (readonly && onRoll) onRoll();
       }}
       className={`relative flex flex-col justify-between gap-2 p-2.5 rounded-xl border border-white/5 bg-white/[0.015] transition-all duration-200 group/skill ${
-        onRoll ? 'cursor-pointer hover:bg-white/[0.05] hover:border-white/15 active:scale-[0.99]' : ''
+        readonly && onRoll ? 'cursor-pointer hover:bg-white/[0.05] hover:border-white/15 active:scale-[0.99]' : ''
       }`}
     >
       <div className="flex items-center justify-between">

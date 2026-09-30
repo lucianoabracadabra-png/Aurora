@@ -16,7 +16,8 @@ import {
   CheckCircle2, 
   ChevronRight,
   Swords,
-  ScrollText
+  ScrollText,
+  Crown
 } from 'lucide-react';
 
 interface UserGuideModalProps {
@@ -104,12 +105,20 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       description: 'Filtre itens por Todas, Armas, Armaduras, Projéteis, Acessórios ou Gerais. Use a barra de busca e ordene por Nome, Peso ou Quantidade para achar suprimentos rapidamente.'
     },
     {
+      id: 'traits_modal',
+      category: 'modes',
+      title: 'Vantagens & Desvantagens',
+      badge: 'Janela de Detalhes',
+      icon: <Sparkles size={16} className="text-emerald-400" />,
+      description: 'Clicar em qualquer Vantagem ou Desvantagem abre um modal com o Título, Valor em pontos e a Caixa de Texto com todos os detalhes e regras do traço.'
+    },
+    {
       id: 'natureza_tracker',
       category: 'health',
-      title: 'Pontos de Natureza (Corpo, Mente, Alma)',
-      badge: 'Rastreamento',
-      icon: <Sparkles size={16} className="text-violet-400" />,
-      description: 'Clique nos círculos de Natureza para alternar entre pontos gastos e recuperados durante o uso de magias, habilidades especiais e testes de esforço.'
+      title: 'Reserva Elemental de Natureza',
+      badge: 'Atalhos de Reset',
+      icon: <Sparkles size={16} className="text-cyan-400" />,
+      description: 'Clique 1 vez no ícone do elemento para restaurar toda a reserva de Natureza. Na câmara vertical de fluido, clique 1 vez para gastar 1 ponto (-1) e 2 vezes (duplo clique) na caixa para resetá-la.'
     },
     {
       id: 'health_tracker',
@@ -118,6 +127,14 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'Sobrevivência',
       icon: <Heart size={16} className="text-rose-400" />,
       description: 'Controle a vida atual e máxima, aplique dano/cura rápida e acompanhe penalidades de condições físicas e sangramento.'
+    },
+    {
+      id: 'flow_patron',
+      category: 'health',
+      title: 'Fluxo e Patrono',
+      badge: 'Nível - PV = Mod',
+      icon: <Crown size={16} className="text-amber-400" />,
+      description: 'Caixas com Nível e 10 Pontos de Vida (PV). O Modificador é calculado automaticamente pela fórmula: Modificador = Nível - PV.'
     },
     {
       id: 'parallax_universe',

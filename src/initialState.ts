@@ -502,5 +502,19 @@ export const initialCharacterData: CharacterData = {
         { id: 'tx-3', type: 'income', amount: 30, coin: 'copper', reason: 'Venda de espólio', timestamp: Date.now() - 3600000 }
       ]
     }
+  },
+  flowAndPatron: {
+    fluxo: {
+      level: 3,
+      hp: 10,
+      name: 'Fluxo Cósmico',
+      notes: 'Corrente contínua de éter que atravessa o arcano.'
+    },
+    patrono: {
+      level: 4,
+      hp: 10,
+      name: 'Guardião do Pilar Igbalim',
+      notes: 'Entidade solar ancestral que concedeu a bênção de sangue.'
+    }
   }
 };
