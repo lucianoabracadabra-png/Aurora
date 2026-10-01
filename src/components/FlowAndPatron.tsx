@@ -65,35 +65,15 @@ const FlowPatronBox: React.FC<BoxCardProps> = ({
   const formattedMod = modifier >= 0 ? `+${modifier}` : `${modifier}`;
 
   return (
-    <div className={`flex flex-col bg-[#050508]/40 backdrop-blur-xl border rounded-[2rem] p-5 transition-all duration-300 shadow-[0_8px_32px_rgba(0,0,0,0.3)] relative overflow-hidden gap-3.5 ${themeStyles.border}`}>
+    <div className={`flex flex-col bg-[#050508]/40 backdrop-blur-xl border rounded-[2rem] p-5 sm:p-6 transition-all duration-300 shadow-[0_8px_32px_rgba(0,0,0,0.3)] relative overflow-hidden gap-4 ${themeStyles.border}`}>
       {/* Subtle Glow */}
       <div className={`absolute -top-10 -right-10 w-28 h-28 rounded-full ${themeStyles.bgGlow} blur-2xl pointer-events-none`} />
 
-      {/* Header: Ícone, Título, Nome e Apenas 'MOD' */}
+      {/* Header: Título Apenas (Sem Ícone, Sem Subtítulo) e MOD na Direita */}
       <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 relative z-10">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 ${themeStyles.iconBg}`}>
-            {type === 'fluxo' ? <Activity size={20} /> : <Crown size={20} />}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.titleColor}`}>
-              {title}
-            </span>
-            {!readonly ? (
-              <input
-                type="text"
-                value={data.name || ''}
-                onChange={(e) => update('name', e.target.value)}
-                placeholder={defaultName}
-                className="text-xs font-semibold text-white bg-transparent border-b border-white/10 focus:border-white/40 focus:outline-none py-0.5 max-w-[170px] truncate"
-              />
-            ) : (
-              <h4 className="text-xs font-bold text-white truncate">
-                {displayName}
-              </h4>
-            )}
-          </div>
-        </div>
+        <span className={`text-xs uppercase font-bold tracking-[0.2em] ${themeStyles.titleColor}`}>
+          {title}
+        </span>
 
         {/* Exibição Única de MOD */}
         <div 

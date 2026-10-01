@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  X, 
   HelpCircle, 
   Dice5, 
   Lock, 
-  Unlock, 
   Coins, 
   ShieldCheck, 
   Sparkles, 
@@ -14,11 +12,13 @@ import {
   Layers, 
   MousePointer, 
   CheckCircle2, 
-  ChevronRight,
+  X,
   Swords,
   ScrollText,
   Crown
 } from 'lucide-react';
+import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
 
 interface UserGuideModalProps {
   isOpen: boolean;
@@ -29,16 +29,22 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<'all' | 'rolls' | 'modes' | 'currency' | 'equip' | 'health'>('all');
 
-  if (!isOpen) return null;
-
   const guideItems = [
+    {
+      id: 'mode_toggle',
+      category: 'modes',
+      title: 'Modo de Jogo (🔒) vs. Modo de Edição (🔓)',
+      badge: 'Cadeado no Cabeçalho',
+      icon: <Lock size={16} className="text-emerald-400" />,
+      description: 'O ícone de cadeado no topo da ficha alterna os modos: no Modo de Jogo (🔒 verde), os campos ficam protegidos contra edições acidentais e o clique simples nos atributos, perícias e armas ativa rolagens diretas de dados. No Modo Editar (🔓 vermelho), você altera pontos, níveis, edita biografias e adiciona itens.'
+    },
     {
       id: 'rolls_attributes',
       category: 'rolls',
       title: 'Rolagem Rápida de Atributos',
-      badge: 'Clique Simples',
+      badge: 'Clique no Atributo',
       icon: <Dice5 size={16} className="text-rose-400" />,
-      description: 'Com o cadeado trancado (Modo de Jogo), clicar no bloco de qualquer atributo (Físico, Destreza, Mente) abre automaticamente o rolador de dados com o modificador correspondente pré-carregado.'
+      description: 'Com o cadeado trancado (🔒 Modo de Jogo), clicar no bloco de qualquer atributo (Força, Destreza, Inteligência, Empatia, etc.) abre automaticamente o rolador com a reserva de dados correspondente.'
     },
     {
       id: 'rolls_skills',
@@ -46,103 +52,135 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       title: 'Testes de Perícias & Subperícias',
       badge: 'Clique na Perícia',
       icon: <ScrollText size={16} className="text-cyan-400" />,
-      description: 'Ao clicar sobre qualquer perícia (Treinamentos, Ciências, Artes ou Perícias Customizadas), o rolador de dados calcula o bônus somando os pontos da perícia ao atributo associado.'
+      description: 'Ao clicar sobre qualquer perícia (Treinamentos, Ciências, Artes ou Perícias Customizadas), o rolador calcula a reserva somando os pontos da perícia ao atributo base associado.'
     },
     {
       id: 'rolls_weapons',
       category: 'rolls',
       title: 'Ataques & Dano de Armas',
-      badge: 'Ação Rápida',
+      badge: 'Clique na Fórmula de Dano',
       icon: <Swords size={16} className="text-amber-400" />,
-      description: 'Nas armas equipadas ou na mochila, os valores de Estocada e Balanço (ex: 1d10, 1d6) podem ser clicados para rolar o dano diretamente com bônus de penetração (AP) e precisão.'
+      description: 'Nas armas equipadas ou na mochila, clicar nas fórmulas de Estocada e Balanço (ex: 1d10, 1d6) aciona a rolagem de dano direta com os bônus de penetração de armadura (AP) e precisão.'
     },
     {
-      id: 'mode_toggle',
-      category: 'modes',
-      title: 'Modo de Jogo vs. Modo de Edição',
-      badge: 'Ícone de Cadeado',
-      icon: <Lock size={16} className="text-emerald-400" />,
-      description: 'O ícone de cadeado no topo da ficha alterna entre Modo de Jogo (🔒 verde - ideal para a sessão, protege valores contra cliques acidentais e ativa atalhos de rolagem) e Modo de Edição (🔓 vermelho - permite alterar pontos, adicionar itens e editar biografias).'
-    },
-    {
-      id: 'currency_system',
-      category: 'currency',
-      title: 'Bolsa de Riquezas & Conversão Automática',
-      badge: 'Regra 100:1',
-      icon: <Coins size={16} className="text-amber-400" />,
-      description: 'A economia é estritamente normalizada: 100 Cobre (C) viram 1 Prata (P); 100 Prata (P) viram 1 Ouro (O). Prata e Cobre sempre ficam no intervalo de 0 a 99.'
-    },
-    {
-      id: 'currency_movement',
-      category: 'currency',
-      title: 'Movimentar Moedas (+ / -)',
-      badge: 'Botão [+]',
-      icon: <Coins size={16} className="text-amber-300" />,
-      description: 'O botão [+] ao lado das moedas abre o painel direto: alterne o sinal no toggle [+ / -] e digite a quantidade desejada de Ouro, Prata ou Cobre. O sistema calcula a conversão e registra a transação.'
-    },
-    {
-      id: 'currency_history',
-      category: 'currency',
-      title: 'Histórico de Transações',
-      badge: 'Botão [≡]',
-      icon: <ScrollText size={16} className="text-amber-300" />,
-      description: 'O botão de lista [≡] ao lado do [+] abre o histórico completo com todas as entradas e saídas de moedas, valores, datas e descrições das transações.'
-    },
-    {
-      id: 'equipment_slots',
-      category: 'equip',
-      title: 'Espaços de Equipamento & Defesa',
-      badge: '14 Slots Ativos',
-      icon: <ShieldCheck size={16} className="text-cyan-400" />,
-      description: 'Clicar em um slot de equipamento vazio permite equipar um item existente da mochila ou criar um novo item pré-formatado. A barra superior soma automaticamente os valores de Corte, Esmagamento, Perfuração, Cobertura e Resistência.'
-    },
-    {
-      id: 'backpack_categories',
-      category: 'equip',
-      title: 'Mochila & Filtros Rápidos',
-      badge: 'Organização',
-      icon: <Layers size={16} className="text-violet-400" />,
-      description: 'Filtre itens por Todas, Armas, Armaduras, Projéteis, Acessórios ou Gerais. Use a barra de busca e ordene por Nome, Peso ou Quantidade para achar suprimentos rapidamente.'
-    },
-    {
-      id: 'traits_modal',
-      category: 'modes',
-      title: 'Vantagens & Desvantagens',
-      badge: 'Janela de Detalhes',
-      icon: <Sparkles size={16} className="text-emerald-400" />,
-      description: 'Clicar em qualquer Vantagem ou Desvantagem abre um modal com o Título, Valor em pontos e a Caixa de Texto com todos os detalhes e regras do traço.'
-    },
-    {
-      id: 'natureza_tracker',
+      id: 'health_tracker_click',
       category: 'health',
-      title: 'Reserva Elemental de Natureza',
-      badge: 'Atalhos de Reset',
-      icon: <Sparkles size={16} className="text-cyan-400" />,
-      description: 'Clique 1 vez no ícone do elemento para restaurar toda a reserva de Natureza. Na câmara vertical de fluido, clique 1 vez para gastar 1 ponto (-1) e 2 vezes (duplo clique) na caixa para resetá-la.'
-    },
-    {
-      id: 'health_tracker',
-      category: 'health',
-      title: 'Saúde & Estados de Ferimento',
-      badge: 'Sobrevivência',
+      title: 'Dano do Corpo: Clique Simples nas Caixas',
+      badge: 'Clique para Alternar Dano',
       icon: <Heart size={16} className="text-rose-400" />,
-      description: 'Controle a vida atual e máxima, aplique dano/cura rápida e acompanhe penalidades de condições físicas e sangramento.'
+      description: 'Clicar em qualquer caixinha de vida altera o estado do ferimento em ciclo: Nenhum (⚪) ➔ Simples (🔵 Azul) ➔ Letal (🟠 Laranja) ➔ Agravado (🔴 Vermelho) ➔ Nenhum.'
+    },
+    {
+      id: 'health_tracker_double_click',
+      category: 'health',
+      title: 'Dano do Corpo: Clique Duplo na Região',
+      badge: 'Clique Duplo para Limpar',
+      icon: <Heart size={16} className="text-rose-300" />,
+      description: 'No Modo Editar (🔓), dar um duplo clique no card de qualquer região do corpo (Cabeça, Torso, Braços ou Pernas) limpa instantaneamente todos os ferimentos acumulados naquela área.'
+    },
+    {
+      id: 'equip_right_click',
+      category: 'equip',
+      title: 'Equipar Rápido na Mochila',
+      badge: 'Botão Direito no Item',
+      icon: <CheckCircle2 size={16} className="text-amber-400" />,
+      description: 'Na mochila, clicar com o botão direito sobre qualquer item (arma, armadura, acessório) equipa-o automaticamente no slot de corpo correto.'
+    },
+    {
+      id: 'equip_double_click',
+      category: 'equip',
+      title: 'Desequipar Slot Rápido',
+      badge: 'Clique Duplo / Botão Direito no Slot',
+      icon: <X size={16} className="text-rose-400" />,
+      description: 'Nos slots de corpo equipados, dar um duplo clique ou clicar com o botão direito desequipa o item diretamente de volta para a mochila.'
+    },
+    {
+      id: 'equip_hover',
+      category: 'equip',
+      title: 'Inspeção Flutuante de Equipamentos',
+      badge: 'Passe o Mouse (Hover)',
+      icon: <ShieldCheck size={16} className="text-cyan-400" />,
+      description: 'Passar o ponteiro do mouse sobre qualquer slot equipado ou item da mochila exibe o card estilo WoW com resumo de defesas, durabilidade, danos e requisitos.'
     },
     {
       id: 'flow_patron',
       category: 'health',
-      title: 'Fluxo e Patrono',
-      badge: 'Nível - PV = Mod',
+      title: 'Fluxo e Patrono: Nível & PV',
+      badge: 'Botões - / + & Riscos',
       icon: <Crown size={16} className="text-amber-400" />,
-      description: 'Caixas com Nível e 10 Pontos de Vida (PV). O Modificador é calculado automaticamente pela fórmula: Modificador = Nível - PV.'
+      description: 'Os botões de - (esquerda) e + (direita) alteram os Pontos de Vida (PV 0-10) ou você pode clicar diretamente nos riscos. A alteração de Nível fica disponível apenas no Modo Editar (🔓). O MOD é calculated automaticamente (MOD = Nível - PV).'
+    },
+    {
+      id: 'natureza_tracker_click',
+      category: 'health',
+      title: 'Reserva de Natureza: Clique no Ícone',
+      badge: 'Restauração Total (100%)',
+      icon: <Sparkles size={16} className="text-cyan-400" />,
+      description: 'Clicar no ícone do elemento (Água, Ar, Anima, Fogo, Terra) no topo do tracker restaura 100% da reserva daquele elemento instantaneamente.'
+    },
+    {
+      id: 'natureza_tracker_spend',
+      category: 'health',
+      title: 'Reserva de Natureza: Clique & Duplo Clique na Câmara',
+      badge: 'Gastar (-1) / Resetar (0)',
+      icon: <Sparkles size={16} className="text-cyan-300" />,
+      description: 'Na câmara vertical de fluido elemental: 1 clique simples gasta 1 ponto de energia (-1). 1 clique duplo zera os pontos gastos (reset de câmara).'
+    },
+    {
+      id: 'mana_controls',
+      category: 'modes',
+      title: 'Reserva de Mana por Eixo (Vigor, Foco, Graça)',
+      badge: 'Controles Rápidos (-5 a +5)',
+      icon: <Sparkles size={16} className="text-violet-400" />,
+      description: 'Use os botões de atalho rápido (-5, -3, -1, +1, +3, +5) para gastar e recuperar mana de cada eixo. O botão de giro (↺) restaura a mana total do eixo.'
+    },
+    {
+      id: 'currency_system',
+      category: 'currency',
+      title: 'Bolsa de Riquezas: Regra de Conversão 100:1',
+      badge: 'Normalização Automática',
+      icon: <Coins size={16} className="text-amber-400" />,
+      description: 'A economia converte moedas automaticamente: 100 Cobre (C) viram 1 Prata (P); 100 Prata (P) viram 1 Ouro (O). Prata e Cobre mantêm-se sempre no intervalo de 0 a 99.'
+    },
+    {
+      id: 'currency_movement',
+      category: 'currency',
+      title: 'Movimentar Moedas & Histórico',
+      badge: 'Botões [+] e [≡]',
+      icon: <Coins size={16} className="text-amber-300" />,
+      description: 'O botão [+] abre o painel para adicionar ou subtrair moedas com cálculo automático. O botão de lista [≡] abre o registro cronológico de todas as transações com data, hora e motivo.'
+    },
+    {
+      id: 'consumables_control',
+      category: 'equip',
+      title: 'Consumíveis & Durabilidade Rápida',
+      badge: 'Controles + / -',
+      icon: <Layers size={16} className="text-sky-400" />,
+      description: 'Nos itens gerais/suprimentos, use os botões + e - diretamente no card para alterar o estoque. Em armaduras, altere a durabilidade sem abrir o modal de edição.'
+    },
+    {
+      id: 'traits_modal',
+      category: 'modes',
+      title: 'Detalhes de Vantagens & Desvantagens',
+      badge: 'Clique no Traço',
+      icon: <Sparkles size={16} className="text-emerald-400" />,
+      description: 'Clicar em qualquer Vantagem ou Desvantagem abre um modal com o Título, Custo em Pontos e a Caixa de Texto descrevendo a regra e o histórico do traço.'
+    },
+    {
+      id: 'personality_roll',
+      category: 'rolls',
+      title: 'Personalidade: Teste ou Edição',
+      badge: 'Clique na Nota',
+      icon: <Dice5 size={16} className="text-violet-400" />,
+      description: 'No Modo de Jogo (🔒), clicar na nota de Coragem, Convicção ou Serenidade rola o teste de personalidade no rolador. No Modo Editar (🔓), altera a nota de 1 a 5.'
     },
     {
       id: 'parallax_universe',
       category: 'modes',
       title: 'Fundo Aurora Galáctica Interativo',
-      badge: '3D Parallax',
+      badge: 'Efeito Parallax 3D',
       icon: <MousePointer size={16} className="text-cyan-300" />,
-      description: 'O fundo cósmico possui 3 camadas de estrelas que reagem suavemente ao movimento do mouse e à gravidade estelar com passagem de cometas.'
+      description: 'O fundo cósmico reage com 3 camadas de estrelas sensíveis ao movimento do mouse, com passagem periódica de cometas cintilantes.'
     }
   ];
 
@@ -156,31 +194,28 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
-      <div className="bg-[#0b0816]/95 border border-white/15 rounded-[2rem] max-w-2xl w-full max-h-[90vh] flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl overflow-hidden">
-        {/* Topo do Modal */}
-        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/40 flex items-center justify-center text-violet-300 shadow-[0_0_12px_rgba(167,139,250,0.3)]">
-              <HelpCircle size={20} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-100 flex items-center gap-2">
-                Guia de Ferramentas & Usabilidade
-              </h3>
-              <p className="text-[11px] text-white/50">Manual de atalhos, rolagens e recursos da Ficha Arcana</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Barra de Busca e Filtros */}
-        <div className="p-4 border-b border-white/5 flex flex-col gap-2.5 bg-black/40">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Guia de Ferramentas & Usabilidade"
+      subtitle="Manual de atalhos, rolagens e recursos da Ficha Arcana"
+      icon={<HelpCircle size={20} />}
+      theme="violet"
+      maxWidth="2xl"
+      footer={
+        <>
+          <span className="text-[11px] text-white/40">
+            Dica: Trave a ficha (🔒) para ativar rolagens de teste com 1 clique.
+          </span>
+          <Button theme="violet" size="sm" onClick={onClose}>
+            Entendido
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {/* Barra de Busca e Filtros Segmentados */}
+        <div className="flex flex-col gap-2.5 p-3 rounded-2xl bg-black/40 border border-white/5">
           <div className="relative">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
             <input
@@ -188,7 +223,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
               placeholder="Buscar atalho, rolagem ou ferramenta..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-black/50 border border-white/10 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-black/60 border border-white/10 rounded-xl pl-9 pr-3.5 py-2 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 transition-colors"
             />
           </div>
 
@@ -203,8 +238,9 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
             ].map(cat => (
               <button
                 key={cat.id}
+                type="button"
                 onClick={() => setActiveCategory(cat.id as any)}
-                className={`px-3 py-1 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === cat.id
                     ? 'bg-violet-500/25 border border-violet-500/50 text-violet-300 shadow-sm'
                     : 'bg-white/5 border border-transparent text-white/60 hover:text-white'
@@ -216,13 +252,13 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
           </div>
         </div>
 
-        {/* Lista de Recursos & Dicas */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3 scrollbar-thin scrollbar-thumb-white/10">
+        {/* Lista de Recursos & Dicas com Nested Radius Harmônico (rounded-xl) */}
+        <div className="flex flex-col gap-2.5">
           {filteredItems.length > 0 ? (
             filteredItems.map(item => (
               <div 
                 key={item.id} 
-                className="bg-black/40 border border-white/10 hover:border-violet-500/30 rounded-2xl p-3.5 flex flex-col gap-1.5 transition-all group shadow-sm"
+                className="bg-black/30 border border-white/10 hover:border-violet-500/30 rounded-xl p-3.5 flex flex-col gap-1.5 transition-all group shadow-xs"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
@@ -249,18 +285,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
             </div>
           )}
         </div>
-
-        {/* Rodapé Informativo */}
-        <div className="px-5 py-3 border-t border-white/10 bg-white/[0.02] flex items-center justify-between text-[11px] text-white/40">
-          <span>Dica: Trave a ficha (🔒) durante a partida para ativar os cliques de teste rápido.</span>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold transition-all cursor-pointer shadow-sm text-xs"
-          >
-            Entendido
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

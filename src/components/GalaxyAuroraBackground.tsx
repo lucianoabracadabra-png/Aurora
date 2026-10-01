@@ -49,7 +49,21 @@ export const GalaxyAuroraBackground: React.FC = () => {
       targetMouse.y = e.clientY;
     };
 
+    // Suporte ao Giroscópio / Inclinômetro de Dispositivos Móveis (Celulares)
+    const handleOrientation = (e: DeviceOrientationEvent) => {
+      if (e.beta !== null && e.gamma !== null) {
+        // gamma: inclinação esquerda/direita (-45º a 45º)
+        // beta: inclinação frente/trás (ajustado para postura de segurar o celular a ~45º)
+        const tiltX = Math.max(-45, Math.min(45, e.gamma));
+        const tiltY = Math.max(-45, Math.min(45, e.beta - 45));
+
+        targetMouse.x = width / 2 + (tiltX / 45) * (width / 2);
+        targetMouse.y = height / 2 + (tiltY / 45) * (height / 2);
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('deviceorientation', handleOrientation, { passive: true });
 
     // Handle Resize
     const handleResize = () => {
@@ -332,6 +346,7 @@ export const GalaxyAuroraBackground: React.FC = () => {
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('deviceorientation', handleOrientation);
       window.removeEventListener('resize', handleResize);
     };
   }, []);

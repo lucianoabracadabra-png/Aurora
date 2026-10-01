@@ -1739,7 +1739,7 @@ export const InventoryManager: React.FC<Props> = ({
         onDoubleClick={() => {
           if (equippedItem) unequipItem(equippedItem);
         }}
-        className="flex items-center gap-3 p-2.5 rounded-2xl bg-[#090616]/90 border border-white/5 hover:border-amber-500/30 transition-all group relative cursor-pointer"
+        className="flex items-center gap-3 p-2.5 rounded-2xl bg-black/40 border border-white/10 hover:border-amber-500/30 transition-all group relative cursor-pointer"
       >
         {/* Caixa de Equipamento Estilo WoW */}
         <button
@@ -1834,31 +1834,22 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {/* 1. SEÇÃO DE ESPAÇOS DE EQUIPAMENTO (DOIS PILARES DE SLOTS)                */}
       {/* ========================================================================= */}
-      <div className="bg-gradient-to-b from-[#0e091c] via-[#090514] to-[#04020a] border border-amber-500/30 rounded-3xl p-5 sm:p-6 shadow-[0_8px_32px_rgba(0,0,0,0.6)] flex flex-col gap-6 relative overflow-hidden">
+      <div className="bg-[#050508]/40 backdrop-blur-xl border border-white/10 hover:border-amber-500/30 rounded-[2rem] p-5 sm:p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)] flex flex-col gap-6 relative overflow-hidden transition-all duration-300">
         {/* Glows Místicos de Fundo */}
         <div className="absolute -top-24 -left-24 w-72 h-72 bg-amber-500/10 rounded-full blur-[90px] pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-violet-500/10 rounded-full blur-[90px] pointer-events-none" />
 
         {/* Topo do Painel de Equipamentos */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4 relative z-10">
-          <div className="flex items-center gap-3">
-            {/* Ícone com altura de 2 linhas */}
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-              <ShieldCheck size={22} className="text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.6)]" />
-            </div>
-
-            {/* Duas Linhas */}
-            <div className="flex flex-col justify-center">
-              {/* Linha de cima: SÓ o título */}
-              <span className="text-xs uppercase font-bold tracking-[0.2em] text-amber-400">
-                Espaços de Equipamento
-              </span>
-              {/* Linha de baixo: resumo de slots e peso */}
-              <div className="flex items-center gap-2 text-[11px] text-white/50 mt-0.5 font-mono">
-                <span>{EQUIPMENT_SLOTS.filter(s => equippedBySlot.has(s.id)).length} / 14 equipados</span>
-                <span className="text-white/20">·</span>
-                <span>Carga: <strong className="text-amber-300 font-semibold">{formatWeight(equippedWeightG)}</strong></span>
-              </div>
+          <div className="flex flex-col justify-center">
+            {/* Linha de cima: SÓ o título */}
+            <span className="text-xs uppercase font-bold tracking-[0.2em] text-amber-400">
+              Espaços de Equipamento
+            </span>
+            {/* Linha de baixo: resumo de slots e peso */}
+            <div className="flex items-center gap-2 text-[11px] text-white/50 mt-0.5 font-mono">
+              <span>{EQUIPMENT_SLOTS.filter(s => equippedBySlot.has(s.id)).length} / 14 equipados</span>
+              <span className="text-white/20">·</span>
+              <span>Carga: <strong className="text-amber-300 font-semibold">{formatWeight(equippedWeightG)}</strong></span>
             </div>
           </div>
         </div>
@@ -1880,18 +1871,14 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {/* 2. MOCHILA DE ITENS (GRID DE CAIXINHAS AO ESTILO WOW)                       */}
       {/* ========================================================================= */}
-      <div className="bg-[#090614] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col gap-5">
+      <div className="bg-[#050508]/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-5 sm:p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)] flex flex-col gap-5 transition-all duration-300">
         {/* Cabeçalho da Mochila */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 aspect-square rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-              <Backpack size={20} className="text-amber-400" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-                Mochila do Aventureiro
-              </h3>
-            </div>
+          <div className="flex items-center gap-2.5">
+            <Backpack size={20} className="text-amber-400 shrink-0 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+            <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
+              Mochila do Aventureiro
+            </h3>
           </div>
 
           {/* Botão de Adicionar Novo Item & Peso da Mochila */}
@@ -1915,65 +1902,63 @@ export const InventoryManager: React.FC<Props> = ({
 
         {/* BOLSA DE RIQUEZAS NO TOPO (O, P, C) */}
         <div className="bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-amber-600/10 border border-amber-500/20 rounded-2xl p-3.5 sm:p-4 flex flex-col gap-3 shadow-sm w-full">
-          {/* Linha 1: Ícone + Título */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 aspect-square rounded-2xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-              <Coins size={20} className="drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-            </div>
+          {/* Linha 1: Título e Botões de Ação Menores (+ e Histórico) + Saldo Consolidado */}
+          <div className="flex items-center justify-between gap-3">
             <span className="text-xs uppercase font-bold tracking-wider text-amber-300 whitespace-nowrap select-none">
               Bolsa de Riquezas
             </span>
-          </div>
 
-          {/* Linha 2: Espalhada uniformemente de ponta a ponta em 5 colunas */}
-          <div className="grid grid-cols-5 gap-2 sm:gap-2.5 w-full items-center">
-            {/* Ouro (O) */}
-            <div className="flex items-center justify-center gap-1.5 bg-black/60 px-2 sm:px-3 py-2 rounded-xl border border-amber-500/30 shadow-inner select-none w-full h-9 sm:h-10" title="Ouro (O)">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)] inline-block shrink-0" />
-              <span className="font-mono font-bold text-amber-300 text-xs sm:text-sm truncate">{normalizedCurrency.gold}</span>
-              <span className="text-[11px] text-amber-400 font-bold uppercase tracking-wider">O</span>
-            </div>
+            {/* Saldo total e botões no canto superior direito */}
+            <div className="flex items-center gap-2">
+              {/* Código de Saldo Total Consolidado ex: 52o08p02c */}
+              <div className="px-2.5 py-1 rounded-lg bg-black/60 border border-amber-500/30 font-mono font-bold text-xs text-amber-300 tracking-wider shadow-inner select-none" title="Saldo Total Consolidado">
+                {`${normalizedCurrency.gold}o${normalizedCurrency.silver.toString().padStart(2, '0')}p${normalizedCurrency.copper.toString().padStart(2, '0')}c`}
+              </div>
 
-            {/* Prata (P) - 0 a 99 (100 P = 1 O) */}
-            <div className="flex items-center justify-center gap-1.5 bg-black/60 px-2 sm:px-3 py-2 rounded-xl border border-slate-300/30 shadow-inner select-none w-full h-9 sm:h-10" title="Prata (P) - 0 a 99 (100 P vira 1 O)">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.8)] inline-block shrink-0" />
-              <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm truncate">{normalizedCurrency.silver}</span>
-              <span className="text-[11px] text-slate-300 font-bold uppercase tracking-wider">P</span>
-            </div>
+              {!readonly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoveOpType('income');
+                    setIsCurrencyModalOpen(true);
+                  }}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-300 hover:text-amber-100 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center transition-all shadow-[0_0_10px_rgba(245,158,11,0.2)] cursor-pointer"
+                  title="Movimentar Moedas (Incrementar / Decrementar)"
+                >
+                  <Plus size={15} className="stroke-[3]" />
+                </button>
+              )}
 
-            {/* Cobre (C) - 0 a 99 (100 C = 1 P) */}
-            <div className="flex items-center justify-center gap-1.5 bg-black/60 px-2 sm:px-3 py-2 rounded-xl border border-orange-500/30 shadow-inner select-none w-full h-9 sm:h-10" title="Cobre (C) - 0 a 99 (100 C vira 1 P)">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.8)] inline-block shrink-0" />
-              <span className="font-mono font-bold text-orange-300 text-xs sm:text-sm truncate">{normalizedCurrency.copper}</span>
-              <span className="text-[11px] text-orange-400 font-bold uppercase tracking-wider">C</span>
-            </div>
-
-            {/* Botão de + para movimentar moedas */}
-            {!readonly ? (
               <button
                 type="button"
-                onClick={() => {
-                  setMoveOpType('income');
-                  setIsCurrencyModalOpen(true);
-                }}
-                className="w-full h-9 sm:h-10 rounded-xl bg-amber-500/25 hover:bg-amber-500/40 active:scale-95 text-amber-300 hover:text-amber-100 border border-amber-500/50 hover:border-amber-400 flex items-center justify-center transition-all shadow-[0_0_12px_rgba(245,158,11,0.2)] cursor-pointer"
-                title="Movimentar Moedas (Incrementar / Decrementar)"
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-black/60 hover:bg-black/90 active:scale-95 text-amber-300/80 hover:text-amber-300 border border-white/15 hover:border-amber-500/50 flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                title="Histórico de Transações da Bolsa"
               >
-                <Plus size={18} className="stroke-[3]" />
+                <List size={14} className="stroke-[2.5]" />
               </button>
-            ) : (
-              <div className="w-full h-9 sm:h-10 rounded-xl bg-black/30 border border-white/5 opacity-30" />
-            )}
+            </div>
+          </div>
 
-            {/* Botão de Histórico (Lista) */}
-            <button
-              type="button"
-              onClick={() => setIsHistoryModalOpen(true)}
-              className="w-full h-9 sm:h-10 rounded-xl bg-black/60 hover:bg-black/90 active:scale-95 text-amber-300/80 hover:text-amber-300 border border-white/15 hover:border-amber-500/50 flex items-center justify-center transition-all shadow-sm cursor-pointer"
-              title="Histórico de Transações da Bolsa"
-            >
-              <List size={16} className="stroke-[2.5]" />
-            </button>
+          {/* Linha 2: Caixinhas de Ouro, Prata e Cobre Sem as letras O, P, C */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full items-center">
+            {/* Ouro */}
+            <div className="flex items-center justify-center gap-2 bg-black/60 px-3 py-2 rounded-xl border border-amber-500/30 shadow-inner select-none w-full h-9 sm:h-10" title="Ouro">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)] inline-block shrink-0" />
+              <span className="font-mono font-bold text-amber-300 text-xs sm:text-sm">{normalizedCurrency.gold}</span>
+            </div>
+
+            {/* Prata */}
+            <div className="flex items-center justify-center gap-2 bg-black/60 px-3 py-2 rounded-xl border border-slate-300/30 shadow-inner select-none w-full h-9 sm:h-10" title="Prata">
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-300 shadow-[0_0_8px_rgba(203,213,225,0.8)] inline-block shrink-0" />
+              <span className="font-mono font-bold text-slate-200 text-xs sm:text-sm">{normalizedCurrency.silver}</span>
+            </div>
+
+            {/* Cobre */}
+            <div className="flex items-center justify-center gap-2 bg-black/60 px-3 py-2 rounded-xl border border-orange-500/30 shadow-inner select-none w-full h-9 sm:h-10" title="Cobre">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.8)] inline-block shrink-0" />
+              <span className="font-mono font-bold text-orange-300 text-xs sm:text-sm">{normalizedCurrency.copper}</span>
+            </div>
           </div>
         </div>
 

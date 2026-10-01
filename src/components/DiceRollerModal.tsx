@@ -56,6 +56,7 @@ const DIE_LABELS: Record<DieType, string> = {
 export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes }) => {
   const [selectedDie, setSelectedDie] = useState<DieType>('d8');
   const [isRolling, setIsRolling] = useState(false);
+  const [landedAnimationKey, setLandedAnimationKey] = useState<number>(0);
   
   // Attribute Roll State
   const [attributeResult, setAttributeResult] = useState<number | null>(null);
@@ -230,57 +231,78 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
 
     const sides = DIE_SIDES[die];
     let counter = 0;
+    const maxIterations = 14;
+
     const interval = setInterval(() => {
       setAttributeResult(Math.floor(Math.random() * sides) + 1);
       counter++;
-      if (counter > 8) {
+      if (counter >= maxIterations) {
         clearInterval(interval);
         const finalVal = Math.floor(Math.random() * sides) + 1;
         setAttributeResult(finalVal);
         setIsRolling(false);
+        setLandedAnimationKey(Date.now());
       }
-    }, 40);
+    }, 30);
   };
 
   const executeSkillRoll = (diceCount: number) => {
     setIsRolling(true);
     setSkillResults([]);
 
-    setTimeout(() => {
-      const rolls: SkillDieRoll[] = [];
-      const queue: { id: string; isExplosion: boolean; chainIndex: number }[] = [];
+    let counter = 0;
+    const maxIterations = 15;
 
-      for (let i = 0; i < diceCount; i++) {
-        queue.push({ id: `base-${i}`, isExplosion: false, chainIndex: 0 });
-      }
+    const interval = setInterval(() => {
+      // Efeito Slot Reel: troca rápida de números no mesmo lugar
+      const fakeDice: SkillDieRoll[] = Array.from({ length: diceCount }).map((_, i) => ({
+        id: `slot-${i}`,
+        val: Math.floor(Math.random() * 10) + 1,
+        isExplosion: false,
+        chainIndex: 0
+      }));
+      setSkillResults(fakeDice);
+      counter++;
 
-      let totalRolls = 0;
-      const MAX_SAFETY = 50;
+      if (counter >= maxIterations) {
+        clearInterval(interval);
 
-      while (queue.length > 0 && totalRolls < MAX_SAFETY) {
-        const item = queue.shift()!;
-        totalRolls++;
-        const val = Math.floor(Math.random() * 10) + 1;
-        rolls.push({
-          id: item.id,
-          val,
-          isExplosion: item.isExplosion,
-          chainIndex: item.chainIndex
-        });
+        const rolls: SkillDieRoll[] = [];
+        const queue: { id: string; isExplosion: boolean; chainIndex: number }[] = [];
 
-        // 10 Explodes ad infinitum!
-        if (val === 10) {
-          queue.push({
-            id: `exp-${item.id}-${Math.random().toString(36).substring(7)}`,
-            isExplosion: true,
-            chainIndex: item.chainIndex + 1
-          });
+        for (let i = 0; i < diceCount; i++) {
+          queue.push({ id: `base-${i}`, isExplosion: false, chainIndex: 0 });
         }
-      }
 
-      setSkillResults(rolls);
-      setIsRolling(false);
-    }, 300);
+        let totalRolls = 0;
+        const MAX_SAFETY = 50;
+
+        while (queue.length > 0 && totalRolls < MAX_SAFETY) {
+          const item = queue.shift()!;
+          totalRolls++;
+          const val = Math.floor(Math.random() * 10) + 1;
+          rolls.push({
+            id: item.id,
+            val,
+            isExplosion: item.isExplosion,
+            chainIndex: item.chainIndex
+          });
+
+          // 10 Explodes ad infinitum!
+          if (val === 10) {
+            queue.push({
+              id: `exp-${item.id}-${Math.random().toString(36).substring(7)}`,
+              isExplosion: true,
+              chainIndex: item.chainIndex + 1
+            });
+          }
+        }
+
+        setSkillResults(rolls);
+        setIsRolling(false);
+        setLandedAnimationKey(Date.now());
+      }
+    }, 30);
   };
 
   const executeDamageRoll = (formula: string) => {
@@ -291,18 +313,38 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
     const count = match && match[1] ? parseInt(match[1], 10) : 1;
     const sides = match && match[2] ? parseInt(match[2], 10) : 6;
 
-    setTimeout(() => {
-      const rolls: DamageDieResult[] = [];
+    let counter = 0;
+    const maxIterations = 15;
+
+    const interval = setInterval(() => {
+      // Efeito Slot Reel para Dano
+      const fakeRolls: DamageDieResult[] = [];
       for (let i = 0; i < count; i++) {
-        rolls.push({
+        fakeRolls.push({
           dieIndex: i,
           sides,
           val: Math.floor(Math.random() * sides) + 1
         });
       }
-      setDamageResults(rolls);
-      setIsRolling(false);
-    }, 250);
+      setDamageResults(fakeRolls);
+      counter++;
+
+      if (counter >= maxIterations) {
+        clearInterval(interval);
+
+        const rolls: DamageDieResult[] = [];
+        for (let i = 0; i < count; i++) {
+          rolls.push({
+            dieIndex: i,
+            sides,
+            val: Math.floor(Math.random() * sides) + 1
+          });
+        }
+        setDamageResults(rolls);
+        setIsRolling(false);
+        setLandedAnimationKey(Date.now());
+      }
+    }, 30);
   };
 
   if (!request) return null;
@@ -344,7 +386,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200"
       onClick={(e) => {
         e.stopPropagation();
         onClose();
@@ -355,7 +397,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
       }}
     >
       <div 
-        className={`bg-[#0b0816]/95 border border-white/15 rounded-[2rem] w-full max-w-lg shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl overflow-hidden flex flex-col relative transition-all duration-200 animate-in fade-in zoom-in-95 ease-out ${
+        className={`bg-[#050508] border border-white/10 rounded-[2rem] w-full max-w-lg shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden flex flex-col relative transition-all duration-200 animate-in fade-in zoom-in-95 duration-200 ease-out ${
           showAttributePicker ? 'min-h-[580px]' : 'min-h-[460px]'
         }`}
         onClick={e => e.stopPropagation()}
@@ -576,8 +618,11 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
                   </div>
                 ) : (
                   <>
-                    <div className="relative flex items-center justify-center my-2">
-                      <div className={`text-6xl font-light tracking-tight transition-transform ${isRolling ? 'scale-110 opacity-70 blur-xs' : 'scale-100'} ${
+                    <div 
+                      key={landedAnimationKey || 'attr-res'}
+                      className={`relative flex items-center justify-center my-2 ${!isRolling && landedAnimationKey > 0 ? 'animate-shake-impact' : ''}`}
+                    >
+                      <div className={`text-6xl font-light tracking-tight transition-transform ${isRolling ? 'scale-110 opacity-70 blur-xs font-mono font-bold' : 'scale-100'} ${
                         attributeResult !== null && attributeResult <= request.value 
                           ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.6)] font-normal' 
                           : 'text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.6)] font-normal'
@@ -648,7 +693,10 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
                     <span className="text-xl font-mono text-white/60 font-bold">Rolar Dano</span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-3 relative z-10 animate-in zoom-in-95 duration-200">
+                  <div 
+                    key={landedAnimationKey || 'dmg-res'}
+                    className={`flex flex-col items-center gap-3 relative z-10 ${!isRolling && landedAnimationKey > 0 ? 'animate-shake-impact' : ''}`}
+                  >
                     <div className="flex items-center justify-center">
                       <span className={`text-6xl font-black tracking-tight font-mono ${isRolling ? 'scale-110 opacity-70 blur-xs' : 'scale-100'} text-amber-400 drop-shadow-[0_0_25px_rgba(245,158,11,0.6)]`}>
                         {damageResults.reduce((acc, d) => acc + d.val, 0)}
@@ -775,7 +823,10 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl max-h-48 overflow-y-auto flex flex-wrap gap-2 items-center justify-start custom-scrollbar">
+                  <div 
+                    key={landedAnimationKey || 'skill-res'}
+                    className={`p-4 bg-white/[0.01] border border-white/5 rounded-2xl max-h-48 overflow-y-auto flex flex-wrap gap-2 items-center justify-start custom-scrollbar ${!isRolling && landedAnimationKey > 0 ? 'animate-shake-impact' : ''}`}
+                  >
                     {isRolling ? (
                       <div className="w-full py-8 text-center text-white/40 text-xs tracking-widest uppercase animate-pulse">
                         Rolando dados com explosão...
