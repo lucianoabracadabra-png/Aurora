@@ -31,6 +31,22 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
 
   const guideItems = [
     {
+      id: 'gm_view_toggle',
+      category: 'modes',
+      title: 'GM View (👑 Mestre) vs. Player View (👤 Jogador)',
+      badge: 'Botão de Coroa no Cabeçalho',
+      icon: <Crown size={16} className="text-amber-400" />,
+      description: 'Alterna entre a visão do Game Master e do Jogador. No GM View, o Mestre vê uma barra superior com bolinhas de todos os personagens da campanha (com retrato ou letra inicial) para alternar e editar qualquer ficha instantaneamente. Além disso, apenas o GM pode controlar a timeline, avançar o tempo e mover entidades no Battle Tracker (os jogadores têm visão em tempo real apenas para leitura).'
+    },
+    {
+      id: 'battle_tracker',
+      category: 'modes',
+      title: 'Battle Tracker (Gráfico Vertical com Bolinhas & Rastro)',
+      badge: 'Botão de Espadas no Cabeçalho',
+      icon: <Swords size={16} className="text-amber-400" />,
+      description: 'Gráfico vertical crescente de iniciativa e combate (mínimo de 15 ticks, que estica dinamicamente). Cada usuário/entidade é representado por uma bolinha brilhante no gráfico. À medida que agem e sobem pelos ticks (+2 rápida, +3 padrão, +5 pesada), deixam bolinhas menores pelo caminho registrando os últimos 3 passos em degradê: 70% de opacidade no 1º passo anterior, 50% no 2º e 20% no 3º.'
+    },
+    {
       id: 'mode_toggle',
       category: 'modes',
       title: 'Modo de Jogo (🔒) vs. Modo de Edição (🔓)',
@@ -53,6 +69,14 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       badge: 'Clique na Perícia',
       icon: <ScrollText size={16} className="text-cyan-400" />,
       description: 'Ao clicar sobre qualquer perícia (Treinamentos, Ciências, Artes ou Perícias Customizadas), o rolador calcula a reserva somando os pontos da perícia ao atributo base associado.'
+    },
+    {
+      id: 'skill_level_pulses',
+      category: 'rolls',
+      title: 'Pulsos de Maestria (Níveis 5, 6 e 7)',
+      badge: 'Animação de Nível 5+',
+      icon: <Sparkles size={16} className="text-white" />,
+      description: 'Ao atingir Nível 5 (Mestre), os botões de nível emitem um pulso na cor do tema. No Nível 6 (Grão-Mestre), o pulso expande e alterna com o branco puro. No Nível 7 (Lenda), o pulso expande ao máximo com iluminação totalmente branca.'
     },
     {
       id: 'rolls_weapons',

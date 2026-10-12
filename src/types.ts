@@ -50,6 +50,7 @@ export type Ability = {
   description: string;
   mechanic: string;
   cost: string;
+  selected?: boolean;
 };
 
 export type Trait = {
@@ -250,6 +251,48 @@ export type FlowAndPatron = {
   fluxo: FlowPatronData;
   patrono: FlowPatronData;
 };
+
+export type CombatEntityType = 'player' | 'ally' | 'enemy' | 'boss';
+
+export interface CombatStep {
+  fromTick: number;
+  toTick: number;
+}
+
+export interface CombatEntity {
+  id: string;
+  name: string;
+  type: CombatEntityType;
+  color: string;
+  currentTick: number;
+  /**
+   * Histórico dos passos anteriores da entidade (do mais recente para o mais antigo).
+   * O 1º passo anterior deve ser exibido com 70% de opacidade.
+   * O 2º passo anterior deve ser exibido com 50% de opacidade.
+   * O 3º passo anterior deve ser exibido com 20% de opacidade.
+   */
+  history: number[];
+  /** Segmentos completos de movimento (de onde foi até onde está em cada rodada) */
+  steps?: CombatStep[];
+  hp?: number;
+  maxHp?: number;
+  notes?: string;
+  defaultDelay?: number;
+}
+
+export interface BattleTrackerState {
+  currentTick: number;
+  minTimespan: number; // Mínimo de 15
+  entities: CombatEntity[];
+}
+
+export interface CampaignCharacter {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  color?: string;
+  data: CharacterData;
+}
 
 export type CharacterData = {
   identity: Identity;

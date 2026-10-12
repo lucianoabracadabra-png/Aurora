@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData } from './initialState';
-import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle } from 'lucide-react';
+import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { Identity } from './components/Identity';
@@ -21,95 +21,228 @@ import { FlowAndPatron } from './components/FlowAndPatron';
 import { AttributeInput } from './components/AttributeInput';
 import { CustomSkillsSection } from './components/CustomSkillsSection';
 import { StatIntersectionBox } from './components/StatIntersectionBox';
-import { CustomSkill } from './types';
+import { GmRosterBar } from './components/GmRosterBar';
+import { BattleTrackerEnvironment } from './components/BattleTrackerEnvironment';
+
+function normalizeCharacterData(parsed: any): CharacterData {
+  if (!parsed || typeof parsed !== 'object') return initialCharacterData;
+  if (!parsed.customSkills) {
+    parsed.customSkills = { treinamentos: [], ciencias: [], artes: [] };
+  } else {
+    if (!parsed.customSkills.treinamentos) parsed.customSkills.treinamentos = [];
+    if (!parsed.customSkills.ciencias) parsed.customSkills.ciencias = [];
+    if (!parsed.customSkills.artes) parsed.customSkills.artes = [];
+  }
+
+  if (!parsed.manaSpent) {
+    parsed.manaSpent = { physical: 0, mental: 0, social: 0 };
+  }
+
+  if (!parsed.naturezaSpent) {
+    parsed.naturezaSpent = { water: 0, air: 0, anima: 0, fire: 0, earth: 0 };
+  }
+
+  const fitHealth = (arr: any, count: number) => {
+    const res = Array(count).fill('none');
+    if (Array.isArray(arr)) {
+      for (let i = 0; i < Math.min(arr.length, count); i++) {
+        res[i] = arr[i];
+      }
+    }
+    return res;
+  };
+
+  parsed.health = {
+    head: fitHealth(parsed.health?.head, 8),
+    torso: fitHealth(parsed.health?.torso, 20),
+    leftArm: fitHealth(parsed.health?.leftArm, 12),
+    rightArm: fitHealth(parsed.health?.rightArm, 12),
+    leftLeg: fitHealth(parsed.health?.leftLeg, 16),
+    rightLeg: fitHealth(parsed.health?.rightLeg, 16),
+  };
+
+  if (parsed.traits && parsed.traits.length <= 2) {
+    parsed.traits = initialCharacterData.traits;
+    parsed.abilities = initialCharacterData.abilities;
+  }
+
+  if (!parsed.inventory || !parsed.inventory.weapons || parsed.inventory.weapons.length === 0) {
+    parsed.inventory = initialCharacterData.inventory;
+  } else {
+    if (!parsed.inventory.generalItems || parsed.inventory.generalItems.length === 0) {
+      parsed.inventory.generalItems = initialCharacterData.inventory.generalItems;
+    }
+    if (!parsed.inventory.currency) {
+      parsed.inventory.currency = initialCharacterData.inventory.currency;
+    } else {
+      if (parsed.inventory.currency.silver > 100) parsed.inventory.currency.silver = 100;
+      if (parsed.inventory.currency.copper > 100) parsed.inventory.currency.copper = 100;
+      if (parsed.inventory.currency.gems && parsed.inventory.currency.gems.includes('lápis')) {
+        parsed.inventory.currency.gems = '';
+      }
+      if (!parsed.inventory.currency.history || parsed.inventory.currency.history.length === 0) {
+        parsed.inventory.currency.history = initialCharacterData.inventory.currency.history;
+      }
+    }
+  }
+
+  if (!parsed.flowAndPatron) {
+    parsed.flowAndPatron = initialCharacterData.flowAndPatron;
+  }
+
+  return parsed;
+}
 
 export default function App() {
   const [isEditing, setIsEditing] = useState(false);
-  const [data, setData] = useState<CharacterData>(() => {
-    const saved = localStorage.getItem('arcana_character_data');
+  const [isGmView, setIsGmView] = useState<boolean>(() => {
+    return localStorage.getItem('arcana_is_gm_view') === 'true';
+  });
+
+  const [campaignCharacters, setCampaignCharacters] = useState<CampaignCharacter[]>(() => {
+    const saved = localStorage.getItem('arcana_campaign_characters');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        
-        // Fix missing customSkills for older saves
-        if (!parsed.customSkills) {
-          parsed.customSkills = { treinamentos: [], ciencias: [], artes: [] };
-        } else {
-          if (!parsed.customSkills.treinamentos) parsed.customSkills.treinamentos = [];
-          if (!parsed.customSkills.ciencias) parsed.customSkills.ciencias = [];
-          if (!parsed.customSkills.artes) parsed.customSkills.artes = [];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((c: any) => ({
+            ...c,
+            data: normalizeCharacterData(c.data)
+          }));
         }
-
-        // Fix missing manaSpent for older saves
-        if (!parsed.manaSpent) {
-          parsed.manaSpent = { physical: 0, mental: 0, social: 0 };
-        }
-
-        if (!parsed.naturezaSpent) {
-          parsed.naturezaSpent = { water: 0, air: 0, anima: 0, fire: 0, earth: 0 };
-        }
-
-        const fitHealth = (arr: any, count: number) => {
-          const res = Array(count).fill('none');
-          if (Array.isArray(arr)) {
-            for (let i = 0; i < Math.min(arr.length, count); i++) {
-              res[i] = arr[i];
-            }
-          }
-          return res;
-        };
-
-        parsed.health = {
-          head: fitHealth(parsed.health?.head, 8),
-          torso: fitHealth(parsed.health?.torso, 20),
-          leftArm: fitHealth(parsed.health?.leftArm, 12),
-          rightArm: fitHealth(parsed.health?.rightArm, 12),
-          leftLeg: fitHealth(parsed.health?.leftLeg, 16),
-          rightLeg: fitHealth(parsed.health?.rightLeg, 16),
-        };
-
-        // Migrate to new traits and abilities if they still have the old default or empty ones
-        if (parsed.traits && parsed.traits.length <= 2) {
-          parsed.traits = initialCharacterData.traits;
-          parsed.abilities = initialCharacterData.abilities;
-        }
-
-        // Ensure inventory exists and is populated
-        if (!parsed.inventory || !parsed.inventory.weapons || parsed.inventory.weapons.length === 0) {
-          parsed.inventory = initialCharacterData.inventory;
-        } else {
-          if (!parsed.inventory.generalItems || parsed.inventory.generalItems.length === 0) {
-            parsed.inventory.generalItems = initialCharacterData.inventory.generalItems;
-          }
-          if (!parsed.inventory.currency) {
-            parsed.inventory.currency = initialCharacterData.inventory.currency;
-          } else {
-            if (parsed.inventory.currency.silver > 100) parsed.inventory.currency.silver = 100;
-            if (parsed.inventory.currency.copper > 100) parsed.inventory.currency.copper = 100;
-            if (parsed.inventory.currency.gems && parsed.inventory.currency.gems.includes('lápis')) {
-              parsed.inventory.currency.gems = '';
-            }
-            if (!parsed.inventory.currency.history || parsed.inventory.currency.history.length === 0) {
-              parsed.inventory.currency.history = initialCharacterData.inventory.currency.history;
-            }
-          }
-        }
-
-        if (!parsed.flowAndPatron) {
-          parsed.flowAndPatron = initialCharacterData.flowAndPatron;
-        }
-        
-        return parsed;
       } catch (e) {
-        return initialCharacterData;
+        console.error('Error loading campaign characters:', e);
       }
     }
-    return initialCharacterData;
+
+    // Hydrate from legacy character data if available
+    const legacySaved = localStorage.getItem('arcana_character_data');
+    let baseData = initialCharacterData;
+    if (legacySaved) {
+      try {
+        baseData = normalizeCharacterData(JSON.parse(legacySaved));
+      } catch (e) {}
+    }
+
+    return [
+      {
+        id: 'char-arcana',
+        name: baseData.identity?.name || 'Arcana',
+        avatarUrl: baseData.identity?.avatarUrl,
+        color: '#a855f7',
+        data: baseData
+      },
+      {
+        id: 'char-valerius',
+        name: 'Valerius',
+        color: '#10b981',
+        data: {
+          ...initialCharacterData,
+          identity: {
+            ...initialCharacterData.identity,
+            name: 'Valerius',
+            origin: 'Guerreiro Paladino',
+            ideals: 'Proteger os indefesos a qualquer custo',
+            age: '28',
+            hair: 'Castanho curto',
+            eyes: 'Âmbar'
+          }
+        }
+      },
+      {
+        id: 'char-kaelen',
+        name: 'Kaelen',
+        color: '#06b6d4',
+        data: {
+          ...initialCharacterData,
+          identity: {
+            ...initialCharacterData.identity,
+            name: 'Kaelen',
+            origin: 'Erudito Arcano',
+            ideals: 'Desvendar os segredos dos astros',
+            age: '24',
+            hair: 'Prateado',
+            eyes: 'Azul Celeste'
+          }
+        }
+      }
+    ];
   });
+
+  const [activeCharacterId, setActiveCharacterId] = useState<string>(() => {
+    return localStorage.getItem('arcana_active_character_id') || 'char-arcana';
+  });
+
+  const activeChar = campaignCharacters.find((c) => c.id === activeCharacterId) || campaignCharacters[0];
+  const [data, setData] = useState<CharacterData>(() => activeChar.data);
+
+  // Keep GM view saved
+  useEffect(() => {
+    localStorage.setItem('arcana_is_gm_view', isGmView ? 'true' : 'false');
+  }, [isGmView]);
+
+  // When activeCharacterId changes, sync sheet data
+  useEffect(() => {
+    const target = campaignCharacters.find((c) => c.id === activeCharacterId);
+    if (target) {
+      setData(target.data);
+    }
+    localStorage.setItem('arcana_active_character_id', activeCharacterId);
+  }, [activeCharacterId]);
+
+  // When sheet data is edited/updated, sync back to campaignCharacters and localStorage
+  useEffect(() => {
+    setCampaignCharacters((prev) => {
+      const updated = prev.map((char) => {
+        if (char.id === activeCharacterId) {
+          return {
+            ...char,
+            name: data.identity?.name || char.name,
+            avatarUrl: data.identity?.avatarUrl,
+            data
+          };
+        }
+        return char;
+      });
+      localStorage.setItem('arcana_campaign_characters', JSON.stringify(updated));
+      return updated;
+    });
+    localStorage.setItem('arcana_character_data', JSON.stringify(data));
+  }, [data, activeCharacterId]);
+
+  const handleAddCampaignCharacter = (name: string, role?: string, color?: string) => {
+    const newId = `char-${Date.now()}`;
+    const newChar: CampaignCharacter = {
+      id: newId,
+      name,
+      color: color || '#a855f7',
+      data: {
+        ...initialCharacterData,
+        identity: {
+          ...initialCharacterData.identity,
+          name,
+          origin: role || 'Aventureiro',
+        }
+      }
+    };
+    setCampaignCharacters((prev) => [...prev, newChar]);
+    setActiveCharacterId(newId);
+  };
+
+  const handleDeleteCampaignCharacter = (id: string) => {
+    setCampaignCharacters((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+      if (filtered.length > 0 && activeCharacterId === id) {
+        setActiveCharacterId(filtered[0].id);
+      }
+      return filtered;
+    });
+  };
   const [isIdentityExpanded, setIsIdentityExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'inventory' | 'magic'>('profile');
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [activeEnvironment, setActiveEnvironment] = useState<'sheet' | 'battleTracker'>('sheet');
 
   const rollAttribute = (name: string, value: number, theme: 'rose' | 'cyan' | 'emerald') => {
     if (isEditing) return;
@@ -216,6 +349,15 @@ export default function App() {
 
   const removeAbility = (id: string) => {
     setData((prev) => ({ ...prev, abilities: prev.abilities.filter((a) => a.id !== id) }));
+  };
+
+  const toggleAbilitySelect = (id: string) => {
+    setData((prev) => ({
+      ...prev,
+      abilities: prev.abilities.map((a) =>
+        a.id === id ? { ...a, selected: !(a.selected ?? true) } : a
+      ),
+    }));
   };
 
   const addTrait = (trait: Omit<Trait, 'id'>) => {
@@ -336,7 +478,47 @@ export default function App() {
         <h1 className="text-sm tracking-[0.3em] font-light uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">
           Arcana
         </h1>
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Environment Switcher (Ficha vs Battle Tracker) */}
+          <div className="flex items-center gap-1 p-0.5 bg-[#060212] border border-white/10 rounded-full shadow-inner mr-1">
+            <button
+              onClick={() => setActiveEnvironment('sheet')}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                activeEnvironment === 'sheet'
+                  ? 'bg-violet-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Ficha
+            </button>
+            <button
+              onClick={() => setActiveEnvironment('battleTracker')}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeEnvironment === 'battleTracker'
+                  ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.5)] font-black'
+                  : 'text-amber-300/80 hover:text-amber-200'
+              }`}
+              title="Ambiente Battle Tracker com Caixas Soltas"
+            >
+              <Swords size={13} />
+              <span>Battle Tracker</span>
+            </button>
+          </div>
+
+          {/* GM View Toggle Button */}
+          <button
+            onClick={() => setIsGmView(!isGmView)}
+            className={`h-8 px-2.5 sm:px-3 rounded-full border flex items-center gap-1.5 transition-all text-xs font-semibold cursor-pointer shadow-sm ${
+              isGmView
+                ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
+                : 'bg-white/[0.02] border-white/10 hover:border-white/20 text-white/70 hover:text-white'
+            }`}
+            title={isGmView ? 'Modo Mestre Ativo (Clique para mudar para Visão do Jogador)' : 'Modo Jogador Ativo (Clique para mudar para Visão do Mestre/GM)'}
+          >
+            <Crown size={14} className={isGmView ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]' : 'text-white/40'} />
+            <span className="hidden xs:inline">{isGmView ? 'GM View' : 'Player View'}</span>
+          </button>
+
           {/* Botão de Ajuda & Guia de Ferramentas / Usabilidade (?) */}
           <button
             onClick={() => setIsGuideOpen(true)}
@@ -363,8 +545,36 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="p-4 flex flex-col gap-8 max-w-lg mx-auto relative z-0">
+      {/* GM Campaign Characters Roster Bar (Visible in GM View) */}
+      {isGmView && (
+        <GmRosterBar
+          characters={campaignCharacters}
+          activeCharacterId={activeCharacterId}
+          onSelectCharacter={(id) => {
+            setActiveCharacterId(id);
+            const targetChar = campaignCharacters.find((c) => c.id === id);
+            if (targetChar) {
+              setData(targetChar.data);
+            }
+          }}
+          onAddCharacter={handleAddCampaignCharacter}
+          onDeleteCharacter={handleDeleteCampaignCharacter}
+          isEditing={isEditing}
+          onToggleEdit={() => setIsEditing(!isEditing)}
+        />
+      )}
+
+      {/* CONDITIONAL ENVIRONMENT RENDER */}
+      {activeEnvironment === 'battleTracker' ? (
+        <BattleTrackerEnvironment
+          characterName={data.identity.name}
+          characterAvatar={data.identity.avatarUrl}
+          isGmView={isGmView}
+          activeCharacterData={data}
+          onSwitchToSheet={() => setActiveEnvironment('sheet')}
+        />
+      ) : (
+        <main className="p-4 flex flex-col gap-8 max-w-lg mx-auto relative z-0">
         <section id="profile" className="flex flex-col gap-6">
           <BentoBox 
             title="Identidade" 
@@ -664,52 +874,61 @@ export default function App() {
           </div>
 
           <BentoBox title="Habilidades Especiais" titleClassName="text-fuchsia-400">
-            <Abilities data={data.abilities} add={addAbility} remove={removeAbility} readonly={!isEditing} />
+            <Abilities 
+              data={data.abilities} 
+              add={addAbility} 
+              remove={removeAbility} 
+              toggleSelect={toggleAbilitySelect}
+              readonly={!isEditing} 
+            />
           </BentoBox>
         </section>
       </main>
+      )}
 
-      {/* Fixed Bottom Navigation - Neon Minimalist */}
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#030014]/80 backdrop-blur-xl border border-white/10 rounded-full px-2 py-2 z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => scrollToSection('profile')}
-            className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
-              activeTab === 'profile' ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_15px_rgba(167,139,250,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-            }`}
-            title="Perfil & Saúde"
-          >
-            <User size={20} className={activeTab === 'profile' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
-          </button>
-          <button
-            onClick={() => scrollToSection('stats')}
-            className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
-              activeTab === 'stats' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-            }`}
-            title="Atributos & Perícias"
-          >
-            <ScrollText size={20} className={activeTab === 'stats' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
-          </button>
-          <button
-            onClick={() => scrollToSection('inventory')}
-            className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
-              activeTab === 'inventory' ? 'bg-amber-500/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-            }`}
-            title="Equipamento & Inventário"
-          >
-            <Backpack size={20} className={activeTab === 'inventory' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
-          </button>
-          <button
-            onClick={() => scrollToSection('magic')}
-            className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
-              activeTab === 'magic' ? 'bg-fuchsia-500/20 text-fuchsia-400 shadow-[0_0_15px_rgba(232,121,249,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
-            }`}
-            title="Domínios & Magia"
-          >
-            <Sparkles size={20} className={activeTab === 'magic' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
-          </button>
-        </div>
-      </nav>
+      {/* Fixed Bottom Navigation - Neon Minimalist (Sheet Environment Only) */}
+      {activeEnvironment === 'sheet' && (
+        <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#030014]/80 backdrop-blur-xl border border-white/10 rounded-full px-2 py-2 z-50 shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => scrollToSection('profile')}
+              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
+                activeTab === 'profile' ? 'bg-violet-500/20 text-violet-400 shadow-[0_0_15px_rgba(167,139,250,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+              }`}
+              title="Perfil & Saúde"
+            >
+              <User size={20} className={activeTab === 'profile' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
+            </button>
+            <button
+              onClick={() => scrollToSection('stats')}
+              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
+                activeTab === 'stats' ? 'bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+              }`}
+              title="Atributos & Perícias"
+            >
+              <ScrollText size={20} className={activeTab === 'stats' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
+            </button>
+            <button
+              onClick={() => scrollToSection('inventory')}
+              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
+                activeTab === 'inventory' ? 'bg-amber-500/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+              }`}
+              title="Equipamento & Inventário"
+            >
+              <Backpack size={20} className={activeTab === 'inventory' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
+            </button>
+            <button
+              onClick={() => scrollToSection('magic')}
+              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 ${
+                activeTab === 'magic' ? 'bg-fuchsia-500/20 text-fuchsia-400 shadow-[0_0_15px_rgba(232,121,249,0.4)]' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+              }`}
+              title="Domínios & Magia"
+            >
+              <Sparkles size={20} className={activeTab === 'magic' ? 'drop-shadow-[0_0_8px_currentColor]' : ''} />
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* Dice Roller Tool */}
       <DiceRollerModal 

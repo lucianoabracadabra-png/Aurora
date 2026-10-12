@@ -10,7 +10,7 @@ export interface ModalProps {
   icon?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl';
   theme?: 'violet' | 'rose' | 'cyan' | 'emerald' | 'amber';
   className?: string;
 }
@@ -53,7 +53,10 @@ const widthClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
-  '2xl': 'max-w-2xl'
+  '2xl': 'max-w-2xl',
+  '3xl': 'max-w-3xl',
+  '4xl': 'max-w-4xl',
+  '5xl': 'max-w-5xl'
 };
 
 export const Modal: React.FC<ModalProps> = ({
@@ -94,29 +97,29 @@ export const Modal: React.FC<ModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className={`bg-[#06040f] border ${style.border} rounded-[2rem] w-full ${widthClasses[maxWidth]} ${style.glow} flex flex-col relative overflow-hidden transition-all animate-in zoom-in-95 duration-200 ${className}`}
+        className={`bg-[#06040f] border ${style.border} rounded-2xl sm:rounded-[2rem] w-full ${widthClasses[maxWidth]} max-h-[92dvh] max-h-[92vh] ${style.glow} flex flex-col relative overflow-hidden transition-all animate-in zoom-in-95 duration-200 ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-3.5 sm:px-6 sm:py-5 border-b border-white/10 bg-white/[0.02] flex items-center justify-between relative z-10 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
             {icon && (
-              <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${style.iconBg}`}>
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl border flex items-center justify-center shrink-0 ${style.iconBg}`}>
                 {icon}
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               {title && (
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-100 flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-100 flex items-center gap-2 truncate">
                   {title}
                 </h3>
               )}
               {subtitle && (
-                <p className="text-[11px] text-white/50 mt-0.5">{subtitle}</p>
+                <p className="text-[10px] sm:text-[11px] text-white/50 mt-0.5 truncate">{subtitle}</p>
               )}
             </div>
           </div>
@@ -124,7 +127,7 @@ export const Modal: React.FC<ModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-1"
             title="Fechar (Esc)"
           >
             <X size={18} />
@@ -132,13 +135,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-white/10 relative z-10">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3.5 sm:p-6 overscroll-contain scrollbar-thin scrollbar-thumb-white/10 relative z-10">
           {children}
         </div>
 
         {/* Modal Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-white/10 bg-white/[0.02] flex items-center justify-between relative z-10">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-white/10 bg-white/[0.02] flex items-center justify-between relative z-10 shrink-0 gap-2">
             {footer}
           </div>
         )}
