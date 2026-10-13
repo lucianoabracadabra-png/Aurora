@@ -54,7 +54,7 @@ interface LocalBattleState {
 }
 
 export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> = ({
-  characterName = 'Arcana',
+  characterName = 'Personagem',
   isGmView = false
 }) => {
   // Load state from localStorage
@@ -96,7 +96,7 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
       entities: [
         {
           id: 'player-default',
-          name: characterName || 'Arcana',
+          name: characterName || 'Personagem',
           type: 'player',
           color: '#a855f7',
           currentTick: 0,

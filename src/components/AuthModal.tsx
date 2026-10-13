@@ -257,14 +257,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {tab === 'player' && (
           <form onSubmit={handlePlayerLogin} className="flex flex-col gap-3.5">
             <div className="text-[11px] text-white/60 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
-              Cada ficha é salva em seu arquivo <code className="text-violet-300 font-mono">[username].json</code> independente no disco. Sua senha valida o acesso ao seu arquivo.
+              Cada ficha possui persistência independente. Sua senha valida o acesso ao seu personagem.
             </div>
 
             {/* Quick-Select available sheets */}
             {availableCharacters.length > 0 && (
               <div>
                 <label className="text-[11px] font-semibold text-white/70 block mb-1.5">
-                  Fichas salvas no disco (Clique para preencher rápido):
+                  Personagens salvos (Clique para preencher rápido):
                 </label>
                 <div className="flex flex-wrap gap-1.5">
                   {availableCharacters.map((c) => (
@@ -283,7 +283,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         style={{ backgroundColor: c.color || '#a855f7' }}
                       />
                       <span>{c.name || c.username}</span>
-                      <span className="text-[10px] text-white/40 font-mono">({c.username}.json)</span>
                     </button>
                   ))}
                 </div>
@@ -292,7 +291,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <label className="text-xs font-semibold text-white/80 block mb-1">
-                Nome de Usuário (arquivo .json)
+                Nome de Usuário / Login
               </label>
               <input
                 type="text"
@@ -337,10 +336,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
               <div className="flex items-center gap-2 font-bold text-amber-300 mb-1">
                 <Crown size={15} />
-                <span>Conta do Game Master (gamemaster.json)</span>
+                <span>Conta do Game Master</span>
               </div>
               <p>
-                O arquivo <code className="text-white bg-black/40 px-1 py-0.5 rounded font-mono">data/gamemaster.json</code> conecta todas as fichas dos jogadores. Como Mestre, você tem visão total, controle da timeline do Battle Tracker e permissão de apagar qualquer ficha com a senha.
+                A conta do Mestre conecta todas as fichas dos jogadores da campanha. Como Mestre, você tem visão total, controle da timeline do Battle Tracker e permissão de gerenciar ou apagar fichas com a senha.
               </p>
             </div>
 
@@ -380,13 +379,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {tab === 'register' && (
           <form onSubmit={handleRegister} className="flex flex-col gap-3">
             <div className="text-[11px] text-white/60 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
-              Cria um novo arquivo <code className="text-cyan-300 font-mono">[username].json</code> persistido diretamente no sistema de arquivos do servidor.
+              Cria uma nova ficha de personagem com persistência independente.
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-white/80 block mb-1">
-                  Username do Arquivo
+                  Login / Identificador
                 </label>
                 <input
                   type="text"

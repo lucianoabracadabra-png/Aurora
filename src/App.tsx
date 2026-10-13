@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData } from './initialState';
 import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck } from 'lucide-react';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { Identity } from './components/Identity';
@@ -25,6 +25,7 @@ import { GmRosterBar } from './components/GmRosterBar';
 import { BattleTrackerEnvironment } from './components/BattleTrackerEnvironment';
 import { AuthModal } from './components/AuthModal';
 import { DeleteCharacterModal } from './components/DeleteCharacterModal';
+import { AuroraAssistant } from './components/AuroraAssistant';
 import { StorageApi, CharacterSummary, AuthSession } from './services/storageApi';
 
 function normalizeCharacterData(parsed: any): CharacterData {
@@ -98,6 +99,7 @@ function normalizeCharacterData(parsed: any): CharacterData {
 
 export default function App() {
   const [isEditing, setIsEditing] = useState(false);
+  const [isAuroraOpen, setIsAuroraOpen] = useState(false);
   const [isGmView, setIsGmView] = useState<boolean>(() => {
     return localStorage.getItem('arcana_is_gm_view') === 'true';
   });
@@ -110,7 +112,7 @@ export default function App() {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    return { role: 'player', username: 'arcana', name: 'Arcana', color: '#a855f7' };
+    return { role: 'player', username: 'elias', name: initialCharacterData.identity.name || 'Elias Iyanu', color: '#a855f7' };
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -146,8 +148,8 @@ export default function App() {
 
     return [
       {
-        id: 'char-arcana',
-        name: baseData.identity?.name || 'Arcana',
+        id: 'char-elias',
+        name: baseData.identity?.name || 'Elias Iyanu',
         avatarUrl: baseData.identity?.avatarUrl,
         color: '#a855f7',
         data: baseData
@@ -190,7 +192,7 @@ export default function App() {
   });
 
   const [activeCharacterId, setActiveCharacterId] = useState<string>(() => {
-    return localStorage.getItem('arcana_active_character_id') || 'char-arcana';
+    return localStorage.getItem('arcana_active_character_id') || 'char-elias';
   });
 
   const activeChar = campaignCharacters.find((c) => c.id === activeCharacterId) || campaignCharacters[0];
@@ -638,126 +640,178 @@ export default function App() {
       <GalaxyAuroraBackground />
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-[#030014]/75 backdrop-blur-2xl border-b border-white/5 px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm tracking-[0.3em] font-light uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">
-            Arcana
-          </h1>
+      <header className="sticky top-0 z-40 bg-[#030014]/85 backdrop-blur-2xl border-b border-white/5 px-3 sm:px-6 py-2.5 sm:py-3 transition-all shadow-[0_4px_25px_rgba(0,0,0,0.5)]">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5 sm:gap-4 flex-wrap">
+          
+          {/* Lado Esquerdo: Marca & Status de Salvamento */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink-0">
+            {/* Title Aurora */}
+            <h1 className="text-xs sm:text-sm tracking-[0.3em] font-light uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-fuchsia-300 to-cyan-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)] shrink-0 select-none">
+              Aurora
+            </h1>
 
-          {/* File-System Status Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 border border-white/10 text-[11px] font-mono text-white/70 shadow-inner">
-            <span
-              className={`w-2 h-2 rounded-full ${
+            {/* Status de Salvamento (separado, exibe apenas a bolinha e o estado) */}
+            <div 
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-xs shadow-inner min-w-0 transition-colors"
+              title={
                 saveStatus === 'saving'
-                  ? 'bg-amber-400 animate-ping'
+                  ? 'Salvando alterações no disco...'
                   : saveStatus === 'error'
-                  ? 'bg-rose-500'
-                  : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-              }`}
-            />
-            <HardDrive size={11} className="text-white/40" />
-            <span className="text-violet-300 font-semibold">{activeCharacterId.replace(/^char-/, '')}.json</span>
-            <span className="text-white/40 text-[10px]">
-              {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Erro' : 'Salvo'}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* User Account / Session Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setAuthModalTab('player');
-              setIsAuthModalOpen(true);
-            }}
-            className={`h-8 px-2.5 sm:px-3 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm ${
-              authSession.role === 'gamemaster'
-                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
-            }`}
-            title="Gerenciar Conta / Ficha no Disco / Trocar de Usuário"
-          >
-            {authSession.role === 'gamemaster' ? (
-              <Crown size={13} className="text-amber-400" />
-            ) : (
-              <User size={13} className="text-violet-400" />
-            )}
-            <span className="max-w-[100px] truncate">
-              {authSession.role === 'gamemaster' ? 'Mestre (GM)' : authSession.name || authSession.username}
-            </span>
-            <span className="text-[10px] text-white/40 font-mono hidden md:inline">
-              ({authSession.role === 'gamemaster' ? 'gamemaster.json' : `${authSession.username}.json`})
-            </span>
-          </button>
-
-          {/* Environment Switcher (Ficha vs Battle Tracker) */}
-          <div className="flex items-center gap-1 p-0.5 bg-[#060212] border border-white/10 rounded-full shadow-inner mr-1">
-            <button
-              onClick={() => setActiveEnvironment('sheet')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                activeEnvironment === 'sheet'
-                  ? 'bg-violet-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
-                  : 'text-white/60 hover:text-white'
-              }`}
+                  ? 'Erro ao salvar alterações no disco'
+                  : `Todas as alterações foram salvas (${data.identity?.name || 'Personagem'})`
+              }
             >
-              Ficha
-            </button>
-            <button
-              onClick={() => setActiveEnvironment('battleTracker')}
-              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeEnvironment === 'battleTracker'
-                  ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.5)] font-black'
-                  : 'text-amber-300/80 hover:text-amber-200'
-              }`}
-              title="Ambiente Battle Tracker com Caixas Soltas"
+              <span
+                className={`w-2 h-2 rounded-full transition-all shrink-0 ${
+                  saveStatus === 'saving'
+                    ? 'bg-amber-400 animate-ping'
+                    : saveStatus === 'error'
+                    ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'
+                    : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                }`}
+              />
+              <span className="text-[11px] font-semibold text-white/90">
+                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Não salvo' : 'Salvo'}
+              </span>
+            </div>
+          </div>
+
+          {/* Lado Direito: Switch de 2 Ícones (Ficha / Battle Tracker) + Ícones Circulares */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Switch de 2 Ícones: Ficha (Folha) vs Battle Tracker (Espadinhas) */}
+            <div 
+              className="flex items-center p-0.5 bg-[#060212] border border-white/10 rounded-full shadow-inner gap-0.5 shrink-0"
+              role="group"
+              aria-label="Alternar entre Ficha e Battle Tracker"
             >
-              <Swords size={13} />
-              <span>Battle Tracker</span>
+              <button
+                type="button"
+                onClick={() => setActiveEnvironment('sheet')}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                  activeEnvironment === 'sheet'
+                    ? 'bg-violet-600 text-white shadow-[0_0_14px_rgba(168,85,247,0.6)] border border-violet-400/50'
+                    : 'text-white/40 hover:text-white/80 hover:bg-white/5 border border-transparent'
+                }`}
+                title="Ficha do Personagem (Folha)"
+                aria-label="Ficha do Personagem"
+              >
+                <FileText size={15} className={activeEnvironment === 'sheet' ? 'drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]' : ''} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveEnvironment('battleTracker')}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                  activeEnvironment === 'battleTracker'
+                    ? 'bg-amber-500 text-black shadow-[0_0_14px_rgba(245,158,11,0.65)] font-bold border border-amber-300'
+                    : 'text-amber-300/40 hover:text-amber-200 hover:bg-white/5 border border-transparent'
+                }`}
+                title="Battle Tracker (Espadinhas)"
+                aria-label="Battle Tracker"
+              >
+                <Swords size={15} className={activeEnvironment === 'battleTracker' ? 'drop-shadow-[0_0_6px_rgba(0,0,0,0.5)]' : ''} />
+              </button>
+            </div>
+
+            {/* Divisor sutil */}
+            <div className="w-px h-5 bg-white/10 mx-0.5 hidden xs:block" />
+
+            {/* Botão Circular: Travar / Editar Ficha (Cadeado) */}
+            <button 
+              type="button"
+              onClick={() => setIsEditing(!isEditing)}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                isEditing 
+                  ? 'bg-rose-500/20 border-rose-400/60 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.35)] ring-1 ring-rose-400/40'
+                  : 'bg-white/[0.03] hover:bg-emerald-500/20 border-emerald-400/30 text-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.15)]'
+              }`}
+              title={isEditing ? 'Travar Ficha (Modo de Jogo Ativo)' : 'Editar Ficha (Modo de Edição Ativo)'}
+            >
+              {isEditing ? <Unlock size={14} /> : <Lock size={14} />}
+            </button>
+
+            {/* Botão Circular: Aurora (Assistente Semi-Inteligente) */}
+            <button
+              type="button"
+              onClick={() => setIsAuroraOpen(!isAuroraOpen)}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer relative active:scale-95 ${
+                isAuroraOpen
+                  ? 'bg-gradient-to-br from-violet-600/40 via-indigo-600/40 to-cyan-500/40 border-cyan-400 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.45)] ring-1 ring-cyan-400/50 scale-105'
+                  : 'bg-white/[0.03] hover:bg-violet-500/20 border-violet-400/35 hover:border-violet-400/60 text-violet-300 hover:text-white shadow-[0_0_15px_rgba(167,139,250,0.2)]'
+              }`}
+              title={isAuroraOpen ? 'Fechar Aurora' : 'Aurora: Assistente de Ficha'}
+            >
+              <Sparkles 
+                size={14} 
+                className={`text-violet-400 drop-shadow-[0_0_6px_currentColor] transition-transform ${
+                  isAuroraOpen ? 'text-cyan-300 rotate-12 scale-110' : ''
+                }`} 
+              />
+              {!isAuroraOpen && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_5px_#22d3ee] animate-pulse" />
+              )}
+            </button>
+
+            {/* Botão Circular: Ajuda & Guia (?) */}
+            <button
+              type="button"
+              onClick={() => setIsGuideOpen(true)}
+              className="w-8 h-8 rounded-full bg-white/[0.03] hover:bg-cyan-500/15 active:scale-95 border border-cyan-400/30 hover:border-cyan-400/60 flex items-center justify-center text-cyan-300 transition-all shadow-[0_0_15px_rgba(34,211,238,0.2)] cursor-pointer"
+              title="Guia de Ferramentas, Atalhos e Usabilidade (?)"
+            >
+              <HelpCircle size={15} className="text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
+            </button>
+
+            {/* Botão Circular: GM / Player View (Coroa dourada para GM, cinza para Player) */}
+            <button
+              type="button"
+              onClick={handleToggleGmView}
+              className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-95 ${
+                isGmView
+                  ? 'bg-amber-500/25 border-amber-400/70 text-amber-300 shadow-[0_0_18px_rgba(245,158,11,0.5)] ring-1 ring-amber-400/50'
+                  : 'bg-white/[0.02] border-white/10 hover:border-white/25 text-white/35 hover:text-white/60'
+              }`}
+              title={
+                isGmView
+                  ? 'Visão do Mestre Ativa (Clique para mudar para Visão do Jogador)'
+                  : 'Visão do Jogador (Clique para autenticar como Mestre e alternar para GM View)'
+              }
+            >
+              <Crown 
+                size={14} 
+                className={
+                  isGmView 
+                    ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] scale-110' 
+                    : 'text-neutral-400'
+                } 
+              />
+            </button>
+
+            {/* User Account / Session Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setAuthModalTab('player');
+                setIsAuthModalOpen(true);
+              }}
+              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
+                authSession.role === 'gamemaster'
+                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+              }`}
+              title="Gerenciar Conta / Ficha / Trocar de Usuário"
+            >
+              {authSession.role === 'gamemaster' ? (
+                <Crown size={13} className="text-amber-400 shrink-0" />
+              ) : (
+                <User size={13} className="text-violet-400 shrink-0" />
+              )}
+              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
+                {authSession.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession.name || authSession.username}
+              </span>
             </button>
           </div>
 
-          {/* GM View Toggle Button */}
-          <button
-            onClick={handleToggleGmView}
-            className={`h-8 px-2.5 sm:px-3 rounded-full border flex items-center gap-1.5 transition-all text-xs font-semibold cursor-pointer shadow-sm ${
-              isGmView
-                ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
-                : 'bg-white/[0.02] border-white/10 hover:border-white/20 text-white/70 hover:text-white'
-            }`}
-            title={
-              isGmView
-                ? 'Modo Mestre Ativo (Clique para mudar para Visão do Jogador)'
-                : 'Modo Jogador Ativo (Clique para autenticar com senha do Mestre e acessar GM View)'
-            }
-          >
-            <Crown size={14} className={isGmView ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]' : 'text-white/40'} />
-            <span className="hidden xs:inline">{isGmView ? 'GM View' : 'Player View'}</span>
-          </button>
-
-          {/* Botão de Ajuda & Guia de Ferramentas / Usabilidade (?) */}
-          <button
-            onClick={() => setIsGuideOpen(true)}
-            className="w-8 h-8 rounded-full bg-white/[0.02] hover:bg-cyan-500/15 active:scale-95 border border-cyan-400/30 hover:border-cyan-400/60 flex items-center justify-center text-cyan-300 transition-all shadow-[0_0_15px_rgba(34,211,238,0.2)] cursor-pointer"
-            title="Guia de Ferramentas, Atalhos e Usabilidade (?)"
-          >
-            <HelpCircle size={15} className="text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
-          </button>
-
-          <button 
-            className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
-              isEditing 
-                ? 'bg-rose-500/10 border-rose-400/30 text-rose-400 hover:bg-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
-                : 'bg-emerald-500/10 border-emerald-400/30 text-emerald-400 hover:bg-emerald-500/20 shadow-[0_0_15px_rgba(52,211,153,0.2)]'
-            }`}
-            onClick={() => setIsEditing(!isEditing)}
-            title={isEditing ? 'Travar Ficha' : 'Editar Ficha'}
-          >
-            {isEditing ? <Unlock size={14} /> : <Lock size={14} />}
-          </button>
-          <div className="w-8 h-8 rounded-full bg-white/[0.02] border border-violet-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(167,139,250,0.2)]">
-            <Sparkles size={14} className="text-violet-400 drop-shadow-[0_0_5px_currentColor]" />
-          </div>
         </div>
       </header>
 
@@ -1175,6 +1229,17 @@ export default function App() {
         characterUsername={characterToDelete ? characterToDelete.id.replace(/^char-/, '') : ''}
         characterName={characterToDelete ? characterToDelete.name : ''}
         onConfirmDelete={handleConfirmDeleteCharacter}
+      />
+
+      {/* Aurora: Auxiliar Semi-Inteligente da Ficha (Zero Custos de IA / Regras Determinísticas) */}
+      <AuroraAssistant
+        isOpen={isAuroraOpen}
+        onClose={() => setIsAuroraOpen(false)}
+        characterData={data}
+        onUpdateCharacterData={(updater) => {
+          setData(updater);
+        }}
+        accentColor={activeChar?.color || '#a855f7'}
       />
     </div>
   );

@@ -72,7 +72,7 @@ const TYPE_CONFIG: Record<CombatEntityType, { label: string; color: string; bord
 export const BattleTrackerModal: React.FC<BattleTrackerModalProps> = ({
   isOpen,
   onClose,
-  characterName = 'Arcana',
+  characterName = 'Personagem',
   characterAvatar,
   isGmView = false
 }) => {
@@ -103,7 +103,7 @@ export const BattleTrackerModal: React.FC<BattleTrackerModalProps> = ({
       entities: [
         {
           id: 'player-default',
-          name: characterName || 'Arcana',
+          name: characterName || 'Personagem',
           type: 'player',
           color: '#a855f7',
           currentTick: 0,

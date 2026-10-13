@@ -31,12 +31,20 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
 
   const guideItems = [
     {
+      id: 'aurora_assistant',
+      category: 'modes',
+      title: 'Aurora: Auxiliar Semi-Inteligente (Zero Tokens / 100% Gratuito)',
+      badge: '✨ Ícone ao lado de Editar Ficha ou Voz',
+      icon: <Sparkles size={16} className="text-cyan-400" />,
+      description: 'Ferramenta interativa que compreende comandos em linguagem natural para editar sua ficha sem gastar com IA. Experimente: "ei aurora, aumente a coragem um ponto", "tire 6 pontos de mana física", "adicione 50 peças de ouro", "recupere toda a mana", "role 1d20" ou "cure todos os ferimentos". Conta com suporte a microfone por voz no navegador e botão de Desfazer instantâneo.'
+    },
+    {
       id: 'file_system_persistence',
       category: 'modes',
       title: 'Persistência File-System (Sem Banco de Dados)',
-      badge: '💾 Arquivos JSON Independentes',
+      badge: '💾 Persistência Direta no Servidor',
       icon: <Crown size={16} className="text-violet-400" />,
-      description: 'O sistema não utiliza banco de dados: cada ficha é um arquivo JSON independente salvo diretamente no disco (ex: data/characters/arcana.json). A autenticação de cada jogador compara a senha armazenada dentro do próprio JSON. A conta do Game Master possui seu arquivo específico (data/gamemaster.json) que conecta todas as fichas da campanha e permite gerenciar ou apagar fichas do disco com a senha do Mestre (saidaquiburro).'
+      description: 'O sistema não utiliza banco de dados: cada ficha é um documento individual salvo diretamente no disco do servidor. A autenticação compara a senha armazenada dentro da própria ficha. A conta do Game Master conecta todas as fichas da campanha e permite gerenciar ou apagar fichas com a senha do Mestre (saidaquiburro).'
     },
     {
       id: 'gm_view_toggle',
@@ -230,7 +238,7 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       isOpen={isOpen}
       onClose={onClose}
       title="Guia de Ferramentas & Usabilidade"
-      subtitle="Manual de atalhos, rolagens e recursos da Ficha Arcana"
+      subtitle="Manual de atalhos, rolagens e recursos do Sistema Aurora"
       icon={<HelpCircle size={20} />}
       theme="violet"
       maxWidth="2xl"

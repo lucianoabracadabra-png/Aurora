@@ -125,7 +125,7 @@ function createBaseCharacter(name: string, role: string, color: string) {
 // Seed initial default characters if not present
 function ensureDefaultCharacters() {
   const seeds = [
-    { username: 'arcana', name: 'Arcana', role: 'Místico Arcano', color: '#a855f7', password: '123' },
+    { username: 'elias', name: 'Elias Iyanu', role: 'Místico do Deserto', color: '#a855f7', password: '123' },
     { username: 'valerius', name: 'Valerius', role: 'Guerreiro Paladino', color: '#10b981', password: '123' },
     { username: 'kaelen', name: 'Kaelen', role: 'Erudito dos Astros', color: '#06b6d4', password: '123' },
   ];

@@ -78,7 +78,7 @@ export const StorageApi = {
 
   async getCharacter(username: string): Promise<{ username: string; name: string; color: string; character: CharacterData }> {
     const res = await fetch(`/api/characters/${encodeURIComponent(username)}`);
-    if (!res.ok) throw new Error(`Ficha ${username}.json não encontrada.`);
+    if (!res.ok) throw new Error(`Ficha de personagem não encontrada.`);
     const data = await res.json();
     return data;
   },
@@ -91,7 +91,7 @@ export const StorageApi = {
     });
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || `Erro ao salvar ${username}.json no disco.`);
+      throw new Error(data.error || `Erro ao salvar ficha do personagem no disco.`);
     }
     return data;
   },

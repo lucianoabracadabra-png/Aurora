@@ -61,10 +61,10 @@ export const DeleteCharacterModal: React.FC<DeleteCharacterModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Apagar Ficha do Disco</span>
+                <span>Apagar Ficha de Personagem</span>
               </h3>
-              <p className="text-xs text-rose-300/80 font-mono">
-                {characterUsername}.json
+              <p className="text-xs text-rose-300/80 font-medium">
+                {characterName}
               </p>
             </div>
           </div>
@@ -84,11 +84,8 @@ export const DeleteCharacterModal: React.FC<DeleteCharacterModalProps> = ({
           </p>
           <p>
             Você está prestes a apagar permanentemente a ficha de{' '}
-            <strong className="text-white">{characterName}</strong> (arquivo{' '}
-            <code className="text-amber-300 bg-black/40 px-1 py-0.5 rounded font-mono">
-              {characterUsername}.json
-            </code>
-            ) do sistema de arquivos e desvinculá-la do painel do Game Master.
+            <strong className="text-white">{characterName}</strong>{' '}
+            do sistema de arquivos e desvinculá-la do painel do Game Master.
           </p>
         </div>
 
