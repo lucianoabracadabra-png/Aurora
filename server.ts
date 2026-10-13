@@ -568,20 +568,32 @@ async function startServer() {
   }
 
   const AURORA_SYSTEM_PROMPT = `Você é a Aurora, a inteligência arcana e assistente mágica de fichas de RPG do Sistema Arcana.
-Seu papel é interagir com o jogador de forma acolhedora, imersiva e eficiente.
-Você tem acesso para alterar e consultar os dados da ficha do personagem chamando ferramentas (Function Calling / Tool Calling).
+Seu papel é interagir com o jogador de forma acolhedora, imersiva, sábia e precisa.
+Você tem acesso para ler e alterar ABSOLUTAMENTE TODOS os dados e campos da ficha do personagem chamando ferramentas (Function Calling / Tool Calling).
 
-REGRAS ESSENCIAIS:
-1. SEMPRE que o usuário pedir para alterar valores, gastar ou recuperar mana, rolar dados, modificar atributos, perícias, alinhamento, domínios de magia, saúde ou moedas, CHAME a ferramenta correspondente.
-2. NUNCA invente moedas que não existem! O sistema Arcana aceita estritamente: Ouro (gold / PO), Prata (silver / PP) e Cobre (copper / PC). Se o usuário pedir platina, gemas como moeda direta ou moeda moderna, recuse ou alerte explicando que apenas Ouro, Prata e Cobre existem como moeda corrente no Arcana.
-3. Você pode chamar MÚLTIPLAS ferramentas na mesma resposta se o jogador pedir várias ações (ex: "gastei 5 de ouro e comprei uma espada" -> chama manage_currency E manage_inventory_item).
-4. Ao rolar dados ou aplicar dano/cura, chame as respectivas ferramentas 'roll_dice' ou 'manage_health'.
-5. Responda em português com tom amigável e místico (usando formatação markdown leve com negrito e itálico).
-6. Se o usuário fizer apenas uma pergunta sobre seus pontos atuais (ex: "quanto de mana eu tenho?"), responda diretamente baseado no contexto fornecido.`;
+TODOS OS CAMPOS DA FICHA ESTÃO SOB SEU CONTROLE:
+0. CONSULTA GERAL OU POR SEÇÃO: Para ler dados específicos com precisão (como idiomas conhecidos, atributos, inventário, etc.), você pode responder diretamente com base no contexto OU chamar a ferramenta 'query_character_sheet'.
+1. IDIOMAS: Para ler idiomas, veja "IDIOMAS CONHECIDOS" no contexto da ficha ou consulte 'query_character_sheet'. Se o usuário perguntar quais idiomas ele fala, cite-os imediatamente. Para adicionar ou remover idiomas que o personagem aprendeu ou fala, chame 'manage_language' (ex: "aprendi élfico", "remova o idioma anão").
+2. IDENTIDADE: Campos de nome, idade, altura, peso, cabelos, olhos, pele, ideais, origem, avatarUrl são alterados via 'manage_identity'.
+3. VANTAGENS E DESVANTAGENS: Adicione ou remova traços via 'manage_trait' (especificando tipo "advantage" ou "disadvantage", pontos e descrição).
+4. HABILIDADES: Adicione, remova ou ative/desative habilidades especiais via 'manage_ability'.
+5. ATRIBUTOS E PERÍCIAS: Altere atributos via 'modify_attribute', perícias padrão via 'modify_skill', e perícias customizadas em Treinamentos/Ciências/Artes via 'manage_custom_skill'.
+6. MANA E NATUREZA: Gerencie mana via 'manage_mana' (física/vigor, mental/foco, social/graça) e natureza elemental gasta/recuperada via 'manage_natureza'.
+7. MOEDAS E ECONOMIA: O sistema Arcana aceita estritamente: Ouro (gold / PO), Prata (silver / PP) e Cobre (copper / PC). Use 'manage_currency'. NUNCA invente moedas que não existem (ex: diamantes, rubis ou platinas como moedas correntes não existem e devem ser recusados com aviso).
+8. SAÚDE E FERIMENTOS: Use 'manage_health' para aplicar ferimentos (simples, letal, agravado) em partes do corpo (head, torso, arms, legs) ou curar partes/tudo.
+9. INVENTÁRIO: Adicione, remova, aumente quantidades ou equipe/desequipe armas, armaduras, projéteis, acessórios e itens gerais com 'manage_inventory_item'.
+10. FLUXO E PATRONO: Níveis e HP (0-10) controlados via 'manage_flow_patron'.
+11. ROLAGEM DE DADOS: Role qualquer teste ou jogada com 'roll_dice'.
+
+DIRETRIZES DE DIÁLOGO:
+• Quando o usuário perguntar sobre o que ele tem na ficha (ex: "quais idiomas eu falo?", "quanto de ouro eu tenho?", "quais armas estão na minha mochila?"), responda com precisão imediata baseado no contexto detalhado fornecido ou chame 'query_character_sheet'.
+• Quando o usuário pedir qualquer alteração, CHAME A FERRAMENTA CORRESPONDENTE imediatamente.
+• Você pode chamar múltiplas ferramentas na mesma resposta se o jogador pedir ações combinadas.
+• Responda em português com formatação markdown leve (negrito, itálico) e tom acolhedor e arcano.`;
 
   // 11. Aurora AI Assistant Chat Endpoint (Gemini & Groq with Tool-Calling)
   app.post('/api/aurora/chat', async (req, res) => {
-    const { provider, apiKey, messages, characterContext } = req.body;
+    const { provider, apiKey, messages, characterContext, model } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ success: false, error: 'Lista de mensagens não fornecida.' });
@@ -619,14 +631,49 @@ REGRAS ESSENCIAIS:
 
         const geminiTools = getGeminiFunctionDeclarations();
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents,
-          config: {
-            systemInstruction: fullSystemInstruction,
-            tools: [{ functionDeclarations: geminiTools }]
+        let response: any = null;
+        let lastError: any = null;
+
+        // Modelos configuráveis pelo usuário (Default: models/gemini-2.5-flash)
+        const defaultGemini = 'gemini-2.5-flash';
+        const rawRequested = typeof model === 'string' && model.trim() ? model.trim() : defaultGemini;
+        const normalizedRequested = rawRequested.replace(/^models\//, '');
+
+        const modelsToTry = [
+          normalizedRequested,
+          'gemini-2.5-flash',
+          'gemini-3.8-flash',
+          'gemini-3.1-pro-preview',
+          'gemini-3.1-flash-lite'
+        ].filter((v, i, a) => a.indexOf(v) === i);
+
+        for (const modelName of modelsToTry) {
+          try {
+            response = await ai.models.generateContent({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction: fullSystemInstruction,
+                tools: [{ functionDeclarations: geminiTools }]
+              }
+            });
+            if (response) break;
+          } catch (modelErr: any) {
+            lastError = modelErr;
+            const errStr = String(modelErr?.message || modelErr || '');
+            if (errStr.includes('503') || errStr.includes('high demand') || errStr.includes('UNAVAILABLE') || errStr.includes('not found')) {
+              console.warn(`[Gemini] ${modelName} returned issue (${errStr}), trying fallback candidate...`);
+              await new Promise(r => setTimeout(r, 500));
+              continue;
+            } else {
+              throw modelErr;
+            }
           }
-        });
+        }
+
+        if (!response && lastError) {
+          throw lastError;
+        }
 
         const toolCalls: any[] = [];
         if (response.functionCalls && Array.isArray(response.functionCalls)) {
@@ -648,9 +695,16 @@ REGRAS ESSENCIAIS:
         });
       } catch (err: any) {
         console.error('[Aurora Gemini Error]', err);
+        const errMessage = String(err?.message || '');
+        if (errMessage.includes('503') || errMessage.includes('high demand') || errMessage.includes('UNAVAILABLE')) {
+          return res.status(503).json({
+            success: false,
+            error: 'Os servidores da Gemini API estão passando por uma alta demanda temporária (Erro 503). Aguarde alguns segundos e tente novamente, ou utilize o modo Groq / NLP.'
+          });
+        }
         return res.status(500).json({
           success: false,
-          error: `Erro ao comunicar com a Gemini API: ${err?.message || 'Falha na requisição'}`
+          error: `Erro ao comunicar com a Gemini API: ${errMessage || 'Falha na requisição'}`
         });
       }
     }
@@ -679,33 +733,78 @@ REGRAS ESSENCIAIS:
 
         const groqTools = getGroqTools();
 
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${effectiveKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages: groqMessages,
-            tools: groqTools,
-            tool_choice: 'auto',
-            temperature: 0.3
-          })
-        });
+        // Modelos configuráveis pelo usuário (Default: openai/gpt-oss-120b)
+        const defaultGroq = 'openai/gpt-oss-120b';
+        const requestedGroq = typeof model === 'string' && model.trim() ? model.trim() : defaultGroq;
 
-        const rawText = await groqRes.text();
-        let groqData: any = {};
-        try {
-          groqData = JSON.parse(rawText);
-        } catch (jsonErr) {
-          console.error('[Groq JSON Parse Error]', jsonErr, rawText);
-          return res.status(500).json({ success: false, error: 'Resposta inválida recebida da Groq API.' });
+        const groqModelsToTry = [
+          requestedGroq,
+          'openai/gpt-oss-120b',
+          'qwen/qwen3.8-27b',
+          'openai/gpt-oss-20b',
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant'
+        ].filter((v, i, a) => a.indexOf(v) === i);
+
+        let groqData: any = null;
+        let lastGroqError: string = '';
+
+        for (const modelCandidate of groqModelsToTry) {
+          try {
+            const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${effectiveKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                model: modelCandidate,
+                messages: groqMessages,
+                tools: groqTools,
+                tool_choice: 'auto',
+                temperature: 0.3
+              })
+            });
+
+            const rawText = await groqRes.text();
+            let parsedData: any = {};
+            try {
+              parsedData = JSON.parse(rawText);
+            } catch (jsonErr) {
+              lastGroqError = 'Resposta inválida recebida da Groq API.';
+              continue;
+            }
+
+            if (!groqRes.ok) {
+              const errMsg = parsedData?.error?.message || `Erro HTTP ${groqRes.status}`;
+              if (
+                errMsg.includes('does not exist') ||
+                errMsg.includes('do not have access') ||
+                errMsg.includes('decommissioned') ||
+                errMsg.includes('not found') ||
+                errMsg.includes('deprecated')
+              ) {
+                console.warn(`[Groq] Model ${modelCandidate} not accessible (${errMsg}), trying fallback candidate...`);
+                lastGroqError = errMsg;
+                continue;
+              } else {
+                lastGroqError = errMsg;
+                break;
+              }
+            }
+
+            groqData = parsedData;
+            break;
+          } catch (fetchErr: any) {
+            lastGroqError = fetchErr?.message || 'Falha de rede com a Groq API';
+          }
         }
 
-        if (!groqRes.ok) {
-          const errMsg = groqData?.error?.message || `Erro HTTP ${groqRes.status} da Groq API`;
-          return res.status(groqRes.status).json({ success: false, error: errMsg });
+        if (!groqData) {
+          return res.status(400).json({
+            success: false,
+            error: lastGroqError || 'Não foi possível encontrar um modelo acessível com sua chave Groq.'
+          });
         }
 
         const choice = groqData.choices?.[0]?.message;

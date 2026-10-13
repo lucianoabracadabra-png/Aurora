@@ -7,24 +7,16 @@ import {
   Mic, 
   MicOff, 
   Trash2, 
-  Dices, 
   Zap, 
-  HelpCircle,
-  CheckCircle2,
-  AlertCircle,
-  Key,
-  ShieldCheck,
-  ExternalLink,
-  Bot,
-  Settings,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  Eye,
+  Key, 
+  ShieldCheck, 
+  ExternalLink, 
+  Loader2, 
+  Eye, 
   EyeOff
 } from 'lucide-react';
 import { CharacterData } from '../types';
-import { parseAndExecuteAurora, AuroraActionResult } from '../utils/auroraParser';
+import { parseAndExecuteAurora } from '../utils/auroraParser';
 import { executeAuroraTool, buildCharacterContext, safeJsonParse, ToolExecutionResult } from '../utils/auroraTools';
 import { AuroraApiKeyGuideModal, GuideType } from './modals/AuroraApiKeyGuideModal';
 
@@ -48,6 +40,48 @@ interface AuroraAssistantProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
+
+const defaultWelcomeMessages: Record<AuroraProvider, ChatMessage[]> = {
+  nlp: [
+    {
+      id: 'welcome-nlp',
+      sender: 'aurora',
+      provider: 'nlp',
+      text: '✨ **Olá! Eu sou a Aurora (Modo NLP)**.\n\nNeste chat opero com **regras determinísticas locais 100% offline**, sem custos e sem enviar dados para a internet.\n\nExperimente dizer: *"aumente a coragem um ponto"*, *"tire 6 pontos de mana física"* ou *"adicione 50 peças de ouro"*.',
+      timestamp: Date.now()
+    }
+  ],
+  gemini: [
+    {
+      id: 'welcome-gemini',
+      sender: 'aurora',
+      provider: 'gemini',
+      text: '✨ **Olá! Eu sou a Aurora (Modo Gemini API)**.\n\nConectada aos modelos **Gemini** com **Tool-Calling** nativo para ler ou alterar absolutamente todos os campos da ficha (idiomas, atributos, perícias, inventário, moedas, mana, etc.) e rolar dados.\n\nFale ou digite qualquer comando ou pergunte sobre sua ficha!',
+      timestamp: Date.now()
+    }
+  ],
+  groq: [
+    {
+      id: 'welcome-groq',
+      sender: 'aurora',
+      provider: 'groq',
+      text: '⚡ **Olá! Eu sou a Aurora (Modo Groq API)**.\n\nProcessamento com modelos Groq (**openai/gpt-oss-120b, qwen/qwen3.8-27b, openai/gpt-oss-20b**) com suporte completo a comandos e leitura/edição de todos os campos da ficha.\n\nComo posso te ajudar agora?',
+      timestamp: Date.now()
+    }
+  ]
+};
+
+export const GEMINI_AVAILABLE_MODELS = [
+  { id: 'models/gemini-2.5-flash', name: 'models/gemini-2.5-flash (Padrão)', label: 'Gemini 2.5 Flash' },
+  { id: 'models/gemini-3.8-flash', name: 'models/gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+  { id: 'models/gemini-3.1-pro-preview', name: 'models/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
+];
+
+export const GROQ_AVAILABLE_MODELS = [
+  { id: 'openai/gpt-oss-120b', name: 'openai/gpt-oss-120b (Padrão)', label: 'GPT-OSS 120B' },
+  { id: 'qwen/qwen3.8-27b', name: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B' },
+  { id: 'openai/gpt-oss-20b', name: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B' },
+];
 
 export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
   characterData,
@@ -73,6 +107,23 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
       if (saved === 'gemini' || saved === 'groq' || saved === 'nlp') return saved;
     } catch {}
     return 'nlp';
+  });
+
+  // Model Selection per provider (first is default)
+  const [geminiModel, setGeminiModel] = useState<string>(() => {
+    try {
+      return localStorage.getItem('arcana_aurora_gemini_model') || GEMINI_AVAILABLE_MODELS[0].id;
+    } catch {
+      return GEMINI_AVAILABLE_MODELS[0].id;
+    }
+  });
+
+  const [groqModel, setGroqModel] = useState<string>(() => {
+    try {
+      return localStorage.getItem('arcana_aurora_groq_model') || GROQ_AVAILABLE_MODELS[0].id;
+    } catch {
+      return GROQ_AVAILABLE_MODELS[0].id;
+    }
   });
 
   // API Keys stored safely in localStorage
@@ -105,18 +156,26 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
   // Undo stack
   const [undoStack, setUndoStack] = useState<{ id: string; prevData: CharacterData; description: string }[]>([]);
 
-  // Messages list
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    return [
-      {
-        id: 'welcome',
-        sender: 'aurora',
-        provider: 'nlp',
-        text: '✨ **Olá! Eu sou a Aurora**, sua assistente arcana da ficha.\n\nEscolha acima o modo desejado:\n• **NLP**: Regras determinísticas 100% offline e sem custos.\n• **GeminiAPI**: Modelo Gemini 3.8 Flash com tool-calling avançado.\n• **GroqAPI**: Llama 3.3 70B com resposta instantânea em milissegundos.\n\nExperimente dizer: *"gastei 5 moedas de ouro"*, *"aumente a coragem um ponto"* ou *"tire 6 de mana física"*.',
-        timestamp: Date.now()
+  // CHATS ISOLADOS POR PROVEDOR (NLP / Gemini / Groq)
+  const [messagesByProvider, setMessagesByProvider] = useState<Record<AuroraProvider, ChatMessage[]>>(() => {
+    try {
+      const saved = localStorage.getItem('arcana_aurora_chats_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            nlp: Array.isArray(parsed.nlp) && parsed.nlp.length > 0 ? parsed.nlp : defaultWelcomeMessages.nlp,
+            gemini: Array.isArray(parsed.gemini) && parsed.gemini.length > 0 ? parsed.gemini : defaultWelcomeMessages.gemini,
+            groq: Array.isArray(parsed.groq) && parsed.groq.length > 0 ? parsed.groq : defaultWelcomeMessages.groq
+          };
+        }
       }
-    ];
+    } catch {}
+    return defaultWelcomeMessages;
   });
+
+  // Active messages list for current selected tab
+  const activeMessages = messagesByProvider[provider] || defaultWelcomeMessages[provider];
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +187,13 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
       localStorage.setItem('arcana_aurora_provider', provider);
     } catch {}
   }, [provider]);
+
+  // Sync isolated chats to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('arcana_aurora_chats_v2', JSON.stringify(messagesByProvider));
+    } catch {}
+  }, [messagesByProvider]);
 
   // Save keys when changed
   useEffect(() => {
@@ -167,12 +233,12 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
     }
   }, []);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages or tab change
   useEffect(() => {
     if (isOpen) {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isOpen, isThinking]);
+  }, [activeMessages, provider, isOpen, isThinking]);
 
   // Focus input when opened
   useEffect(() => {
@@ -204,11 +270,12 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
     }
   };
 
-  // Main command executor supporting NLP / Gemini / Groq
+  // Main command executor supporting NLP / Gemini / Groq with isolated chats
   const handleExecuteCommand = async (commandText: string) => {
     const trimmed = commandText.trim();
     if (!trimmed || isThinking) return;
 
+    const currentTab = provider;
     const userMsgId = `user-${Date.now()}`;
     const userMsg: ChatMessage = {
       id: userMsgId,
@@ -217,11 +284,15 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
       timestamp: Date.now()
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Update active tab's isolated message list
+    setMessagesByProvider((prev) => ({
+      ...prev,
+      [currentTab]: [...(prev[currentTab] || []), userMsg]
+    }));
     setInput('');
 
     // --- MODE 1: NLP (OFFLINE & DETERMINISTIC) ---
-    if (provider === 'nlp') {
+    if (currentTab === 'nlp') {
       const result = parseAndExecuteAurora(trimmed, characterData);
       const auroraMsgId = `aurora-${Date.now() + 1}`;
       let isUndoAvailable = false;
@@ -248,7 +319,10 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
         isUndoAvailable
       };
 
-      setMessages((prev) => [...prev, auroraMsg]);
+      setMessagesByProvider((prev) => ({
+        ...prev,
+        nlp: [...(prev.nlp || []), auroraMsg]
+      }));
       return;
     }
 
@@ -256,24 +330,25 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
     setIsThinking(true);
 
     try {
-      const activeKey = provider === 'gemini' ? geminiKey.trim() : groqKey.trim();
+      const activeKey = currentTab === 'gemini' ? geminiKey.trim() : groqKey.trim();
       const characterContext = buildCharacterContext(characterData);
 
-      // Build recent conversation history
-      const historyPayload = messages.slice(-8).map((m) => ({
+      // History specific to the active isolated tab
+      const currentTabHistory = (messagesByProvider[currentTab] || []).slice(-8).map((m) => ({
         role: m.sender === 'user' ? 'user' : 'assistant',
         content: m.text
       }));
-      historyPayload.push({ role: 'user', content: trimmed });
+      currentTabHistory.push({ role: 'user', content: trimmed });
 
       const response = await fetch('/api/aurora/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          provider,
+          provider: currentTab,
           apiKey: activeKey,
-          messages: historyPayload,
-          characterContext
+          messages: currentTabHistory,
+          characterContext,
+          model: currentTab === 'gemini' ? geminiModel : groqModel
         })
       });
 
@@ -342,26 +417,32 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
       const auroraMsg: ChatMessage = {
         id: auroraMsgId,
         sender: 'aurora',
-        provider,
+        provider: currentTab,
         text: finalText,
         timestamp: Date.now() + 1,
         toolResults,
         isUndoAvailable
       };
 
-      setMessages((prev) => [...prev, auroraMsg]);
+      setMessagesByProvider((prev) => ({
+        ...prev,
+        [currentTab]: [...(prev[currentTab] || []), auroraMsg]
+      }));
     } catch (err: any) {
       console.error('[Aurora Assistant Error]', err);
       const errorMsgId = `aurora-err-${Date.now()}`;
       const errorMsg: ChatMessage = {
         id: errorMsgId,
         sender: 'aurora',
-        provider,
-        text: `⚠️ **Aviso da Aurora**: ${err?.message || 'Falha ao processar o comando com a IA.'}\n\nVerifique sua chave de API ou experimente o modo **NLP (Offline)** caso esteja sem conexão.`,
+        provider: currentTab,
+        text: `⚠️ **Aviso da Aurora**: ${err?.message || 'Falha ao processar o comando com a IA.'}\n\nVerifique sua chave de API ou experimente o modo **NLP (Offline)** caso a conexão oscile.`,
         timestamp: Date.now(),
         error: true
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessagesByProvider((prev) => ({
+        ...prev,
+        [currentTab]: [...(prev[currentTab] || []), errorMsg]
+      }));
     } finally {
       setIsThinking(false);
     }
@@ -382,22 +463,20 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
       timestamp: Date.now()
     };
 
-    setMessages((prev) => [
-      ...prev.map((m) => (m.id === (msgId || lastUndo.id) ? { ...m, isUndoAvailable: false } : m)),
-      undoMsg
-    ]);
+    setMessagesByProvider((prev) => ({
+      ...prev,
+      [provider]: (prev[provider] || []).map((m) =>
+        m.id === (msgId || lastUndo.id) ? { ...m, isUndoAvailable: false } : m
+      ).concat(undoMsg)
+    }));
   };
 
+  // Limpa apenas o histórico da aba atualmente ativa
   const handleClearHistory = () => {
-    setMessages([
-      {
-        id: 'reset',
-        sender: 'aurora',
-        provider,
-        text: `✨ Histórico de conversa limpo! Modo ativo: **${provider.toUpperCase()}**. Como posso te ajudar na ficha agora?`,
-        timestamp: Date.now()
-      }
-    ]);
+    setMessagesByProvider((prev) => ({
+      ...prev,
+      [provider]: defaultWelcomeMessages[provider]
+    }));
   };
 
   if (!isOpen) return null;
@@ -444,11 +523,15 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                       ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                       : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
                   }`}>
-                    {provider === 'gemini' ? 'Gemini 3.8 Flash' : provider === 'groq' ? 'Groq Llama 3.3' : 'NLP Offline'}
+                    {provider === 'gemini'
+                      ? (GEMINI_AVAILABLE_MODELS.find(m => m.id === geminiModel)?.label || 'Gemini 2.5 Flash')
+                      : provider === 'groq'
+                      ? (GROQ_AVAILABLE_MODELS.find(m => m.id === groqModel)?.label || 'GPT-OSS 120B')
+                      : 'NLP Offline'}
                   </span>
                 </div>
                 <span className="text-[10px] text-white/50 tracking-tight">
-                  Ficha de <strong className="text-violet-300 font-semibold">{characterData.identity?.name || 'Personagem'}</strong>
+                  Chat isolado: <strong className="text-violet-300 font-semibold">{provider.toUpperCase()}</strong>
                 </span>
               </div>
             </div>
@@ -487,7 +570,7 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                 type="button"
                 onClick={handleClearHistory}
                 className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-white/40 hover:text-white transition-colors cursor-pointer"
-                title="Limpar histórico"
+                title={`Limpar histórico da aba ${provider.toUpperCase()}`}
               >
                 <Trash2 size={13} />
               </button>
@@ -503,7 +586,7 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
             </div>
           </div>
 
-          {/* BARRA DE SELEÇÃO DE PROVEDOR: 3 OPÇÕES (NLP / GeminiAPI / GroqAPI) */}
+          {/* BARRA DE SELEÇÃO DE PROVEDOR: 3 CHATS ISOLADOS (NLP / GeminiAPI / GroqAPI) */}
           <div className="px-3 pt-2.5 pb-2 bg-black/40 border-b border-white/5 flex flex-col gap-1.5">
             <div 
               className="grid grid-cols-3 gap-1 p-1 bg-white/[0.03] border border-white/10 rounded-xl"
@@ -518,7 +601,7 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_12px_rgba(34,211,238,0.3)]'
                     : 'text-white/50 hover:text-white hover:bg-white/5 border border-transparent'
                 }`}
-                title="Modo NLP (Regras determinísticas offline sem IA)"
+                title="Chat NLP (Regras determinísticas offline sem IA)"
               >
                 <ShieldCheck size={12} className="shrink-0" />
                 <span>NLP</span>
@@ -532,7 +615,7 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                     ? 'bg-blue-600/30 text-blue-200 border border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
                     : 'text-white/50 hover:text-white hover:bg-white/5 border border-transparent'
                 }`}
-                title="Modo GeminiAPI (Google Gemini 3.8 Flash com Tool Calling)"
+                title="Chat GeminiAPI (Google Gemini com Tool Calling)"
               >
                 <Sparkles size={12} className="shrink-0" />
                 <span>GeminiAPI</span>
@@ -546,7 +629,7 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                     ? 'bg-amber-600/30 text-amber-200 border border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
                     : 'text-white/50 hover:text-white hover:bg-white/5 border border-transparent'
                 }`}
-                title="Modo GroqAPI (Groq Llama 3.3 70B com resposta instantânea)"
+                title="Chat GroqAPI (Groq Llama 3.1 com resposta em milissegundos)"
               >
                 <Zap size={12} className="shrink-0" />
                 <span>GroqAPI</span>
@@ -620,7 +703,7 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowKeySecret(!showKeySecret)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
                       title={showKeySecret ? 'Ocultar' : 'Exibir'}
                     >
                       {showKeySecret ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -635,13 +718,52 @@ export const AuroraAssistant: React.FC<AuroraAssistantProps> = ({
                     Pronto
                   </button>
                 </div>
+
+                {/* Seleção de Modelo para Groq ou Gemini */}
+                <div className="flex flex-col gap-1 pt-1.5 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-white/80 font-semibold flex items-center gap-1">
+                      <span>Modelo:</span>
+                    </span>
+                    <span className="text-cyan-300 text-[9px] font-mono">
+                      {provider === 'gemini' ? 'Padrão: models/gemini-2.5-flash' : 'Padrão: openai/gpt-oss-120b'}
+                    </span>
+                  </div>
+
+                  <select
+                    value={provider === 'gemini' ? geminiModel : groqModel}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (provider === 'gemini') {
+                        setGeminiModel(val);
+                        try { localStorage.setItem('arcana_aurora_gemini_model', val); } catch {}
+                      } else {
+                        setGroqModel(val);
+                        try { localStorage.setItem('arcana_aurora_groq_model', val); } catch {}
+                      }
+                    }}
+                    className="w-full py-1.5 px-2 rounded-lg bg-black/60 border border-white/10 text-white text-[11px] font-mono outline-none focus:border-cyan-400/50 cursor-pointer"
+                  >
+                    {provider === 'gemini'
+                      ? GEMINI_AVAILABLE_MODELS.map((m) => (
+                          <option key={m.id} value={m.id} className="bg-[#0b081e] text-white">
+                            {m.name}
+                          </option>
+                        ))
+                      : GROQ_AVAILABLE_MODELS.map((m) => (
+                          <option key={m.id} value={m.id} className="bg-[#0b081e] text-white">
+                            {m.name}
+                          </option>
+                        ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Área de Mensagens (Chat feed) */}
+          {/* Área de Mensagens (Chat feed isolado para o provedor atual) */}
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3 text-xs">
-            {messages.map((msg) => {
+            {activeMessages.map((msg) => {
               const isUser = msg.sender === 'user';
               return (
                 <div

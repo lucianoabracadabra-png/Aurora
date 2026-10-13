@@ -55,8 +55,8 @@ export const AuroraApiKeyGuideModal: React.FC<AuroraApiKeyGuideModalProps> = ({
                 {type === 'nlp' && 'Modo NLP: Offline & Sem Custos'}
               </h2>
               <p className="text-xs text-white/50">
-                {type === 'gemini' && 'Gemini 3.8 Flash com Function Calling nativo'}
-                {type === 'groq' && 'Llama 3.3 70B com resposta em milissegundos'}
+                {type === 'gemini' && 'Modelos Gemini com Tool-Calling nativo'}
+                {type === 'groq' && 'Modelos Groq com suporte a Tool-Calling'}
                 {type === 'nlp' && 'Processamento determinístico local no navegador'}
               </p>
             </div>
@@ -99,12 +99,6 @@ export const AuroraApiKeyGuideModal: React.FC<AuroraApiKeyGuideModalProps> = ({
                 </ol>
               </div>
 
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1.5 text-[11px] text-white/70">
-                <p className="font-semibold text-white/90">🌟 Vantagens da Gemini API:</p>
-                <p>• <strong>Plano 100% Gratuito:</strong> 15 requisições por minuto sem precisar cadastrar cartão de crédito.</p>
-                <p>• <strong>Modelo de Ponta:</strong> Utiliza o Gemini 3.8 Flash com tool-calling integrado para alterar mana, atributos, rolar dados e gerenciar itens.</p>
-              </div>
-
               <div className="flex gap-2">
                 <a
                   href="https://aistudio.google.com/app/apikey"
@@ -142,13 +136,6 @@ export const AuroraApiKeyGuideModal: React.FC<AuroraApiKeyGuideModalProps> = ({
                   <li>Clique em <strong>"Create API Key"</strong>, dê um nome (ex: "Aurora RPG") e copie o token gerado (começa com <code className="bg-black/50 px-1 py-0.5 rounded text-amber-200">gsk_...</code>).</li>
                   <li>Cole no campo <strong>Chave Groq</strong> no cabeçalho da Aurora.</li>
                 </ol>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1.5 text-[11px] text-white/70">
-                <p className="font-semibold text-white/90">⚡ Por que usar o Groq?</p>
-                <p>• <strong>Velocidade Surreal:</strong> LPU (Language Processing Unit) processa até 300+ tokens por segundo, gerando respostas instantâneas.</p>
-                <p>• <strong>Modelo Llama 3.3 70B:</strong> Inteligência de código e raciocínio de alta precisão com suporte a chamadas de funções da ficha.</p>
-                <p>• <strong>Gratuito:</strong> Cota generosa gratuita sem custos ocultos.</p>
               </div>
 
               <div className="flex gap-2">

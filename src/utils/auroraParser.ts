@@ -4,7 +4,7 @@ import { safeJsonParse, normalizeCoinType } from './auroraTools';
 export interface AuroraActionResult {
   success: boolean;
   message: string;
-  category?: 'personality' | 'mana' | 'attribute' | 'skill' | 'currency' | 'health' | 'domain' | 'flow' | 'dice' | 'query' | 'help' | 'unknown';
+  category?: 'personality' | 'mana' | 'attribute' | 'skill' | 'currency' | 'health' | 'domain' | 'flow' | 'dice' | 'query' | 'identity' | 'help' | 'unknown';
   updatedData?: CharacterData;
   undoData?: CharacterData;
   description?: string;
@@ -235,6 +235,35 @@ export function parseAndExecuteAurora(
         success: true,
         category: 'query',
         message: `💰 **Suas Finanças**: **${gold}** PO (Ouro), **${silver}** PP (Prata), **${copper}** PC (Cobre).`
+      };
+    }
+    // Idiomas
+    if (norm.includes('idioma') || norm.includes('idiomas') || norm.includes('lingua') || norm.includes('linguas')) {
+      const langs = currentData.identity?.languages || [];
+      return {
+        success: true,
+        category: 'query',
+        message: `🗣️ **Idiomas Conhecidos**: ${langs.length > 0 ? langs.join(', ') : 'Nenhum idioma registrado na ficha.'}`
+      };
+    }
+    // Vantagens / Traços
+    if (norm.includes('vantagem') || norm.includes('vantagens') || norm.includes('desvantagem') || norm.includes('traco') || norm.includes('tracos')) {
+      const traits = currentData.traits || [];
+      const list = traits.map(t => `• **${t.name}** (${t.type === 'advantage' ? 'Vantagem' : 'Desvantagem'}, ${t.value} pts)`).join('\n');
+      return {
+        success: true,
+        category: 'query',
+        message: `✨ **Vantagens & Desvantagens**:\n${list || 'Nenhum traço registrado.'}`
+      };
+    }
+    // Habilidades
+    if (norm.includes('habilidade') || norm.includes('habilidades')) {
+      const abs = currentData.abilities || [];
+      const list = abs.map(a => `• **${a.name}** (Custo: ${a.cost || '0'})${a.selected ? ' [Ativa]' : ''}`).join('\n');
+      return {
+        success: true,
+        category: 'query',
+        message: `🔮 **Habilidades**:\n${list || 'Nenhuma habilidade registrada.'}`
       };
     }
   }
@@ -663,7 +692,49 @@ export function parseAndExecuteAurora(
     }
   }
 
-  // --- 12. FALLBACK INTELIGENTE COM SUGESTÃO ---
+  // --- 12. IDIOMAS (LANGUAGES) ---
+  if (norm.includes('idioma') || norm.includes('lingua')) {
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
+    if (!updated.identity.languages) updated.identity.languages = [];
+
+    const words = command.split(/\s+/);
+    const cleanedWords = words.filter(w => {
+      const nw = normalizeText(w);
+      return nw !== 'idioma' && nw !== 'idiomas' && nw !== 'lingua' && nw !== 'linguas' &&
+             nw !== 'adicione' && nw !== 'adiciona' && nw !== 'coloque' && nw !== 'aprendi' &&
+             nw !== 'remova' && nw !== 'tire' && nw !== 'o' && nw !== 'a' && nw !== 'um' && nw !== 'novo' && nw !== 'de';
+    });
+    const langTarget = cleanedWords.join(' ').trim();
+
+    if (langTarget) {
+      if (isDecrease || norm.includes('remova') || norm.includes('tire')) {
+        updated.identity.languages = updated.identity.languages.filter(l => normalizeText(l) !== normalizeText(langTarget));
+        return {
+          success: true,
+          category: 'identity',
+          updatedData: updated,
+          undoData: currentData,
+          message: `🗣️ **Idioma Removido**: "${langTarget}" foi removido da ficha.`,
+          description: `Remover idioma ${langTarget}`
+        };
+      } else {
+        const alreadyHas = updated.identity.languages.some(l => normalizeText(l) === normalizeText(langTarget));
+        if (!alreadyHas) {
+          updated.identity.languages.push(langTarget.charAt(0).toUpperCase() + langTarget.slice(1));
+        }
+        return {
+          success: true,
+          category: 'identity',
+          updatedData: updated,
+          undoData: currentData,
+          message: `🗣️ **Novo Idioma**: O personagem agora fala **${langTarget}**! (Idiomas: ${updated.identity.languages.join(', ')})`,
+          description: `Aprender idioma ${langTarget}`
+        };
+      }
+    }
+  }
+
+  // --- 13. FALLBACK INTELIGENTE COM SUGESTÃO ---
   return {
     success: false,
     category: 'unknown',
