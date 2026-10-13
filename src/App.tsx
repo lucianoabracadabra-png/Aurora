@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData } from './initialState';
 import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown } from 'lucide-react';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { Identity } from './components/Identity';
@@ -23,6 +23,9 @@ import { CustomSkillsSection } from './components/CustomSkillsSection';
 import { StatIntersectionBox } from './components/StatIntersectionBox';
 import { GmRosterBar } from './components/GmRosterBar';
 import { BattleTrackerEnvironment } from './components/BattleTrackerEnvironment';
+import { AuthModal } from './components/AuthModal';
+import { DeleteCharacterModal } from './components/DeleteCharacterModal';
+import { StorageApi, CharacterSummary, AuthSession } from './services/storageApi';
 
 function normalizeCharacterData(parsed: any): CharacterData {
   if (!parsed || typeof parsed !== 'object') return initialCharacterData;
@@ -99,6 +102,23 @@ export default function App() {
     return localStorage.getItem('arcana_is_gm_view') === 'true';
   });
 
+  // Authentication session (Player or Game Master)
+  const [authSession, setAuthSession] = useState<AuthSession>(() => {
+    const saved = localStorage.getItem('arcana_auth_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return { role: 'player', username: 'arcana', name: 'Arcana', color: '#a855f7' };
+  });
+
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'player' | 'gm' | 'register'>('player');
+  const [characterToDelete, setCharacterToDelete] = useState<CampaignCharacter | null>(null);
+  const [availableCharacters, setAvailableCharacters] = useState<CharacterSummary[]>([]);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
+
   const [campaignCharacters, setCampaignCharacters] = useState<CampaignCharacter[]>(() => {
     const saved = localStorage.getItem('arcana_campaign_characters');
     if (saved) {
@@ -174,12 +194,72 @@ export default function App() {
   });
 
   const activeChar = campaignCharacters.find((c) => c.id === activeCharacterId) || campaignCharacters[0];
-  const [data, setData] = useState<CharacterData>(() => activeChar.data);
+  const [data, setData] = useState<CharacterData>(() => activeChar?.data || initialCharacterData);
+
+  // Sync auth session to localStorage
+  useEffect(() => {
+    localStorage.setItem('arcana_auth_session', JSON.stringify(authSession));
+  }, [authSession]);
 
   // Keep GM view saved
   useEffect(() => {
     localStorage.setItem('arcana_is_gm_view', isGmView ? 'true' : 'false');
   }, [isGmView]);
+
+  // Function to load all characters directly from file-system
+  const loadCharactersFromFileSystem = async () => {
+    try {
+      const list = await StorageApi.getCharactersList();
+      setAvailableCharacters(list);
+
+      if (list.length > 0) {
+        const fullCharacters = await Promise.all(
+          list.map(async (item) => {
+            try {
+              const res = await StorageApi.getCharacter(item.username);
+              return {
+                id: `char-${item.username}`,
+                name: res.name || item.name,
+                avatarUrl: item.avatarUrl,
+                color: item.color,
+                data: normalizeCharacterData(res.character)
+              };
+            } catch {
+              return {
+                id: `char-${item.username}`,
+                name: item.name,
+                avatarUrl: item.avatarUrl,
+                color: item.color,
+                data: initialCharacterData
+              };
+            }
+          })
+        );
+
+        setCampaignCharacters(fullCharacters);
+
+        // Check if activeCharacterId still exists
+        const currentActiveUsername = activeCharacterId.replace(/^char-/, '');
+        const currentExists = list.some((c) => c.username === currentActiveUsername);
+        if (!currentExists && fullCharacters.length > 0) {
+          setActiveCharacterId(fullCharacters[0].id);
+          setData(fullCharacters[0].data);
+        } else {
+          const currentMatch = fullCharacters.find((c) => c.id === activeCharacterId);
+          if (currentMatch) {
+            setData(currentMatch.data);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('File-system fetch failed (server offline or starting), using local cache:', err);
+    }
+  };
+
+  // Load characters on initial mount
+  useEffect(() => {
+    loadCharactersFromFileSystem();
+  }, []);
 
   // When activeCharacterId changes, sync sheet data
   useEffect(() => {
@@ -190,8 +270,14 @@ export default function App() {
     localStorage.setItem('arcana_active_character_id', activeCharacterId);
   }, [activeCharacterId]);
 
-  // When sheet data is edited/updated, sync back to campaignCharacters and localStorage
+  // Debounced Auto-Save to File-System JSON file
+  const saveTimeoutRef = useRef<any>(null);
   useEffect(() => {
+    // Determine username from active character
+    const safeUser = activeCharacterId.replace(/^char-/, '');
+    if (!safeUser) return;
+
+    // Local state sync
     setCampaignCharacters((prev) => {
       const updated = prev.map((char) => {
         if (char.id === activeCharacterId) {
@@ -208,35 +294,113 @@ export default function App() {
       return updated;
     });
     localStorage.setItem('arcana_character_data', JSON.stringify(data));
+
+    // File-System save
+    setSaveStatus('saving');
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await StorageApi.saveCharacter(safeUser, data, activeChar?.color, data.identity?.name);
+        setSaveStatus('saved');
+      } catch (err) {
+        console.error('Failed to save to disk:', err);
+        setSaveStatus('error');
+      }
+    }, 700);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, [data, activeCharacterId]);
 
-  const handleAddCampaignCharacter = (name: string, role?: string, color?: string) => {
-    const newId = `char-${Date.now()}`;
-    const newChar: CampaignCharacter = {
-      id: newId,
-      name,
-      color: color || '#a855f7',
-      data: {
-        ...initialCharacterData,
-        identity: {
-          ...initialCharacterData.identity,
-          name,
-          origin: role || 'Aventureiro',
-        }
-      }
-    };
-    setCampaignCharacters((prev) => [...prev, newChar]);
-    setActiveCharacterId(newId);
+  // Handler for adding a new character directly to disk
+  const handleAddCampaignCharacter = async (
+    name: string,
+    role?: string,
+    color?: string,
+    username?: string,
+    password?: string
+  ) => {
+    const safeUser = username || name.toLowerCase().replace(/[^a-z0-9_-]/g, '') || `char_${Date.now()}`;
+    const newId = `char-${safeUser}`;
+
+    try {
+      setSaveStatus('saving');
+      const res = await StorageApi.register({
+        username: safeUser,
+        password: password || '123',
+        name,
+        role: role || 'Aventureiro',
+        color: color || '#06b6d4'
+      });
+
+      const newChar: CampaignCharacter = {
+        id: newId,
+        name,
+        color: color || '#06b6d4',
+        data: normalizeCharacterData(res.character)
+      };
+
+      setCampaignCharacters((prev) => [...prev.filter((c) => c.id !== newId), newChar]);
+      setActiveCharacterId(newId);
+      setData(newChar.data);
+      setSaveStatus('saved');
+      loadCharactersFromFileSystem();
+    } catch (err: any) {
+      console.error('Error creating character file:', err);
+    }
   };
 
-  const handleDeleteCampaignCharacter = (id: string) => {
+  // Handler for deleting a character file with GM password 'saidaquiburro'
+  const handleConfirmDeleteCharacter = async (username: string, gmPassword: string) => {
+    await StorageApi.deleteCharacterByGm(username, gmPassword);
+    const targetId = `char-${username}`;
+
     setCampaignCharacters((prev) => {
-      const filtered = prev.filter((c) => c.id !== id);
-      if (filtered.length > 0 && activeCharacterId === id) {
-        setActiveCharacterId(filtered[0].id);
+      const remaining = prev.filter((c) => c.id !== targetId);
+      if (remaining.length > 0 && activeCharacterId === targetId) {
+        setActiveCharacterId(remaining[0].id);
+        setData(remaining[0].data);
       }
-      return filtered;
+      return remaining;
     });
+
+    loadCharactersFromFileSystem();
+  };
+
+  // Toggle GM View - prompts for password 'saidaquiburro' if not yet authenticated as GM
+  const handleToggleGmView = () => {
+    if (!isGmView) {
+      if (authSession.role !== 'gamemaster') {
+        setAuthModalTab('gm');
+        setIsAuthModalOpen(true);
+        return;
+      }
+      setIsGmView(true);
+    } else {
+      setIsGmView(false);
+    }
+  };
+
+  // Handle successful login from modal
+  const handleLoginSuccess = (
+    newSession: { role: 'player' | 'gamemaster'; username: string; name: string; color?: string },
+    characterData?: any
+  ) => {
+    setAuthSession(newSession);
+
+    if (newSession.role === 'gamemaster') {
+      setIsGmView(true);
+      loadCharactersFromFileSystem();
+    } else {
+      // Player login
+      const targetId = `char-${newSession.username}`;
+      setActiveCharacterId(targetId);
+      if (characterData) {
+        setData(normalizeCharacterData(characterData));
+      }
+      loadCharactersFromFileSystem();
+    }
   };
   const [isIdentityExpanded, setIsIdentityExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'inventory' | 'magic'>('profile');
@@ -474,11 +638,59 @@ export default function App() {
       <GalaxyAuroraBackground />
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-[#030014]/60 backdrop-blur-2xl border-b border-white/5 px-6 py-5 flex items-center justify-between">
-        <h1 className="text-sm tracking-[0.3em] font-light uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">
-          Arcana
-        </h1>
+      <header className="sticky top-0 z-10 bg-[#030014]/75 backdrop-blur-2xl border-b border-white/5 px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-3">
+          <h1 className="text-sm tracking-[0.3em] font-light uppercase text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400 drop-shadow-[0_0_12px_rgba(167,139,250,0.5)]">
+            Arcana
+          </h1>
+
+          {/* File-System Status Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/40 border border-white/10 text-[11px] font-mono text-white/70 shadow-inner">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                saveStatus === 'saving'
+                  ? 'bg-amber-400 animate-ping'
+                  : saveStatus === 'error'
+                  ? 'bg-rose-500'
+                  : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+              }`}
+            />
+            <HardDrive size={11} className="text-white/40" />
+            <span className="text-violet-300 font-semibold">{activeCharacterId.replace(/^char-/, '')}.json</span>
+            <span className="text-white/40 text-[10px]">
+              {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Erro' : 'Salvo'}
+            </span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* User Account / Session Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setAuthModalTab('player');
+              setIsAuthModalOpen(true);
+            }}
+            className={`h-8 px-2.5 sm:px-3 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm ${
+              authSession.role === 'gamemaster'
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+            }`}
+            title="Gerenciar Conta / Ficha no Disco / Trocar de Usuário"
+          >
+            {authSession.role === 'gamemaster' ? (
+              <Crown size={13} className="text-amber-400" />
+            ) : (
+              <User size={13} className="text-violet-400" />
+            )}
+            <span className="max-w-[100px] truncate">
+              {authSession.role === 'gamemaster' ? 'Mestre (GM)' : authSession.name || authSession.username}
+            </span>
+            <span className="text-[10px] text-white/40 font-mono hidden md:inline">
+              ({authSession.role === 'gamemaster' ? 'gamemaster.json' : `${authSession.username}.json`})
+            </span>
+          </button>
+
           {/* Environment Switcher (Ficha vs Battle Tracker) */}
           <div className="flex items-center gap-1 p-0.5 bg-[#060212] border border-white/10 rounded-full shadow-inner mr-1">
             <button
@@ -507,13 +719,17 @@ export default function App() {
 
           {/* GM View Toggle Button */}
           <button
-            onClick={() => setIsGmView(!isGmView)}
+            onClick={handleToggleGmView}
             className={`h-8 px-2.5 sm:px-3 rounded-full border flex items-center gap-1.5 transition-all text-xs font-semibold cursor-pointer shadow-sm ${
               isGmView
                 ? 'bg-amber-500/20 border-amber-400/60 text-amber-200 shadow-[0_0_15px_rgba(245,158,11,0.35)]'
                 : 'bg-white/[0.02] border-white/10 hover:border-white/20 text-white/70 hover:text-white'
             }`}
-            title={isGmView ? 'Modo Mestre Ativo (Clique para mudar para Visão do Jogador)' : 'Modo Jogador Ativo (Clique para mudar para Visão do Mestre/GM)'}
+            title={
+              isGmView
+                ? 'Modo Mestre Ativo (Clique para mudar para Visão do Jogador)'
+                : 'Modo Jogador Ativo (Clique para autenticar com senha do Mestre e acessar GM View)'
+            }
           >
             <Crown size={14} className={isGmView ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]' : 'text-white/40'} />
             <span className="hidden xs:inline">{isGmView ? 'GM View' : 'Player View'}</span>
@@ -558,7 +774,7 @@ export default function App() {
             }
           }}
           onAddCharacter={handleAddCampaignCharacter}
-          onDeleteCharacter={handleDeleteCampaignCharacter}
+          onRequestDeleteCharacter={(char) => setCharacterToDelete(char)}
           isEditing={isEditing}
           onToggleEdit={() => setIsEditing(!isEditing)}
         />
@@ -942,6 +1158,25 @@ export default function App() {
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
       />
+
+      {/* Autenticação & Troca de Conta / Ficha File-System */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        availableCharacters={availableCharacters}
+        onLoginSuccess={handleLoginSuccess}
+        defaultTab={authModalTab}
+      />
+
+      {/* Confirmação de Exclusão de Ficha pelo Game Master */}
+      <DeleteCharacterModal
+        isOpen={!!characterToDelete}
+        onClose={() => setCharacterToDelete(null)}
+        characterUsername={characterToDelete ? characterToDelete.id.replace(/^char-/, '') : ''}
+        characterName={characterToDelete ? characterToDelete.name : ''}
+        onConfirmDelete={handleConfirmDeleteCharacter}
+      />
     </div>
   );
 }
+

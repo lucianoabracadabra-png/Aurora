@@ -2,25 +2,19 @@ import React, { useState } from 'react';
 import { 
   Crown, 
   Plus, 
-  User, 
-  Sparkles, 
   Trash2, 
-  Edit3, 
-  Shield, 
-  Eye, 
-  ChevronRight,
-  Check,
   X,
-  Swords
+  FileCode,
+  HardDrive
 } from 'lucide-react';
-import { CampaignCharacter, CharacterData } from '../types';
+import { CampaignCharacter } from '../types';
 
 interface GmRosterBarProps {
   characters: CampaignCharacter[];
   activeCharacterId: string;
   onSelectCharacter: (id: string) => void;
-  onAddCharacter: (name: string, role?: string, color?: string) => void;
-  onDeleteCharacter: (id: string) => void;
+  onAddCharacter: (name: string, role?: string, color?: string, username?: string, password?: string) => void;
+  onRequestDeleteCharacter: (char: CampaignCharacter) => void;
   isEditing: boolean;
   onToggleEdit: () => void;
 }
@@ -39,27 +33,40 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
   activeCharacterId,
   onSelectCharacter,
   onAddCharacter,
-  onDeleteCharacter,
+  onRequestDeleteCharacter,
   isEditing,
-  onToggleEdit,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCharName, setNewCharName] = useState('');
+  const [newCharUsername, setNewCharUsername] = useState('');
+  const [newCharPassword, setNewCharPassword] = useState('123');
   const [newCharRole, setNewCharRole] = useState('Místico / Erudito');
   const [newCharColor, setNewCharColor] = useState('#06b6d4');
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCharName.trim()) return;
-    onAddCharacter(newCharName.trim(), newCharRole, newCharColor);
+    const finalUsername = newCharUsername.trim()
+      ? newCharUsername.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '')
+      : newCharName.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+
+    onAddCharacter(
+      newCharName.trim(),
+      newCharRole,
+      newCharColor,
+      finalUsername || `char_${Date.now()}`,
+      newCharPassword || '123'
+    );
     setNewCharName('');
+    setNewCharUsername('');
+    setNewCharPassword('123');
     setIsModalOpen(false);
   };
 
   const activeChar = characters.find((c) => c.id === activeCharacterId) || characters[0];
 
   return (
-    <div className="w-full bg-[#08031a]/90 backdrop-blur-xl border-b border-amber-500/25 px-4 py-3 relative z-20 shadow-[0_10px_30px_rgba(0,0,0,0.6)] animate-in slide-in-from-top-3 duration-200">
+    <div className="w-full bg-[#08031a]/95 backdrop-blur-xl border-b border-amber-500/25 px-4 py-3 relative z-20 shadow-[0_10px_30px_rgba(0,0,0,0.6)] animate-in slide-in-from-top-3 duration-200">
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         
         {/* GM Badge & Party Title */}
@@ -73,11 +80,12 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                 Painel do Mestre (GM)
               </span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400/15 border border-amber-400/30 text-amber-200 font-mono">
-                {characters.length} Fichas
+                {characters.length} Fichas no Disco
               </span>
             </div>
-            <p className="text-[11px] text-white/50">
-              Selecione uma bolinha para controlar e editar a ficha do personagem
+            <p className="text-[11px] text-white/50 flex items-center gap-1">
+              <HardDrive size={11} className="text-amber-400/70" />
+              <span>Conectado a <code className="text-amber-300 font-mono text-[10px]">data/gamemaster.json</code></span>
             </p>
           </div>
         </div>
@@ -88,6 +96,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
             const isActive = char.id === activeCharacterId;
             const initial = char.name.charAt(0).toUpperCase() || 'P';
             const color = char.color || '#a855f7';
+            const username = char.id.replace(/^char-/, '');
 
             return (
               <div key={char.id} className="relative group shrink-0">
@@ -102,7 +111,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   style={{
                     backgroundColor: char.avatarUrl ? 'transparent' : color,
                   }}
-                  title={`Editar ficha de ${char.name}`}
+                  title={`Editar ficha de ${char.name} (${username}.json)`}
                 >
                   {char.avatarUrl ? (
                     <img
@@ -125,8 +134,9 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                 {/* Tooltip on hover */}
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1 bg-[#050110] border border-amber-400/40 rounded-lg text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 whitespace-nowrap text-center">
                   <div className="text-xs font-bold text-amber-200">{char.name}</div>
+                  <div className="text-[10px] text-amber-300/80 font-mono">{username}.json</div>
                   <div className="text-[10px] text-white/50">{char.data.identity?.origin || 'Aventureiro'}</div>
-                  {isActive && <div className="text-[9px] text-emerald-400 font-bold">● Ativo na Tela</div>}
+                  {isActive && <div className="text-[9px] text-emerald-400 font-bold">● Ativo no Painel</div>}
                 </div>
               </div>
             );
@@ -137,7 +147,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
             type="button"
             onClick={() => setIsModalOpen(true)}
             className="w-10 h-10 rounded-full border-2 border-dashed border-amber-400/40 hover:border-amber-400 bg-white/[0.02] hover:bg-amber-500/10 text-amber-300 flex items-center justify-center transition-all cursor-pointer hover:scale-105 shrink-0 shadow-sm"
-            title="Adicionar Novo Personagem à Campanha"
+            title="Criar Novo Arquivo de Ficha no Disco"
           >
             <Plus size={16} />
           </button>
@@ -147,27 +157,23 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
         {activeChar && (
           <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-white/10 justify-between sm:justify-start">
             <div className="text-right hidden md:block">
-              <div className="text-xs font-bold text-white truncate max-w-[130px]">
-                {activeChar.name}
+              <div className="text-xs font-bold text-white truncate max-w-[130px] flex items-center gap-1 justify-end">
+                <span>{activeChar.name}</span>
               </div>
               <div className="text-[10px] text-amber-300/80 font-mono">
-                {isEditing ? 'Modo Edição Livre' : 'Modo Leitura / Jogo'}
+                {activeChar.id.replace(/^char-/, '')}.json
               </div>
             </div>
 
-            {/* Quick delete character (only if more than 1) */}
+            {/* Delete character button (Requires GM password 'saidaquiburro') */}
             {characters.length > 1 && (
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(`Deseja remover ${activeChar.name} da campanha?`)) {
-                    onDeleteCharacter(activeChar.id);
-                  }
-                }}
-                className="w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 flex items-center justify-center transition-colors cursor-pointer"
-                title={`Remover ${activeChar.name} da campanha`}
+                onClick={() => onRequestDeleteCharacter(activeChar)}
+                className="w-8 h-8 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 flex items-center justify-center transition-colors cursor-pointer"
+                title={`Apagar ${activeChar.name} (${activeChar.id.replace(/^char-/, '')}.json) do disco com a senha do GM`}
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} />
               </button>
             )}
           </div>
@@ -176,17 +182,17 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
 
       {/* Modal for adding character */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#090518] border border-amber-400/40 rounded-2xl max-w-sm w-full p-5 shadow-2xl flex flex-col gap-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
                 <Crown size={16} className="text-amber-400" />
-                <span>Novo Personagem na Campanha</span>
+                <span>Nova Ficha no Disco (.json)</span>
               </h4>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-white/40 hover:text-white"
+                className="text-white/40 hover:text-white cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -200,9 +206,40 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   required
                   placeholder="Ex: Valerius, Lyra, Kaelen..."
                   value={newCharName}
-                  onChange={(e) => setNewCharName(e.target.value)}
+                  onChange={(e) => {
+                    setNewCharName(e.target.value);
+                    if (!newCharUsername) {
+                      setNewCharUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''));
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-white focus:outline-none focus:border-amber-400 text-xs"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-white/70 block mb-1 font-semibold">Nome do Arquivo</label>
+                  <div className="flex items-center bg-white/5 border border-white/15 rounded-xl px-2.5 py-1.5 focus-within:border-amber-400">
+                    <input
+                      type="text"
+                      placeholder="username"
+                      value={newCharUsername}
+                      onChange={(e) => setNewCharUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                      className="w-full bg-transparent text-amber-300 font-mono text-xs focus:outline-none"
+                    />
+                    <span className="text-white/40 font-mono text-[11px]">.json</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-white/70 block mb-1 font-semibold">Senha Inicial</label>
+                  <input
+                    type="text"
+                    value={newCharPassword}
+                    onChange={(e) => setNewCharPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-white focus:outline-none focus:border-amber-400 text-xs font-mono"
+                  />
+                </div>
               </div>
 
               <div>
@@ -238,7 +275,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-semibold"
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-semibold cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -246,7 +283,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   type="submit"
                   className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-bold transition-all shadow-md cursor-pointer"
                 >
-                  Criar Ficha
+                  Criar Arquivo .json
                 </button>
               </div>
             </form>

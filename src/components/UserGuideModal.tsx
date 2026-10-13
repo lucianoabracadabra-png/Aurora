@@ -31,6 +31,14 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
 
   const guideItems = [
     {
+      id: 'file_system_persistence',
+      category: 'modes',
+      title: 'Persistência File-System (Sem Banco de Dados)',
+      badge: '💾 Arquivos JSON Independentes',
+      icon: <Crown size={16} className="text-violet-400" />,
+      description: 'O sistema não utiliza banco de dados: cada ficha é um arquivo JSON independente salvo diretamente no disco (ex: data/characters/arcana.json). A autenticação de cada jogador compara a senha armazenada dentro do próprio JSON. A conta do Game Master possui seu arquivo específico (data/gamemaster.json) que conecta todas as fichas da campanha e permite gerenciar ou apagar fichas do disco com a senha do Mestre (saidaquiburro).'
+    },
+    {
       id: 'gm_view_toggle',
       category: 'modes',
       title: 'GM View (👑 Mestre) vs. Player View (👤 Jogador)',
