@@ -15,6 +15,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { StorageApi, CharacterSummary, AuthSession } from '../services/storageApi';
+import { createEmptyCharacterData } from '../initialState';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -141,11 +142,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       setLoading(true);
       setError(null);
+      const cleanName = regName.trim() || cleanUser;
+      const emptyData = createEmptyCharacterData(cleanName, regColor);
       const res = await StorageApi.register({
         username: cleanUser,
         password: regPassword,
-        name: regName.trim() || cleanUser,
+        name: cleanName,
         color: regColor,
+        characterData: emptyData,
       });
       onLoginSuccess(
         {
@@ -154,7 +158,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           name: res.user.name,
           color: res.color,
         },
-        res.character
+        res.character || emptyData
       );
       if (onClose) onClose();
     } catch (err: any) {

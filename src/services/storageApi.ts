@@ -1,5 +1,5 @@
 import { CharacterData } from '../types';
-import { initialCharacterData } from '../initialState';
+import { initialCharacterData, createEmptyCharacterData } from '../initialState';
 
 export interface CharacterSummary {
   id: string;
@@ -138,19 +138,11 @@ export const StorageApi = {
       throw new Error('Senha incorreta para esta ficha.');
     }
 
-    let charData: CharacterData = initialCharacterData;
+    let charData: CharacterData = cleanUser === 'elias' ? initialCharacterData : createEmptyCharacterData(found.name || cleanUser, found.color);
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_PREFIX + cleanUser);
       if (stored) {
         charData = JSON.parse(stored);
-      } else {
-        charData = {
-          ...initialCharacterData,
-          identity: {
-            ...initialCharacterData.identity,
-            name: found.name || cleanUser,
-          }
-        };
       }
     } catch {}
 
@@ -184,14 +176,8 @@ export const StorageApi = {
     const color = params.color || '#a855f7';
     const finalPassword = params.password || '123';
 
-    const baseData: CharacterData = params.characterData || {
-      ...initialCharacterData,
-      identity: {
-        ...initialCharacterData.identity,
-        name: charName,
-        origin: params.role || 'Aventureiro',
-      }
-    };
+    // New characters are completely blank sheets
+    const baseData: CharacterData = params.characterData || createEmptyCharacterData(charName, color);
 
     // Always persist to local cache first so it's guaranteed to exist
     try {
@@ -310,19 +296,11 @@ export const StorageApi = {
     // Local fallback
     const list = getLocalCharList();
     const found = list.find(c => c.username === cleanUser);
-    let charData: CharacterData = initialCharacterData;
+    let charData: CharacterData = cleanUser === 'elias' ? initialCharacterData : createEmptyCharacterData(found?.name || cleanUser, found?.color);
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_PREFIX + cleanUser);
       if (stored) {
         charData = JSON.parse(stored);
-      } else {
-        charData = {
-          ...initialCharacterData,
-          identity: {
-            ...initialCharacterData.identity,
-            name: found?.name || cleanUser,
-          }
-        };
       }
     } catch {}
 

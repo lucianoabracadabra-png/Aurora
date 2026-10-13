@@ -32,8 +32,8 @@ function ensureGmFile() {
       role: 'gamemaster',
       name: 'Game Master',
       password: 'saidaquiburro',
-      connectedCharacters: ['arcana', 'valerius', 'kaelen'],
-      campaignNotes: 'Campanha Principal Arcana - Sistema File-System Database-less',
+      connectedCharacters: ['elias', 'valerius', 'kaelen'],
+      campaignNotes: 'Campanha Principal Aurora - Sistema File-System Database-less',
       updatedAt: new Date().toISOString()
     };
     fs.writeFileSync(GM_FILE, JSON.stringify(defaultGm, null, 2), 'utf-8');
@@ -41,41 +41,38 @@ function ensureGmFile() {
   }
 }
 
-// Default base character template
-function createBaseCharacter(name: string, role: string, color: string) {
+// Default base character template - Empty Character Sheet
+function createBaseCharacter(name: string, role?: string, color?: string) {
   return {
     identity: {
-      name,
+      name: name || 'Novo Personagem',
       avatarUrl: '',
-      height: '1.80m',
-      weight: '75kg',
-      hair: 'Escuro',
-      eyes: 'Castanhos',
-      skin: 'Bronzeada',
-      age: '24',
-      ideals: 'Honra e Descoberta',
-      origin: role,
-      languages: ['Comum', 'Arcano']
+      height: '',
+      weight: '',
+      hair: '',
+      eyes: '',
+      skin: '',
+      age: '',
+      ideals: '',
+      origin: '',
+      languages: []
     },
-    alignment: { altruism: 70, logic: 60, integrity: 80 },
-    personality: { courage: 3, conviction: 3, serenity: 2 },
+    alignment: { altruism: 0, logic: 0, integrity: 0 },
+    personality: { courage: 0, conviction: 0, serenity: 0 },
     attributes: {
-      physical: { strength: 2, dexterity: 2, agility: 2, constitution: 2 },
-      mental: { intelligence: 2, perception: 2, reasoning: 2, wisdom: 2 },
-      social: { empathy: 2, manipulation: 1, expression: 2, resilience: 3 }
+      physical: { strength: 0, dexterity: 0, agility: 0, constitution: 0 },
+      mental: { intelligence: 0, perception: 0, reasoning: 0, wisdom: 0 },
+      social: { empathy: 0, manipulation: 0, expression: 0, resilience: 0 }
     },
     skills: {
-      physical: { melee: 2, firearms: 0, archery: 1, throwing: 0, brawl: 1, combat: 2, stealth: 1, alertness: 2 },
-      mental: { academics: 2, traps: 0, intuition: 2, investigation: 1, medicine: 1, occultism: 2, security: 0, survival: 1 },
-      social: { bargain: 1, taming: 1, etiquette: 1, intimidation: 1, smoothTalk: 1, leadership: 2, riding: 1, seduction: 0 }
+      physical: { melee: 0, firearms: 0, archery: 0, throwing: 0, brawl: 0, combat: 0, stealth: 0, alertness: 0 },
+      mental: { academics: 0, traps: 0, intuition: 0, investigation: 0, medicine: 0, occultism: 0, security: 0, survival: 0 },
+      social: { bargain: 0, taming: 0, etiquette: 0, intimidation: 0, smoothTalk: 0, leadership: 0, riding: 0, seduction: 0 }
     },
     customSkills: { treinamentos: [], ciencias: [], artes: [] },
-    domains: { water: 1, air: 1, anima: 2, fire: 1, earth: 1 },
+    domains: { water: 0, air: 0, anima: 0, fire: 0, earth: 0 },
     abilities: [],
-    traits: [
-      { id: 't1', name: 'Determinação de Ferro', type: 'advantage', description: 'Bônus em testes de resistência mental', value: 2 },
-      { id: 't2', name: 'Curioso Demais', type: 'disadvantage', description: 'Dificuldade em ignorar mistérios perigosos', value: -1 }
-    ],
+    traits: [],
     manaSpent: { physical: 0, mental: 0, social: 0 },
     naturezaSpent: { water: 0, air: 0, anima: 0, fire: 0, earth: 0 },
     health: {
@@ -88,36 +85,22 @@ function createBaseCharacter(name: string, role: string, color: string) {
     },
     inventory: {
       equippedSlots: {},
-      weapons: [
-        {
-          id: 'w1',
-          name: 'Espada Rúnica',
-          category: 'weapon',
-          equipped: true,
-          slot: 'main_hand',
-          thrust: { damage: '1d8', type: 'per', ap: 2, precision: 1 },
-          swing: { damage: '1d10', type: 'cor', ap: 1, precision: 0 },
-          size: 'm',
-          weight: 1500,
-          location: 'Em Mãos'
-        }
-      ],
+      weapons: [],
       armors: [],
-      generalItems: [
-        { id: 'i1', name: 'Mochila de Couro', quantity: 1, weight: 1000, description: 'Mochila resistente', location: 'Costas' },
-        { id: 'i2', name: 'Poção de Vitalidade', quantity: 2, weight: 250, description: 'Restaura vitalidade básica', location: 'Cinto' }
-      ],
+      projectiles: [],
+      accessories: [],
+      generalItems: [],
       currency: {
-        gold: 15,
-        silver: 40,
-        copper: 80,
-        gems: '1x Granada menor',
+        gold: 0,
+        silver: 0,
+        copper: 0,
+        gems: '',
         history: []
       }
     },
     flowAndPatron: {
-      fluxo: { activeDomain: 'anima', title: 'Fluxo Espiritual', description: 'Harmonia com forças ancestrais' },
-      patrono: { activeDomain: 'air', title: 'Voz dos Ventos', description: 'Guia nas correntes do destino' }
+      fluxo: { level: 0, hp: 10, name: '', notes: '' },
+      patrono: { level: 0, hp: 10, name: '', notes: '' }
     }
   };
 }

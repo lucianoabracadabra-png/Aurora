@@ -518,3 +518,101 @@ export const initialCharacterData: CharacterData = {
     }
   }
 };
+
+export const createEmptyCharacterData = (name: string = 'Novo Personagem', _color?: string): CharacterData => ({
+  identity: {
+    name: name,
+    avatarUrl: '',
+    height: '',
+    weight: '',
+    hair: '',
+    eyes: '',
+    skin: '',
+    age: '',
+    ideals: '',
+    origin: '',
+    languages: [],
+  },
+  alignment: {
+    altruism: 0,
+    logic: 0,
+    integrity: 0,
+  },
+  personality: {
+    courage: 0,
+    conviction: 0,
+    serenity: 0,
+  },
+  attributes: {
+    physical: { strength: 0, dexterity: 0, agility: 0, constitution: 0 },
+    mental: { intelligence: 0, perception: 0, reasoning: 0, wisdom: 0 },
+    social: { empathy: 0, manipulation: 0, expression: 0, resilience: 0 },
+  },
+  skills: {
+    physical: { melee: 0, firearms: 0, archery: 0, throwing: 0, brawl: 0, combat: 0, stealth: 0, alertness: 0 },
+    mental: { academics: 0, traps: 0, intuition: 0, investigation: 0, medicine: 0, occultism: 0, security: 0, survival: 0 },
+    social: { bargain: 0, taming: 0, etiquette: 0, intimidation: 0, smoothTalk: 0, leadership: 0, riding: 0, seduction: 0 },
+  },
+  customSkills: {
+    treinamentos: [],
+    ciencias: [],
+    artes: [],
+  },
+  manaSpent: {
+    physical: 0,
+    mental: 0,
+    social: 0,
+  },
+  domains: {
+    water: 0,
+    air: 0,
+    anima: 0,
+    fire: 0,
+    earth: 0,
+  },
+  naturezaSpent: {
+    water: 0,
+    air: 0,
+    anima: 0,
+    fire: 0,
+    earth: 0,
+  },
+  abilities: [],
+  traits: [],
+  health: {
+    head: Array(8).fill('none'),
+    torso: Array(20).fill('none'),
+    leftArm: Array(12).fill('none'),
+    rightArm: Array(12).fill('none'),
+    leftLeg: Array(16).fill('none'),
+    rightLeg: Array(16).fill('none'),
+  },
+  inventory: {
+    weapons: [],
+    armors: [],
+    projectiles: [],
+    accessories: [],
+    generalItems: [],
+    currency: {
+      gold: 0,
+      silver: 0,
+      copper: 0,
+      gems: '',
+      history: [],
+    },
+  },
+  flowAndPatron: {
+    fluxo: {
+      level: 0,
+      hp: 10,
+      name: '',
+      notes: '',
+    },
+    patrono: {
+      level: 0,
+      hp: 10,
+      name: '',
+      notes: '',
+    },
+  },
+});

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { initialCharacterData } from './initialState';
+import { initialCharacterData, createEmptyCharacterData } from './initialState';
 import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
 import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText } from 'lucide-react';
 
@@ -29,7 +29,52 @@ import { AuroraAssistant } from './components/AuroraAssistant';
 import { StorageApi, CharacterSummary, AuthSession } from './services/storageApi';
 
 function normalizeCharacterData(parsed: any): CharacterData {
-  if (!parsed || typeof parsed !== 'object') return initialCharacterData;
+  if (!parsed || typeof parsed !== 'object') return createEmptyCharacterData();
+
+  if (!parsed.identity) {
+    parsed.identity = {
+      name: 'Novo Personagem',
+      avatarUrl: '',
+      height: '',
+      weight: '',
+      hair: '',
+      eyes: '',
+      skin: '',
+      age: '',
+      ideals: '',
+      origin: '',
+      languages: [],
+    };
+  }
+
+  if (!parsed.alignment) {
+    parsed.alignment = { altruism: 0, logic: 0, integrity: 0 };
+  }
+
+  if (!parsed.personality) {
+    parsed.personality = { courage: 0, conviction: 0, serenity: 0 };
+  }
+
+  if (!parsed.attributes) {
+    parsed.attributes = {
+      physical: { strength: 0, dexterity: 0, agility: 0, constitution: 0 },
+      mental: { intelligence: 0, perception: 0, reasoning: 0, wisdom: 0 },
+      social: { empathy: 0, manipulation: 0, expression: 0, resilience: 0 },
+    };
+  }
+
+  if (!parsed.skills) {
+    parsed.skills = {
+      physical: { melee: 0, firearms: 0, archery: 0, throwing: 0, brawl: 0, combat: 0, stealth: 0, alertness: 0 },
+      mental: { academics: 0, traps: 0, intuition: 0, investigation: 0, medicine: 0, occultism: 0, security: 0, survival: 0 },
+      social: { bargain: 0, taming: 0, etiquette: 0, intimidation: 0, smoothTalk: 0, leadership: 0, riding: 0, seduction: 0 },
+    };
+  }
+
+  if (!parsed.domains) {
+    parsed.domains = { water: 0, air: 0, anima: 0, fire: 0, earth: 0 };
+  }
+
   if (!parsed.customSkills) {
     parsed.customSkills = { treinamentos: [], ciencias: [], artes: [] };
   } else {
@@ -65,33 +110,60 @@ function normalizeCharacterData(parsed: any): CharacterData {
     rightLeg: fitHealth(parsed.health?.rightLeg, 16),
   };
 
-  if (parsed.traits && parsed.traits.length <= 2) {
-    parsed.traits = initialCharacterData.traits;
-    parsed.abilities = initialCharacterData.abilities;
+  if (!parsed.traits || !Array.isArray(parsed.traits)) {
+    parsed.traits = [];
   }
 
-  if (!parsed.inventory || !parsed.inventory.weapons || parsed.inventory.weapons.length === 0) {
-    parsed.inventory = initialCharacterData.inventory;
+  if (!parsed.abilities || !Array.isArray(parsed.abilities)) {
+    parsed.abilities = [];
+  }
+
+  if (!parsed.inventory) {
+    parsed.inventory = {
+      weapons: [],
+      armors: [],
+      projectiles: [],
+      accessories: [],
+      generalItems: [],
+      currency: {
+        gold: 0,
+        silver: 0,
+        copper: 0,
+        gems: '',
+        history: [],
+      },
+    };
   } else {
-    if (!parsed.inventory.generalItems || parsed.inventory.generalItems.length === 0) {
-      parsed.inventory.generalItems = initialCharacterData.inventory.generalItems;
-    }
+    if (!Array.isArray(parsed.inventory.weapons)) parsed.inventory.weapons = [];
+    if (!Array.isArray(parsed.inventory.armors)) parsed.inventory.armors = [];
+    if (!Array.isArray(parsed.inventory.projectiles)) parsed.inventory.projectiles = [];
+    if (!Array.isArray(parsed.inventory.accessories)) parsed.inventory.accessories = [];
+    if (!Array.isArray(parsed.inventory.generalItems)) parsed.inventory.generalItems = [];
     if (!parsed.inventory.currency) {
-      parsed.inventory.currency = initialCharacterData.inventory.currency;
+      parsed.inventory.currency = {
+        gold: 0,
+        silver: 0,
+        copper: 0,
+        gems: '',
+        history: [],
+      };
     } else {
       if (parsed.inventory.currency.silver > 100) parsed.inventory.currency.silver = 100;
-      if (parsed.inventory.currency.copper > 100) parsed.inventory.currency.copper = 100;
+      if (parsed.inventory.currency.copper > 100) parsed.inventory.copper = 100;
       if (parsed.inventory.currency.gems && parsed.inventory.currency.gems.includes('lápis')) {
         parsed.inventory.currency.gems = '';
       }
-      if (!parsed.inventory.currency.history || parsed.inventory.currency.history.length === 0) {
-        parsed.inventory.currency.history = initialCharacterData.inventory.currency.history;
+      if (!Array.isArray(parsed.inventory.currency.history)) {
+        parsed.inventory.currency.history = [];
       }
     }
   }
 
   if (!parsed.flowAndPatron) {
-    parsed.flowAndPatron = initialCharacterData.flowAndPatron;
+    parsed.flowAndPatron = {
+      fluxo: { level: 0, hp: 10, name: '', notes: '' },
+      patrono: { level: 0, hp: 10, name: '', notes: '' },
+    };
   }
 
   return parsed;
@@ -239,7 +311,7 @@ export default function App() {
                 name: item.name,
                 avatarUrl: item.avatarUrl,
                 color: item.color,
-                data: initialCharacterData
+                data: createEmptyCharacterData(item.name, item.color)
               };
             }
           })
@@ -332,6 +404,7 @@ export default function App() {
   ) => {
     const safeUser = username || name.toLowerCase().replace(/[^a-z0-9_-]/g, '') || `char_${Date.now()}`;
     const newId = `char-${safeUser}`;
+    const emptyData = createEmptyCharacterData(name, color || '#06b6d4');
 
     try {
       setSaveStatus('saving');
@@ -339,15 +412,16 @@ export default function App() {
         username: safeUser,
         password: password || '123',
         name,
-        role: role || 'Aventureiro',
-        color: color || '#06b6d4'
+        role: role || '',
+        color: color || '#06b6d4',
+        characterData: emptyData,
       });
 
       const newChar: CampaignCharacter = {
         id: newId,
         name,
         color: color || '#06b6d4',
-        data: normalizeCharacterData(res.character)
+        data: normalizeCharacterData(res.character || emptyData)
       };
 
       setCampaignCharacters((prev) => [...prev.filter((c) => c.id !== newId), newChar]);
@@ -361,7 +435,7 @@ export default function App() {
         id: newId,
         name,
         color: color || '#06b6d4',
-        data: initialCharacterData
+        data: emptyData
       };
       setCampaignCharacters((prev) => [...prev.filter((c) => c.id !== newId), fallbackChar]);
       setActiveCharacterId(newId);

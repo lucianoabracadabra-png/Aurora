@@ -40,7 +40,6 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
   const [newCharName, setNewCharName] = useState('');
   const [newCharUsername, setNewCharUsername] = useState('');
   const [newCharPassword, setNewCharPassword] = useState('123');
-  const [newCharRole, setNewCharRole] = useState('Místico / Erudito');
   const [newCharColor, setNewCharColor] = useState('#06b6d4');
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -52,7 +51,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
 
     onAddCharacter(
       newCharName.trim(),
-      newCharRole,
+      '',
       newCharColor,
       finalUsername || `char_${Date.now()}`,
       newCharPassword || '123'
@@ -237,17 +236,6 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                     className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-white focus:outline-none focus:border-amber-400 text-xs font-mono"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-white/70 block mb-1 font-semibold">Arquétipo / Origem</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Guerreiro Nobre, Místico do Caos..."
-                  value={newCharRole}
-                  onChange={(e) => setNewCharRole(e.target.value)}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-white focus:outline-none focus:border-amber-400 text-xs"
-                />
               </div>
 
               <div>
