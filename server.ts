@@ -3,6 +3,11 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { GoogleGenAI, Type } from '@google/genai';
+import { AURORA_TOOL_DEFINITIONS } from './src/utils/auroraTools';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -506,6 +511,243 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
+  });
+
+  // Helper converters for Gemini Function Declarations
+  function convertToGeminiType(typeStr: string): Type {
+    switch (typeStr?.toLowerCase()) {
+      case 'string': return Type.STRING;
+      case 'number': return Type.NUMBER;
+      case 'boolean': return Type.BOOLEAN;
+      case 'array': return Type.ARRAY;
+      case 'object': return Type.OBJECT;
+      default: return Type.STRING;
+    }
+  }
+
+  function mapPropertiesToGemini(properties: any): Record<string, any> {
+    const result: Record<string, any> = {};
+    if (!properties) return result;
+    for (const [key, prop] of Object.entries<any>(properties)) {
+      const geminiProp: any = {
+        type: convertToGeminiType(prop.type),
+        description: prop.description || ''
+      };
+      if (prop.enum && Array.isArray(prop.enum)) {
+        geminiProp.enum = prop.enum;
+      }
+      if (prop.type === 'object' && prop.properties) {
+        geminiProp.properties = mapPropertiesToGemini(prop.properties);
+      }
+      result[key] = geminiProp;
+    }
+    return result;
+  }
+
+  function getGeminiFunctionDeclarations() {
+    return AURORA_TOOL_DEFINITIONS.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: {
+        type: Type.OBJECT,
+        properties: mapPropertiesToGemini(tool.parameters.properties),
+        required: tool.parameters.required || []
+      }
+    }));
+  }
+
+  function getGroqTools() {
+    return AURORA_TOOL_DEFINITIONS.map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
+      }
+    }));
+  }
+
+  const AURORA_SYSTEM_PROMPT = `Você é a Aurora, a inteligência arcana e assistente mágica de fichas de RPG do Sistema Arcana.
+Seu papel é interagir com o jogador de forma acolhedora, imersiva e eficiente.
+Você tem acesso para alterar e consultar os dados da ficha do personagem chamando ferramentas (Function Calling / Tool Calling).
+
+REGRAS ESSENCIAIS:
+1. SEMPRE que o usuário pedir para alterar valores, gastar ou recuperar mana, rolar dados, modificar atributos, perícias, alinhamento, domínios de magia, saúde ou moedas, CHAME a ferramenta correspondente.
+2. NUNCA invente moedas que não existem! O sistema Arcana aceita estritamente: Ouro (gold / PO), Prata (silver / PP) e Cobre (copper / PC). Se o usuário pedir platina, gemas como moeda direta ou moeda moderna, recuse ou alerte explicando que apenas Ouro, Prata e Cobre existem como moeda corrente no Arcana.
+3. Você pode chamar MÚLTIPLAS ferramentas na mesma resposta se o jogador pedir várias ações (ex: "gastei 5 de ouro e comprei uma espada" -> chama manage_currency E manage_inventory_item).
+4. Ao rolar dados ou aplicar dano/cura, chame as respectivas ferramentas 'roll_dice' ou 'manage_health'.
+5. Responda em português com tom amigável e místico (usando formatação markdown leve com negrito e itálico).
+6. Se o usuário fizer apenas uma pergunta sobre seus pontos atuais (ex: "quanto de mana eu tenho?"), responda diretamente baseado no contexto fornecido.`;
+
+  // 11. Aurora AI Assistant Chat Endpoint (Gemini & Groq with Tool-Calling)
+  app.post('/api/aurora/chat', async (req, res) => {
+    const { provider, apiKey, messages, characterContext } = req.body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ success: false, error: 'Lista de mensagens não fornecida.' });
+    }
+
+    const fullSystemInstruction = `${AURORA_SYSTEM_PROMPT}\n\n${characterContext || ''}`;
+
+    // --- PROVIDER: GEMINI ---
+    if (provider === 'gemini') {
+      const effectiveKey = (apiKey && typeof apiKey === 'string' && apiKey.trim())
+        ? apiKey.trim()
+        : (process.env.GEMINI_API_KEY || '');
+
+      if (!effectiveKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Chave da Gemini API não configurada. Por favor, insira sua chave gratuita nas opções da Aurora.'
+        });
+      }
+
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: effectiveKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        const contents = messages.map((m: any) => ({
+          role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+          parts: [{ text: String(m.content || '') }]
+        }));
+
+        const geminiTools = getGeminiFunctionDeclarations();
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents,
+          config: {
+            systemInstruction: fullSystemInstruction,
+            tools: [{ functionDeclarations: geminiTools }]
+          }
+        });
+
+        const toolCalls: any[] = [];
+        if (response.functionCalls && Array.isArray(response.functionCalls)) {
+          for (const fc of response.functionCalls) {
+            toolCalls.push({
+              id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+              name: fc.name,
+              args: fc.args
+            });
+          }
+        }
+
+        const replyText = response.text || '';
+        return res.json({
+          success: true,
+          provider: 'gemini',
+          text: replyText,
+          toolCalls
+        });
+      } catch (err: any) {
+        console.error('[Aurora Gemini Error]', err);
+        return res.status(500).json({
+          success: false,
+          error: `Erro ao comunicar com a Gemini API: ${err?.message || 'Falha na requisição'}`
+        });
+      }
+    }
+
+    // --- PROVIDER: GROQ ---
+    if (provider === 'groq') {
+      const effectiveKey = (apiKey && typeof apiKey === 'string' && apiKey.trim())
+        ? apiKey.trim()
+        : (process.env.GROQ_API_KEY || '');
+
+      if (!effectiveKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'Chave da Groq API não configurada. Por favor, insira sua chave gratuita nas opções da Aurora.'
+        });
+      }
+
+      try {
+        const groqMessages = [
+          { role: 'system', content: fullSystemInstruction },
+          ...messages.map((m: any) => ({
+            role: m.role === 'model' ? 'assistant' : m.role,
+            content: String(m.content || '')
+          }))
+        ];
+
+        const groqTools = getGroqTools();
+
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${effectiveKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: groqMessages,
+            tools: groqTools,
+            tool_choice: 'auto',
+            temperature: 0.3
+          })
+        });
+
+        const rawText = await groqRes.text();
+        let groqData: any = {};
+        try {
+          groqData = JSON.parse(rawText);
+        } catch (jsonErr) {
+          console.error('[Groq JSON Parse Error]', jsonErr, rawText);
+          return res.status(500).json({ success: false, error: 'Resposta inválida recebida da Groq API.' });
+        }
+
+        if (!groqRes.ok) {
+          const errMsg = groqData?.error?.message || `Erro HTTP ${groqRes.status} da Groq API`;
+          return res.status(groqRes.status).json({ success: false, error: errMsg });
+        }
+
+        const choice = groqData.choices?.[0]?.message;
+        const replyText = choice?.content || '';
+        const toolCalls: any[] = [];
+
+        if (choice?.tool_calls && Array.isArray(choice.tool_calls)) {
+          for (const tc of choice.tool_calls) {
+            let parsedArgs = {};
+            try {
+              parsedArgs = typeof tc.function.arguments === 'string'
+                ? JSON.parse(tc.function.arguments)
+                : (tc.function.arguments || {});
+            } catch (argErr) {
+              console.warn('[Groq Tool Args Parse Error]', argErr);
+              parsedArgs = {};
+            }
+
+            toolCalls.push({
+              id: tc.id,
+              name: tc.function.name,
+              args: parsedArgs
+            });
+          }
+        }
+
+        return res.json({
+          success: true,
+          provider: 'groq',
+          text: replyText,
+          toolCalls
+        });
+      } catch (err: any) {
+        console.error('[Aurora Groq Error]', err);
+        return res.status(500).json({
+          success: false,
+          error: `Erro ao comunicar com a Groq API: ${err?.message || 'Falha na requisição'}`
+        });
+      }
+    }
+
+    return res.status(400).json({ success: false, error: 'Provedor desconhecido. Escolha "gemini" ou "groq".' });
   });
 
   // Mount Vite or serve static files

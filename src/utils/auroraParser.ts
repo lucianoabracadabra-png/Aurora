@@ -1,4 +1,5 @@
 import { CharacterData } from '../types';
+import { safeJsonParse, normalizeCoinType } from './auroraTools';
 
 export interface AuroraActionResult {
   success: boolean;
@@ -288,7 +289,7 @@ export function parseAndExecuteAurora(
 
   // --- 4. MANA TOTAL / RESTAURAÇÃO DE MANA ---
   if (isReset && (norm.includes('mana') || norm.includes('todas'))) {
-    const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
     updated.manaSpent = { physical: 0, mental: 0, social: 0 };
     return {
       success: true,
@@ -308,7 +309,7 @@ export function parseAndExecuteAurora(
 
   if (isPhysicalMana || isMentalMana || isSocialMana || (norm.includes('mana') && !isReset)) {
     const num = extractNumber(command, 1);
-    const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
 
     let target: 'physical' | 'mental' | 'social' = 'physical';
     let label = 'Mana Física (Vigor)';
@@ -374,7 +375,7 @@ export function parseAndExecuteAurora(
   // Exemplo: "ei aurora, aumente a coragem um ponto" ou "tire 1 de serenidade"
   if (norm.includes('coragem') || norm.includes('conviccao') || norm.includes('serenidade')) {
     const num = extractNumber(command, 1);
-    const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
     
     let key: keyof typeof currentData.personality = 'courage';
     let label = 'Coragem';
@@ -433,7 +434,7 @@ export function parseAndExecuteAurora(
   for (const [attrName, info] of Object.entries(attributeMap)) {
     if (norm.includes(attrName)) {
       const num = extractNumber(command, 1);
-      const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+      const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
       const groupObj = updated.attributes[info.group] as Record<string, number>;
       const currentVal = groupObj[info.key] || 0;
       let nextVal = currentVal;
@@ -492,7 +493,7 @@ export function parseAndExecuteAurora(
   for (const [skillName, info] of Object.entries(skillMap)) {
     if (norm.includes(skillName)) {
       const num = extractNumber(command, 1);
-      const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+      const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
       const groupObj = updated.skills[info.group] as Record<string, number>;
       const currentVal = groupObj[info.key] || 0;
       let nextVal = currentVal;
@@ -522,13 +523,22 @@ export function parseAndExecuteAurora(
 
   // --- 9. DINHEIRO & MOEDAS (CURRENCY) ---
   // Exemplo: "adicione 50 peças de ouro", "tire 10 moedas de prata", "gastei 5 de ouro"
-  const isGold = norm.includes('ouro') || norm.includes('po ');
-  const isSilver = norm.includes('prata') || norm.includes('pp ');
-  const isCopper = norm.includes('cobre') || norm.includes('pc ');
+  const isGold = norm.includes('ouro') || norm.includes('po ') || norm.includes('po');
+  const isSilver = norm.includes('prata') || norm.includes('pp ') || norm.includes('pp');
+  const isCopper = norm.includes('cobre') || norm.includes('pc ') || norm.includes('pc');
+
+  // Strict check: if user mentions an invalid currency (like platina, diamante, rubi, etc.)
+  if (norm.includes('platina') || norm.includes('diamante') || norm.includes('rubi') || norm.includes('esmeralda') || norm.includes('dolar') || norm.includes('real')) {
+    return {
+      success: false,
+      category: 'currency',
+      message: `❌ **Moeda Inválida**: O sistema Arcana aceita apenas **Ouro (PO)**, **Prata (PP)** e **Cobre (PC)**. Moedas como platina ou gemas brutas não são moedas correntes suportadas.`
+    };
+  }
 
   if (isGold || isSilver || isCopper) {
     const num = extractNumber(command, 1);
-    const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
     let coin: 'gold' | 'silver' | 'copper' = 'gold';
     let coinLabel = 'Moedas de Ouro (PO)';
 
@@ -568,7 +578,7 @@ export function parseAndExecuteAurora(
   // --- 10. SAÚDE & FERIMENTOS (HEALTH) ---
   // Exemplo: "cure todos os ferimentos", "cure a cabeça", "dano no torso"
   if (norm.includes('cura') || norm.includes('cure') || norm.includes('ferimento') || norm.includes('ferimentos') || norm.includes('vida')) {
-    const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
     
     // Curar tudo
     if (norm.includes('tudo') || norm.includes('todos') || norm.includes('toda a vida') || norm.includes('total')) {
@@ -614,7 +624,7 @@ export function parseAndExecuteAurora(
 
   // --- 11. FLUXO & PATRONO ---
   if (norm.includes('fluxo') || norm.includes('patrono')) {
-    const updated = JSON.parse(JSON.stringify(currentData)) as CharacterData;
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
     if (!updated.flowAndPatron) {
       updated.flowAndPatron = {
         fluxo: { level: 1, hp: 10 },
