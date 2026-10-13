@@ -104,15 +104,18 @@ export default function App() {
     return localStorage.getItem('arcana_is_gm_view') === 'true';
   });
 
-  // Authentication session (Player or Game Master)
-  const [authSession, setAuthSession] = useState<AuthSession>(() => {
+  // Authentication session (Player or Game Master) - Inicia nulo se não houver no cache
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() => {
     const saved = localStorage.getItem('arcana_auth_session');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.username && parsed.role) {
+          return parsed;
+        }
       } catch (e) {}
     }
-    return { role: 'player', username: 'elias', name: initialCharacterData.identity.name || 'Elias Iyanu', color: '#a855f7' };
+    return null;
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -200,7 +203,11 @@ export default function App() {
 
   // Sync auth session to localStorage
   useEffect(() => {
-    localStorage.setItem('arcana_auth_session', JSON.stringify(authSession));
+    if (authSession) {
+      localStorage.setItem('arcana_auth_session', JSON.stringify(authSession));
+    } else {
+      localStorage.removeItem('arcana_auth_session');
+    }
   }, [authSession]);
 
   // Keep GM view saved
@@ -349,7 +356,17 @@ export default function App() {
       setSaveStatus('saved');
       loadCharactersFromFileSystem();
     } catch (err: any) {
-      console.error('Error creating character file:', err);
+      console.warn('Fallback creating character:', err);
+      const fallbackChar: CampaignCharacter = {
+        id: newId,
+        name,
+        color: color || '#06b6d4',
+        data: initialCharacterData
+      };
+      setCampaignCharacters((prev) => [...prev.filter((c) => c.id !== newId), fallbackChar]);
+      setActiveCharacterId(newId);
+      setData(fallbackChar.data);
+      setSaveStatus('saved');
     }
   };
 
@@ -373,7 +390,7 @@ export default function App() {
   // Toggle GM View - prompts for password 'saidaquiburro' if not yet authenticated as GM
   const handleToggleGmView = () => {
     if (!isGmView) {
-      if (authSession.role !== 'gamemaster') {
+      if (authSession?.role !== 'gamemaster') {
         setAuthModalTab('gm');
         setIsAuthModalOpen(true);
         return;
@@ -384,7 +401,7 @@ export default function App() {
     }
   };
 
-  // Handle successful login from modal
+  // Handle successful login from modal or initial screen
   const handleLoginSuccess = (
     newSession: { role: 'player' | 'gamemaster'; username: string; name: string; color?: string },
     characterData?: any
@@ -403,6 +420,14 @@ export default function App() {
       }
       loadCharactersFromFileSystem();
     }
+  };
+
+  // Desconectar / Sair da conta (limpa o cache e volta para a tela inicial de login)
+  const handleLogout = () => {
+    localStorage.removeItem('arcana_auth_session');
+    setAuthSession(null);
+    setIsGmView(false);
+    setIsAuthModalOpen(false);
   };
   const [isIdentityExpanded, setIsIdentityExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'inventory' | 'magic'>('profile');
@@ -634,6 +659,42 @@ export default function App() {
     }
   };
 
+  if (!authSession) {
+    return (
+      <div className="min-h-screen bg-[#02000c] text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans select-none">
+        <GalaxyAuroraBackground />
+
+        {/* Ambient Glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Brand Aurora Header */}
+        <div className="relative z-10 flex flex-col items-center mb-6 text-center animate-in fade-in duration-300">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/30 to-fuchsia-600/15 border border-violet-400/40 flex items-center justify-center text-violet-300 shadow-[0_0_25px_rgba(167,139,250,0.4)] mb-3">
+            <Sparkles size={26} className="text-violet-300 drop-shadow-[0_0_10px_#a855f7]" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-200 via-white to-cyan-200 tracking-wider drop-shadow-sm uppercase">
+            Aurora
+          </h1>
+          <p className="text-xs sm:text-sm text-violet-300/70 font-medium mt-1">
+            Sistema Arcana & Gestão de Fichas
+          </p>
+        </div>
+
+        {/* Central Auth Interface (Autenticação & Persistência) */}
+        <div className="relative z-10 w-full max-w-md animate-in zoom-in-95 duration-200">
+          <AuthModal
+            isOpen={true}
+            isInitialScreen={true}
+            availableCharacters={availableCharacters}
+            onLoginSuccess={handleLoginSuccess}
+            defaultTab={authModalTab}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#02000c] text-slate-200 font-sans pb-24 selection:bg-violet-500/30 relative overflow-hidden">
       {/* Dynamic Galaxy Aurora Background with 3 Parallax Star Layers */}
@@ -795,19 +856,19 @@ export default function App() {
                 setIsAuthModalOpen(true);
               }}
               className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
-                authSession.role === 'gamemaster'
+                authSession?.role === 'gamemaster'
                   ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                   : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
               }`}
-              title="Gerenciar Conta / Ficha / Trocar de Usuário"
+              title="Autenticação & Persistência / Trocar de Usuário"
             >
-              {authSession.role === 'gamemaster' ? (
+              {authSession?.role === 'gamemaster' ? (
                 <Crown size={13} className="text-amber-400 shrink-0" />
               ) : (
                 <User size={13} className="text-violet-400 shrink-0" />
               )}
               <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
-                {authSession.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession.name || authSession.username}
+                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username}
               </span>
             </button>
           </div>
@@ -1220,6 +1281,8 @@ export default function App() {
         availableCharacters={availableCharacters}
         onLoginSuccess={handleLoginSuccess}
         defaultTab={authModalTab}
+        currentSession={authSession}
+        onLogout={handleLogout}
       />
 
       {/* Confirmação de Exclusão de Ficha pelo Game Master */}

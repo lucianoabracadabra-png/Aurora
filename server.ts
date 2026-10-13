@@ -239,17 +239,16 @@ async function startServer() {
     }
   });
 
-  // 3. Register / Create new character file
-  app.post('/api/auth/register', (req, res) => {
+  // 3. Register / Create new character file (Supports both /api/auth/register and /api/characters)
+  const handleRegisterOrCreateCharacter = (req: express.Request, res: express.Response) => {
     const { username, password, name, role, color, characterData } = req.body;
-    const safeUser = sanitizeUsername(username);
+    const rawUser = username || req.params?.username || name;
+    const safeUser = sanitizeUsername(rawUser);
 
     if (!safeUser || safeUser.length < 2) {
       return res.status(400).json({ success: false, error: 'Nome de usuário deve ter pelo menos 2 caracteres alfanuméricos.' });
     }
-    if (!password) {
-      return res.status(400).json({ success: false, error: 'Senha é obrigatória para proteger o arquivo da ficha.' });
-    }
+    const finalPassword = password && password.trim() ? password : '123';
 
     const filePath = path.join(CHARACTERS_DIR, `${safeUser}.json`);
     if (fs.existsSync(filePath)) {
@@ -262,7 +261,7 @@ async function startServer() {
       
       const payload = {
         username: safeUser,
-        password,
+        password: finalPassword,
         name: charName,
         color: color || '#a855f7',
         createdAt: new Date().toISOString(),
@@ -301,7 +300,11 @@ async function startServer() {
     } catch (err: any) {
       return res.status(500).json({ success: false, error: 'Erro ao criar arquivo da ficha: ' + err.message });
     }
-  });
+  };
+
+  app.post('/api/auth/register', handleRegisterOrCreateCharacter);
+  app.post('/api/characters', handleRegisterOrCreateCharacter);
+  app.post('/api/characters/:username', handleRegisterOrCreateCharacter);
 
   // 4. List all character sheets (from file-system)
   app.get('/api/characters', (_req, res) => {

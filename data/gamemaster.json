@@ -1,0 +1,14 @@
+{
+  "role": "gamemaster",
+  "name": "Game Master",
+  "password": "saidaquiburro",
+  "connectedCharacters": [
+    "arcana",
+    "valerius",
+    "kaelen",
+    "elias",
+    "testchar"
+  ],
+  "campaignNotes": "Campanha Principal Arcana - Sistema File-System Database-less",
+  "updatedAt": "2026-10-13T17:57:39.056Z"
+}
