@@ -17,6 +17,7 @@ interface GmRosterBarProps {
   onRequestDeleteCharacter: (char: CampaignCharacter) => void;
   isEditing: boolean;
   onToggleEdit: () => void;
+  isGmView?: boolean;
 }
 
 const COLOR_PRESETS = [
@@ -34,12 +35,13 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
   onSelectCharacter,
   onAddCharacter,
   onRequestDeleteCharacter,
-  isEditing,
+  isEditing: _isEditing,
+  isGmView = false,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCharName, setNewCharName] = useState('');
   const [newCharUsername, setNewCharUsername] = useState('');
-  const [newCharPassword, setNewCharPassword] = useState('123');
+  const [newCharPassword, setNewCharPassword] = useState('1');
   const [newCharColor, setNewCharColor] = useState('#06b6d4');
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -54,37 +56,45 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
       '',
       newCharColor,
       finalUsername || `char_${Date.now()}`,
-      newCharPassword || '123'
+      newCharPassword || '1'
     );
     setNewCharName('');
     setNewCharUsername('');
-    setNewCharPassword('123');
+    setNewCharPassword('1');
     setIsModalOpen(false);
   };
 
   const activeChar = characters.find((c) => c.id === activeCharacterId) || characters[0];
 
   return (
-    <div className="w-full bg-[#08031a]/95 backdrop-blur-xl border-b border-amber-500/25 px-4 py-3 relative z-20 shadow-[0_10px_30px_rgba(0,0,0,0.6)] animate-in slide-in-from-top-3 duration-200">
+    <div className={`w-full backdrop-blur-xl px-4 py-2.5 relative z-20 shadow-[0_10px_30px_rgba(0,0,0,0.6)] animate-in slide-in-from-top-3 duration-200 border-b ${
+      isGmView ? 'bg-[#08031a]/95 border-amber-500/25' : 'bg-[#050214]/95 border-violet-500/20'
+    }`}>
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         
-        {/* GM Badge & Party Title */}
+        {/* Title & Badge */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500/30 to-amber-600/10 border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.25)] shrink-0">
-            <Crown size={17} className="text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-md ${
+            isGmView
+              ? 'bg-gradient-to-br from-amber-500/30 to-amber-600/10 border-amber-400/40 text-amber-300 shadow-amber-500/20'
+              : 'bg-gradient-to-br from-violet-500/30 to-cyan-500/10 border-violet-400/40 text-violet-300 shadow-violet-500/20'
+          }`}>
+            <Crown size={17} className={isGmView ? 'text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]' : 'text-violet-300'} />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black uppercase tracking-wider text-amber-300">
-                Painel do Mestre (GM)
+              <span className={`text-xs font-black uppercase tracking-wider ${isGmView ? 'text-amber-300' : 'text-violet-300'}`}>
+                {isGmView ? 'Painel do Mestre (GM)' : 'Personagens da Campanha'}
               </span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400/15 border border-amber-400/30 text-amber-200 font-mono">
-                {characters.length} Personagens
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                isGmView ? 'bg-amber-400/15 border border-amber-400/30 text-amber-200' : 'bg-violet-400/15 border border-violet-400/30 text-violet-200'
+              }`}>
+                {characters.length} Ficha{characters.length !== 1 ? 's' : ''} no Servidor
               </span>
             </div>
             <p className="text-[11px] text-white/50 flex items-center gap-1">
-              <HardDrive size={11} className="text-amber-400/70" />
-              <span>Campanha sincronizada</span>
+              <HardDrive size={11} className={isGmView ? 'text-amber-400/70' : 'text-cyan-400/70'} />
+              <span>Arquivos lidos do servidor /data/characters</span>
             </p>
           </div>
         </div>
@@ -93,7 +103,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
         <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
           {characters.map((char) => {
             const isActive = char.id === activeCharacterId;
-            const initial = char.name.charAt(0).toUpperCase() || 'P';
+            const initial = char.name ? char.name.charAt(0).toUpperCase() : 'P';
             const color = char.color || '#a855f7';
 
             return (
@@ -103,13 +113,15 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   onClick={() => onSelectCharacter(char.id)}
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer relative ${
                     isActive
-                      ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#08031a] scale-105 shadow-[0_0_16px_rgba(245,158,11,0.5)]'
+                      ? isGmView
+                        ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#08031a] scale-105 shadow-[0_0_16px_rgba(245,158,11,0.5)]'
+                        : 'ring-2 ring-violet-400 ring-offset-2 ring-offset-[#08031a] scale-105 shadow-[0_0_16px_rgba(168,85,247,0.5)]'
                       : 'opacity-70 hover:opacity-100 hover:scale-105 ring-1 ring-white/20'
                   }`}
                   style={{
                     backgroundColor: char.avatarUrl ? 'transparent' : color,
                   }}
-                  title={`Editar ficha de ${char.name}`}
+                  title={`Carregar ficha de ${char.name || 'Personagem'}`}
                 >
                   {char.avatarUrl ? (
                     <img
@@ -125,29 +137,33 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
 
                   {/* Active Pin Dot */}
                   {isActive && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-[#08031a] shadow-[0_0_6px_#f59e0b]" />
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#08031a] ${
+                      isGmView ? 'bg-amber-400 shadow-[0_0_6px_#f59e0b]' : 'bg-violet-400 shadow-[0_0_6px_#a855f7]'
+                    }`} />
                   )}
                 </button>
 
                 {/* Tooltip on hover */}
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1 bg-[#050110] border border-amber-400/40 rounded-lg text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 whitespace-nowrap text-center">
-                  <div className="text-xs font-bold text-amber-200">{char.name}</div>
-                  <div className="text-[10px] text-white/50">{char.data.identity?.origin || 'Aventureiro'}</div>
-                  {isActive && <div className="text-[9px] text-emerald-400 font-bold">● Ativo no Painel</div>}
+                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1 bg-[#050110] border border-white/20 rounded-lg text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 whitespace-nowrap text-center">
+                  <div className="text-xs font-bold text-white">{char.name || 'Sem Nome'}</div>
+                  <div className="text-[10px] text-white/50">{char.data?.identity?.origin || 'Aventureiro'}</div>
+                  {isActive && <div className="text-[9px] text-emerald-400 font-bold">● Ativo na Tela</div>}
                 </div>
               </div>
             );
           })}
 
-          {/* Add Character Button Bolinha */}
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="w-10 h-10 rounded-full border-2 border-dashed border-amber-400/40 hover:border-amber-400 bg-white/[0.02] hover:bg-amber-500/10 text-amber-300 flex items-center justify-center transition-all cursor-pointer hover:scale-105 shrink-0 shadow-sm"
-            title="Criar Novo Personagem"
-          >
-            <Plus size={16} />
-          </button>
+          {/* Add Character Button Bolinha (Apenas GM pode adicionar novas fichas diretamente daqui) */}
+          {isGmView && (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="w-10 h-10 rounded-full border-2 border-dashed border-amber-400/40 hover:border-amber-400 bg-white/[0.02] hover:bg-amber-500/10 text-amber-300 flex items-center justify-center transition-all cursor-pointer hover:scale-105 shrink-0 shadow-sm"
+              title="Criar Novo Arquivo de Ficha no Servidor"
+            >
+              <Plus size={16} />
+            </button>
+          )}
         </div>
 
         {/* Current Active Character Info & Actions */}
@@ -157,13 +173,13 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
               <div className="text-xs font-bold text-white truncate max-w-[130px] flex items-center gap-1 justify-end">
                 <span>{activeChar.name}</span>
               </div>
-              <div className="text-[10px] text-amber-300/80">
-                {activeChar.data.identity?.origin || 'Personagem'}
+              <div className={`text-[10px] ${isGmView ? 'text-amber-300/80' : 'text-violet-300/80'}`}>
+                {activeChar.data?.identity?.origin || 'Personagem'}
               </div>
             </div>
 
-            {/* Delete character button (Requires GM password 'saidaquiburro') */}
-            {characters.length > 1 && (
+            {/* Delete character button (Apenas visível para GM) */}
+            {isGmView && characters.length > 1 && (
               <button
                 type="button"
                 onClick={() => onRequestDeleteCharacter(activeChar)}
@@ -201,7 +217,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Valerius, Lyra, Kaelen..."
+                  placeholder="Vazio"
                   value={newCharName}
                   onChange={(e) => {
                     setNewCharName(e.target.value);
@@ -219,7 +235,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   <div className="flex items-center bg-white/5 border border-white/15 rounded-xl px-2.5 py-1.5 focus-within:border-amber-400">
                     <input
                       type="text"
-                      placeholder="usuario"
+                      placeholder="Vazio"
                       value={newCharUsername}
                       onChange={(e) => setNewCharUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                       className="w-full bg-transparent text-amber-300 font-mono text-xs focus:outline-none"
@@ -231,6 +247,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   <label className="text-white/70 block mb-1 font-semibold">Senha Inicial</label>
                   <input
                     type="text"
+                    placeholder="1"
                     value={newCharPassword}
                     onChange={(e) => setNewCharPassword(e.target.value)}
                     className="w-full px-3 py-2 bg-white/5 border border-white/15 rounded-xl text-white focus:outline-none focus:border-amber-400 text-xs font-mono"

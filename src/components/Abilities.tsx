@@ -203,14 +203,14 @@ export const Abilities: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   type="text"
-                  placeholder="NOME DA HABILIDADE"
+                  placeholder="Vazio"
                   value={newAbility.name}
                   onChange={(e) => setNewAbility({ ...newAbility, name: e.target.value })}
                   className="bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-fuchsia-500 transition-colors placeholder:text-white/20"
                 />
                 <input
                   type="text"
-                  placeholder="CUSTO (EX: 2 ANIMA)"
+                  placeholder="Vazio"
                   value={newAbility.cost}
                   onChange={(e) => setNewAbility({ ...newAbility, cost: e.target.value })}
                   className="bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-fuchsia-500 transition-colors placeholder:text-white/20"
@@ -219,14 +219,14 @@ export const Abilities: React.FC<Props> = ({
 
               <input
                 type="text"
-                placeholder="MECÂNICA (EFEITO EM REGRAS)"
+                placeholder="Vazio"
                 value={newAbility.mechanic}
                 onChange={(e) => setNewAbility({ ...newAbility, mechanic: e.target.value })}
                 className="bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-fuchsia-500 transition-colors placeholder:text-white/20"
               />
 
               <textarea
-                placeholder="DESCRIÇÃO DETALHADA OU HISTÓRICO"
+                placeholder="Vazio"
                 value={newAbility.description}
                 onChange={(e) => setNewAbility({ ...newAbility, description: e.target.value })}
                 className="bg-black/60 border border-white/10 rounded-xl px-3 py-2 text-white/80 text-xs focus:outline-none focus:border-fuchsia-500 resize-none h-16 transition-colors placeholder:text-white/20 font-light"

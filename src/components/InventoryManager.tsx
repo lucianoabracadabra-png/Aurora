@@ -2499,7 +2499,7 @@ export const InventoryManager: React.FC<Props> = ({
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Espada Longa de Aço, Couraça Nobre..."
+                    placeholder="Vazio"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500/50"
@@ -2743,7 +2743,7 @@ export const InventoryManager: React.FC<Props> = ({
                       type="text"
                       value={newItemExtras}
                       onChange={(e) => setNewItemExtras(e.target.value)}
-                      placeholder="Ex: +1 em Resistência contra feitiços elementais, +2 em Mana de Foco..."
+                      placeholder="Vazio"
                       className="bg-black/60 border border-white/10 rounded-xl p-2 text-slate-200 focus:outline-none"
                     />
                   </div>
@@ -2757,7 +2757,7 @@ export const InventoryManager: React.FC<Props> = ({
                   rows={2}
                   value={newItemDesc}
                   onChange={(e) => setNewItemDesc(e.target.value)}
-                  placeholder="Propriedades especiais, marcas de forja, runas..."
+                  placeholder="Vazio"
                   className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none"
                 />
               </div>
@@ -2854,7 +2854,7 @@ export const InventoryManager: React.FC<Props> = ({
                 <input
                   type="number"
                   min={0}
-                  placeholder="0"
+                  placeholder="1"
                   value={moveGold}
                   onChange={(e) => setMoveGold(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="w-full bg-transparent text-center font-mono font-bold text-lg sm:text-xl text-amber-300 focus:outline-none placeholder:text-white/20"
@@ -2870,7 +2870,7 @@ export const InventoryManager: React.FC<Props> = ({
                 <input
                   type="number"
                   min={0}
-                  placeholder="0"
+                  placeholder="1"
                   value={moveSilver}
                   onChange={(e) => setMoveSilver(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="w-full bg-transparent text-center font-mono font-bold text-lg sm:text-xl text-slate-200 focus:outline-none placeholder:text-white/20"
@@ -2886,7 +2886,7 @@ export const InventoryManager: React.FC<Props> = ({
                 <input
                   type="number"
                   min={0}
-                  placeholder="0"
+                  placeholder="1"
                   value={moveCopper}
                   onChange={(e) => setMoveCopper(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
                   className="w-full bg-transparent text-center font-mono font-bold text-lg sm:text-xl text-orange-400 focus:outline-none placeholder:text-white/20"
@@ -2899,7 +2899,7 @@ export const InventoryManager: React.FC<Props> = ({
               <label className="text-[10px] font-bold text-white/50 uppercase">Motivo / Descrição (Opcional)</label>
               <input
                 type="text"
-                placeholder="Ex: Pagamento de recompensa, Compra na taverna..."
+                placeholder="Vazio"
                 value={moveReason}
                 onChange={(e) => setMoveReason(e.target.value)}
                 className="bg-black/60 border border-white/10 rounded-xl p-2 text-slate-200 focus:outline-none focus:border-amber-500/50"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData, createEmptyCharacterData } from './initialState';
 import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText } from 'lucide-react';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, Pencil, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { Identity } from './components/Identity';
@@ -287,8 +287,12 @@ export default function App() {
     localStorage.setItem('arcana_is_gm_view', isGmView ? 'true' : 'false');
   }, [isGmView]);
 
+  const loadedCharacterIdRef = useRef<string>(activeCharacterId);
+  const lastSavedJsonRef = useRef<string>('');
+  const isInitialMountRef = useRef<boolean>(true);
+
   // Function to load all characters directly from file-system
-  const loadCharactersFromFileSystem = async () => {
+  const loadCharactersFromFileSystem = async (silent = false) => {
     try {
       const list = await StorageApi.getCharactersList();
       setAvailableCharacters(list);
@@ -323,17 +327,36 @@ export default function App() {
         const currentActiveUsername = activeCharacterId.replace(/^char-/, '');
         const currentExists = list.some((c) => c.username === currentActiveUsername);
         if (!currentExists && fullCharacters.length > 0) {
-          setActiveCharacterId(fullCharacters[0].id);
-          setData(fullCharacters[0].data);
+          const nextChar = fullCharacters[0];
+          setActiveCharacterId(nextChar.id);
+          loadedCharacterIdRef.current = nextChar.id;
+          lastSavedJsonRef.current = JSON.stringify(nextChar.data);
+          setData(nextChar.data);
         } else {
           const currentMatch = fullCharacters.find((c) => c.id === activeCharacterId);
           if (currentMatch) {
-            setData(currentMatch.data);
+            if (isInitialMountRef.current) {
+              loadedCharacterIdRef.current = currentMatch.id;
+              lastSavedJsonRef.current = JSON.stringify(currentMatch.data);
+              setData(currentMatch.data);
+            } else if (!isEditing) {
+              const serverJson = JSON.stringify(currentMatch.data);
+              if (serverJson !== lastSavedJsonRef.current && lastSavedJsonRef.current !== '') {
+                lastSavedJsonRef.current = serverJson;
+                setData(currentMatch.data);
+              }
+            }
           }
         }
       }
     } catch (err) {
-      console.warn('File-system fetch failed (server offline or starting), using local cache:', err);
+      if (!silent) {
+        console.warn('File-system fetch failed (server offline or starting), using local cache:', err);
+      }
+    } finally {
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+      }
     }
   };
 
@@ -342,10 +365,32 @@ export default function App() {
     loadCharactersFromFileSystem();
   }, []);
 
-  // When activeCharacterId changes, sync sheet data
+  // Periodic polling & window focus sync (keeps all players and GM synced with server files)
   useEffect(() => {
+    const interval = setInterval(() => {
+      loadCharactersFromFileSystem(true);
+    }, 4000);
+
+    const handleFocus = () => {
+      loadCharactersFromFileSystem(true);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [activeCharacterId, isEditing]);
+
+  // When activeCharacterId changes, sync sheet data safely
+  useEffect(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
     const target = campaignCharacters.find((c) => c.id === activeCharacterId);
     if (target) {
+      loadedCharacterIdRef.current = activeCharacterId;
+      lastSavedJsonRef.current = JSON.stringify(target.data);
       setData(target.data);
     }
     localStorage.setItem('arcana_active_character_id', activeCharacterId);
@@ -354,9 +399,18 @@ export default function App() {
   // Debounced Auto-Save to File-System JSON file
   const saveTimeoutRef = useRef<any>(null);
   useEffect(() => {
-    // Determine username from active character
+    // Prevent saving if on initial mount or during character switch transition
+    if (isInitialMountRef.current) return;
+    if (loadedCharacterIdRef.current !== activeCharacterId) return;
+
     const safeUser = activeCharacterId.replace(/^char-/, '');
     if (!safeUser) return;
+
+    const currentJson = JSON.stringify(data);
+    if (currentJson === lastSavedJsonRef.current && lastSavedJsonRef.current !== '') {
+      // Nothing changed, don't re-save
+      return;
+    }
 
     // Local state sync
     setCampaignCharacters((prev) => {
@@ -374,7 +428,7 @@ export default function App() {
       localStorage.setItem('arcana_campaign_characters', JSON.stringify(updated));
       return updated;
     });
-    localStorage.setItem('arcana_character_data', JSON.stringify(data));
+    localStorage.setItem('arcana_character_data', currentJson);
 
     // File-System save
     setSaveStatus('saving');
@@ -382,6 +436,7 @@ export default function App() {
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         await StorageApi.saveCharacter(safeUser, data, activeChar?.color, data.identity?.name);
+        lastSavedJsonRef.current = currentJson;
         setSaveStatus('saved');
       } catch (err) {
         console.error('Failed to save to disk:', err);
@@ -410,7 +465,7 @@ export default function App() {
       setSaveStatus('saving');
       const res = await StorageApi.register({
         username: safeUser,
-        password: password || '123',
+        password: password || '1',
         name,
         role: role || '',
         color: color || '#06b6d4',
@@ -426,6 +481,8 @@ export default function App() {
 
       setCampaignCharacters((prev) => [...prev.filter((c) => c.id !== newId), newChar]);
       setActiveCharacterId(newId);
+      loadedCharacterIdRef.current = newId;
+      lastSavedJsonRef.current = JSON.stringify(newChar.data);
       setData(newChar.data);
       setSaveStatus('saved');
       loadCharactersFromFileSystem();
@@ -439,6 +496,8 @@ export default function App() {
       };
       setCampaignCharacters((prev) => [...prev.filter((c) => c.id !== newId), fallbackChar]);
       setActiveCharacterId(newId);
+      loadedCharacterIdRef.current = newId;
+      lastSavedJsonRef.current = JSON.stringify(emptyData);
       setData(fallbackChar.data);
       setSaveStatus('saved');
     }
@@ -851,21 +910,55 @@ export default function App() {
             {/* Divisor sutil */}
             <div className="w-px h-5 bg-white/10 mx-0.5 hidden xs:block" />
 
-            {/* Botão Circular: Travar / Editar Ficha (Cadeado) */}
+            {/* 1. Login (User Account / Session Button) */}
+            <button
+              type="button"
+              onClick={() => {
+                setAuthModalTab('player');
+                setIsAuthModalOpen(true);
+              }}
+              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
+                authSession?.role === 'gamemaster'
+                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+              }`}
+              title="Autenticação & Persistência / Trocar de Usuário"
+            >
+              {authSession?.role === 'gamemaster' ? (
+                <Crown size={13} className="text-amber-400 shrink-0" />
+              ) : (
+                <User size={13} className="text-violet-400 shrink-0" />
+              )}
+              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
+                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username}
+              </span>
+            </button>
+
+            {/* 2. Edit / Lock (ícone mudado para lápis/cadeado) */}
             <button 
               type="button"
               onClick={() => setIsEditing(!isEditing)}
               className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
                 isEditing 
-                  ? 'bg-rose-500/20 border-rose-400/60 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.35)] ring-1 ring-rose-400/40'
+                  ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/40'
                   : 'bg-white/[0.03] hover:bg-emerald-500/20 border-emerald-400/30 text-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.15)]'
               }`}
               title={isEditing ? 'Travar Ficha (Modo de Jogo Ativo)' : 'Editar Ficha (Modo de Edição Ativo)'}
             >
-              {isEditing ? <Unlock size={14} /> : <Lock size={14} />}
+              {isEditing ? <Pencil size={14} /> : <Lock size={14} />}
             </button>
 
-            {/* Botão Circular: Aurora (Assistente Semi-Inteligente) */}
+            {/* 3. Question mark (Ajuda & Guia ?) */}
+            <button
+              type="button"
+              onClick={() => setIsGuideOpen(true)}
+              className="w-8 h-8 rounded-full bg-white/[0.03] hover:bg-cyan-500/15 active:scale-95 border border-cyan-400/30 hover:border-cyan-400/60 flex items-center justify-center text-cyan-300 transition-all shadow-[0_0_15px_rgba(34,211,238,0.2)] cursor-pointer"
+              title="Guia de Ferramentas, Atalhos e Usabilidade (?)"
+            >
+              <HelpCircle size={15} className="text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
+            </button>
+
+            {/* 4. Aurora (Assistente Semi-Inteligente) */}
             <button
               type="button"
               onClick={() => setIsAuroraOpen(!isAuroraOpen)}
@@ -887,17 +980,7 @@ export default function App() {
               )}
             </button>
 
-            {/* Botão Circular: Ajuda & Guia (?) */}
-            <button
-              type="button"
-              onClick={() => setIsGuideOpen(true)}
-              className="w-8 h-8 rounded-full bg-white/[0.03] hover:bg-cyan-500/15 active:scale-95 border border-cyan-400/30 hover:border-cyan-400/60 flex items-center justify-center text-cyan-300 transition-all shadow-[0_0_15px_rgba(34,211,238,0.2)] cursor-pointer"
-              title="Guia de Ferramentas, Atalhos e Usabilidade (?)"
-            >
-              <HelpCircle size={15} className="text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
-            </button>
-
-            {/* Botão Circular: GM / Player View (Coroa dourada para GM, cinza para Player) */}
+            {/* 5. GM (Game Master / Player View) */}
             <button
               type="button"
               onClick={handleToggleGmView}
@@ -921,53 +1004,30 @@ export default function App() {
                 } 
               />
             </button>
-
-            {/* User Account / Session Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setAuthModalTab('player');
-                setIsAuthModalOpen(true);
-              }}
-              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
-                authSession?.role === 'gamemaster'
-                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
-              }`}
-              title="Autenticação & Persistência / Trocar de Usuário"
-            >
-              {authSession?.role === 'gamemaster' ? (
-                <Crown size={13} className="text-amber-400 shrink-0" />
-              ) : (
-                <User size={13} className="text-violet-400 shrink-0" />
-              )}
-              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
-                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username}
-              </span>
-            </button>
           </div>
 
         </div>
       </header>
 
-      {/* GM Campaign Characters Roster Bar (Visible in GM View) */}
-      {isGmView && (
-        <GmRosterBar
-          characters={campaignCharacters}
-          activeCharacterId={activeCharacterId}
-          onSelectCharacter={(id) => {
-            setActiveCharacterId(id);
-            const targetChar = campaignCharacters.find((c) => c.id === id);
-            if (targetChar) {
-              setData(targetChar.data);
-            }
-          }}
-          onAddCharacter={handleAddCampaignCharacter}
-          onRequestDeleteCharacter={(char) => setCharacterToDelete(char)}
-          isEditing={isEditing}
-          onToggleEdit={() => setIsEditing(!isEditing)}
-        />
-      )}
+      {/* Campaign Characters Roster Bar (Visible for both Players and GM so all players share the same view of server files) */}
+      <GmRosterBar
+        characters={campaignCharacters}
+        activeCharacterId={activeCharacterId}
+        onSelectCharacter={(id) => {
+          setActiveCharacterId(id);
+          const targetChar = campaignCharacters.find((c) => c.id === id);
+          if (targetChar) {
+            loadedCharacterIdRef.current = id;
+            lastSavedJsonRef.current = JSON.stringify(targetChar.data);
+            setData(targetChar.data);
+          }
+        }}
+        onAddCharacter={handleAddCampaignCharacter}
+        onRequestDeleteCharacter={(char) => setCharacterToDelete(char)}
+        isEditing={isEditing}
+        onToggleEdit={() => setIsEditing(!isEditing)}
+        isGmView={isGmView}
+      />
 
       {/* CONDITIONAL ENVIRONMENT RENDER */}
       {activeEnvironment === 'battleTracker' ? (

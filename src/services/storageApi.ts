@@ -35,14 +35,10 @@ function getLocalCharList(): CharacterSummary[] {
     const raw = localStorage.getItem(LOCAL_CHAR_LIST_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch {}
-  return [
-    { id: 'char-elias', username: 'elias', name: 'Elias Iyanu', color: '#a855f7' },
-    { id: 'char-valerius', username: 'valerius', name: 'Valerius', color: '#10b981' },
-    { id: 'char-kaelen', username: 'kaelen', name: 'Kaelen', color: '#06b6d4' },
-  ];
+  return [];
 }
 
 function saveLocalCharList(list: CharacterSummary[]) {
@@ -73,7 +69,7 @@ export const StorageApi = {
       const res = await fetch('/api/status');
       if (res.ok) return await res.json();
     } catch {}
-    return { status: 'online', storageType: 'local-cache', dataDir: 'localStorage' };
+    return { status: 'online', storageType: 'file-system', dataDir: '/data' };
   },
 
   async login(username: string, password: string, isGm = false) {
@@ -86,17 +82,15 @@ export const StorageApi = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: cleanUser, password, isGm }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) return data;
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        return data;
       }
-      if (res.status === 401) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Senha incorreta.');
+      if (res.status === 401 || res.status === 404) {
+        throw new Error(data.error || 'Credenciais inválidas.');
       }
     } catch (err: any) {
-      // If error is an explicit 401 from server, bubble it up
-      if (err.message && err.message.includes('Senha incorreta')) {
+      if (err.message && (err.message.includes('Senha') || err.message.includes('Ficha') || err.message.includes('não foi encontrada') || err.message.includes('Credenciais') || err.message.includes('incorreta'))) {
         throw err;
       }
       console.warn('[StorageApi] Server login unavailable or error, checking local cache:', err.message);
@@ -259,18 +253,9 @@ export const StorageApi = {
       const res = await fetch('/api/characters');
       if (res.ok) {
         const data = await res.json();
-        if (data.success && Array.isArray(data.characters) && data.characters.length > 0) {
-          // Merge with any local characters
-          const localList = getLocalCharList();
-          const serverList: CharacterSummary[] = data.characters;
-          const merged = [...serverList];
-          localList.forEach(loc => {
-            if (!merged.some(m => m.username === loc.username)) {
-              merged.push(loc);
-            }
-          });
-          saveLocalCharList(merged);
-          return merged;
+        if (data.success && Array.isArray(data.characters)) {
+          saveLocalCharList(data.characters);
+          return data.characters;
         }
       }
     } catch (e) {

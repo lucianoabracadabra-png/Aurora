@@ -27,14 +27,15 @@ const InlineInput = ({ label, value, onChange, fullWidth = false, readonly = fal
     </span>
     {readonly ? (
       <div className="text-slate-200 text-sm py-1 border-b border-transparent min-w-0">
-        {value || '-'}
+        {value || <span className="text-white/30 italic">Vazio</span>}
       </div>
     ) : (
       <input
         type="text"
         value={value}
+        placeholder="Vazio"
         onChange={(e) => onChange(e.target.value)}
-        className="bg-transparent border-b border-white/10 focus:border-violet-400 outline-none text-slate-200 text-sm py-1 transition-all w-full focus:shadow-[0_1px_8px_-2px_rgba(167,139,250,0.5)] min-w-0"
+        className="bg-transparent border-b border-white/10 focus:border-violet-400 outline-none text-slate-200 text-sm py-1 transition-all w-full focus:shadow-[0_1px_8px_-2px_rgba(167,139,250,0.5)] min-w-0 placeholder:text-white/25 placeholder:italic"
       />
     )}
   </div>

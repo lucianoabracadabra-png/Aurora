@@ -304,7 +304,7 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
                       required
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
-                      placeholder="Ex: Sentidos Aguçados, Código de Honra..."
+                      placeholder="Vazio"
                       className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-100 text-xs focus:outline-none focus:border-violet-500/60"
                     />
                   </div>
@@ -331,7 +331,7 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
                     rows={4}
                     value={editingDesc}
                     onChange={(e) => setEditingDesc(e.target.value)}
-                    placeholder="Descreva as regras mecânicas, bônus, penalidades, antecedentes ou notas interpretativas..."
+                    placeholder="Vazio"
                     className="bg-black/50 border border-white/10 rounded-xl p-3 text-slate-200 text-xs focus:outline-none focus:border-violet-500/60 resize-none leading-relaxed"
                   />
                 </div>
@@ -480,7 +480,7 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
                     required
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Ex: Sentidos Aguçados, Código de Honra..."
+                    placeholder="Vazio"
                     className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-100 text-xs focus:outline-none focus:border-violet-500/60"
                   />
                 </div>
@@ -507,7 +507,7 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
                   rows={4}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="Descreva as regras mecânicas, bônus, penalidades, antecedentes ou notas interpretativas..."
+                  placeholder="Vazio"
                   className="bg-black/50 border border-white/10 rounded-xl p-3 text-slate-200 text-xs focus:outline-none focus:border-violet-500/60 resize-none leading-relaxed"
                 />
               </div>

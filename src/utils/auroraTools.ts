@@ -788,9 +788,9 @@ export function executeAuroraTool(
         }
 
         if (sec === 'attributes' || sec === 'atributos') {
-          const p = updatedData.attributes?.physical || {};
-          const m = updatedData.attributes?.mental || {};
-          const s = updatedData.attributes?.social || {};
+          const p = (updatedData.attributes?.physical || {}) as any;
+          const m = (updatedData.attributes?.mental || {}) as any;
+          const s = (updatedData.attributes?.social || {}) as any;
           return {
             success: true,
             category: 'attribute',
@@ -799,9 +799,9 @@ export function executeAuroraTool(
         }
 
         if (sec === 'skills' || sec === 'pericias') {
-          const p = updatedData.skills?.physical || {};
-          const m = updatedData.skills?.mental || {};
-          const s = updatedData.skills?.social || {};
+          const p = (updatedData.skills?.physical || {}) as any;
+          const m = (updatedData.skills?.mental || {}) as any;
+          const s = (updatedData.skills?.social || {}) as any;
           return {
             success: true,
             category: 'skill',
@@ -823,10 +823,10 @@ export function executeAuroraTool(
         }
 
         if (sec === 'inventory' || sec === 'inventario') {
-          const inv = updatedData.inventory || {};
-          const w = (inv.weapons || []).map(x => `${x.name}${x.equipped ? ' [equipada]' : ''}`).join(', ') || 'Nenhuma';
-          const a = (inv.armors || []).map(x => `${x.name}${x.equipped ? ' [equipada]' : ''}`).join(', ') || 'Nenhuma';
-          const g = (inv.generalItems || []).map(x => `${x.name} (x${x.quantity})`).join(', ') || 'Nenhum';
+          const inv = (updatedData.inventory || {}) as any;
+          const w = (inv.weapons || []).map((x: any) => `${x.name}${x.equipped ? ' [equipada]' : ''}`).join(', ') || 'Nenhuma';
+          const a = (inv.armors || []).map((x: any) => `${x.name}${x.equipped ? ' [equipada]' : ''}`).join(', ') || 'Nenhuma';
+          const g = (inv.generalItems || []).map((x: any) => `${x.name} (x${x.quantity})`).join(', ') || 'Nenhum';
           return {
             success: true,
             category: 'inventory',

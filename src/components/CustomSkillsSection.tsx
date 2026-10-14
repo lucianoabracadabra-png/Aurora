@@ -64,7 +64,7 @@ export const CustomSkillsSection: React.FC<CustomSkillsSectionProps> = ({
         <div className="flex gap-2 items-center">
           <input 
             type="text" 
-            placeholder={`Adicionar ${title.toLowerCase()}...`} 
+            placeholder="Vazio" 
             value={newSkill} 
             onChange={e => setNewSkill(e.target.value)} 
             className="bg-transparent border-b border-white/10 text-xs px-2 py-1.5 text-white flex-1 focus:outline-none focus:border-white/30" 

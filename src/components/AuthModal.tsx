@@ -48,6 +48,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLogout,
 }) => {
   const [tab, setTab] = useState<'player' | 'gm' | 'register'>(defaultTab);
+  const [internalList, setInternalList] = useState<CharacterSummary[]>(availableCharacters);
+
+  React.useEffect(() => {
+    if (availableCharacters.length > 0) {
+      setInternalList(availableCharacters);
+    } else {
+      StorageApi.getCharactersList().then((list) => {
+        if (list && list.length > 0) setInternalList(list);
+      });
+    }
+  }, [availableCharacters]);
 
   // Player login state
   const [playerUsername, setPlayerUsername] = useState('');
@@ -267,13 +278,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
 
           {/* Quick-Select available sheets - só preenche o login */}
-          {availableCharacters.length > 0 && (
+          {internalList.length > 0 && (
             <div>
               <label className="text-[11px] font-semibold text-white/70 block mb-1.5">
                 Personagens salvos (Clique para preencher o login):
               </label>
               <div className="flex flex-wrap gap-1.5">
-                {availableCharacters.map((c) => (
+                {internalList.map((c) => (
                   <button
                     key={c.username}
                     type="button"
@@ -302,7 +313,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               type="text"
               required
-              placeholder="Ex: elias, valerius, seu_nome..."
+              placeholder="Vazio"
               value={playerUsername}
               onChange={(e) => setPlayerUsername(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
@@ -316,7 +327,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               type="password"
               required
-              placeholder="Digite a senha da ficha..."
+              placeholder="1"
               value={playerPassword}
               onChange={(e) => setPlayerPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
@@ -358,7 +369,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="password"
               required
               autoFocus
-              placeholder="Digite a senha do Mestre (saidaquiburro)..."
+              placeholder="saidaquiburro"
               value={gmPassword}
               onChange={(e) => setGmPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-black/50 border border-amber-400/40 focus:border-amber-400 rounded-xl text-white text-xs outline-none transition-colors"
@@ -396,7 +407,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <input
                 type="text"
                 required
-                placeholder="Ex: lyra, thorin"
+                placeholder="Vazio"
                 value={regUsername}
                 onChange={(e) => setRegUsername(e.target.value)}
                 className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors font-mono"
@@ -410,7 +421,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <input
                 type="password"
                 required
-                placeholder="Crie sua senha..."
+                placeholder="1"
                 value={regPassword}
                 onChange={(e) => setRegPassword(e.target.value)}
                 className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors"
@@ -425,7 +436,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               type="text"
               required
-              placeholder="Ex: Lyra Lunaris"
+              placeholder="Vazio"
               value={regName}
               onChange={(e) => setRegName(e.target.value)}
               className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors"

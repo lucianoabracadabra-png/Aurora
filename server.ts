@@ -50,7 +50,7 @@ function ensureGmFile() {
 function createBaseCharacter(name: string, role?: string, color?: string) {
   return {
     identity: {
-      name: name || 'Novo Personagem',
+      name: name || '',
       avatarUrl: '',
       height: '',
       weight: '',
@@ -59,23 +59,23 @@ function createBaseCharacter(name: string, role?: string, color?: string) {
       skin: '',
       age: '',
       ideals: '',
-      origin: '',
+      origin: role || '',
       languages: []
     },
-    alignment: { altruism: 0, logic: 0, integrity: 0 },
-    personality: { courage: 0, conviction: 0, serenity: 0 },
+    alignment: { altruism: 1, logic: 1, integrity: 1 },
+    personality: { courage: 1, conviction: 1, serenity: 1 },
     attributes: {
-      physical: { strength: 0, dexterity: 0, agility: 0, constitution: 0 },
-      mental: { intelligence: 0, perception: 0, reasoning: 0, wisdom: 0 },
-      social: { empathy: 0, manipulation: 0, expression: 0, resilience: 0 }
+      physical: { strength: 1, dexterity: 1, agility: 1, constitution: 1 },
+      mental: { intelligence: 1, perception: 1, reasoning: 1, wisdom: 1 },
+      social: { empathy: 1, manipulation: 1, expression: 1, resilience: 1 }
     },
     skills: {
-      physical: { melee: 0, firearms: 0, archery: 0, throwing: 0, brawl: 0, combat: 0, stealth: 0, alertness: 0 },
-      mental: { academics: 0, traps: 0, intuition: 0, investigation: 0, medicine: 0, occultism: 0, security: 0, survival: 0 },
-      social: { bargain: 0, taming: 0, etiquette: 0, intimidation: 0, smoothTalk: 0, leadership: 0, riding: 0, seduction: 0 }
+      physical: { melee: 1, firearms: 1, archery: 1, throwing: 1, brawl: 1, combat: 1, stealth: 1, alertness: 1 },
+      mental: { academics: 1, traps: 1, intuition: 1, investigation: 1, medicine: 1, occultism: 1, security: 1, survival: 1 },
+      social: { bargain: 1, taming: 1, etiquette: 1, intimidation: 1, smoothTalk: 1, leadership: 1, riding: 1, seduction: 1 }
     },
     customSkills: { treinamentos: [], ciencias: [], artes: [] },
-    domains: { water: 0, air: 0, anima: 0, fire: 0, earth: 0 },
+    domains: { water: 1, air: 1, anima: 1, fire: 1, earth: 1 },
     abilities: [],
     traits: [],
     manaSpent: { physical: 0, mental: 0, social: 0 },
@@ -96,16 +96,16 @@ function createBaseCharacter(name: string, role?: string, color?: string) {
       accessories: [],
       generalItems: [],
       currency: {
-        gold: 0,
-        silver: 0,
-        copper: 0,
+        gold: 1,
+        silver: 1,
+        copper: 1,
         gems: '',
         history: []
       }
     },
     flowAndPatron: {
-      fluxo: { level: 0, hp: 10, name: '', notes: '' },
-      patrono: { level: 0, hp: 10, name: '', notes: '' }
+      fluxo: { level: 1, hp: 1, name: '', notes: '' },
+      patrono: { level: 1, hp: 1, name: '', notes: '' }
     }
   };
 }
