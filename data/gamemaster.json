@@ -3,13 +3,12 @@
   "name": "Game Master",
   "password": "saidaquiburro",
   "connectedCharacters": [
-    "arcana",
-    "valerius",
-    "kaelen",
-    "elias",
-    "testchar",
-    "teste_vazio"
+    "jose",
+    "breno",
+    "lucas",
+    "gabo",
+    "kami"
   ],
   "campaignNotes": "Campanha Principal Arcana - Sistema File-System Database-less",
-  "updatedAt": "2026-10-13T18:10:11.404Z"
+  "updatedAt": "2026-10-14T12:00:00.000Z"
 }

@@ -37,7 +37,7 @@ function ensureGmFile() {
       role: 'gamemaster',
       name: 'Game Master',
       password: 'saidaquiburro',
-      connectedCharacters: ['elias', 'valerius', 'kaelen'],
+      connectedCharacters: ['jose', 'breno', 'lucas', 'gabo', 'kami'],
       campaignNotes: 'Campanha Principal Aurora - Sistema File-System Database-less',
       updatedAt: new Date().toISOString()
     };
@@ -113,9 +113,11 @@ function createBaseCharacter(name: string, role?: string, color?: string) {
 // Seed initial default characters if not present
 function ensureDefaultCharacters() {
   const seeds = [
-    { username: 'elias', name: 'Elias Iyanu', role: 'Místico do Deserto', color: '#a855f7', password: '123' },
-    { username: 'valerius', name: 'Valerius', role: 'Guerreiro Paladino', color: '#10b981', password: '123' },
-    { username: 'kaelen', name: 'Kaelen', role: 'Erudito dos Astros', color: '#06b6d4', password: '123' },
+    { username: 'jose', name: 'Jose', role: 'Aventureiro', color: '#a855f7', password: '123123123' },
+    { username: 'breno', name: 'Breno', role: 'Aventureiro', color: '#06b6d4', password: '123123123' },
+    { username: 'lucas', name: 'Lucas', role: 'Aventureiro', color: '#10b981', password: '123123123' },
+    { username: 'gabo', name: 'Gabo', role: 'Aventureiro', color: '#f59e0b', password: '123123123' },
+    { username: 'kami', name: 'Kami', role: 'Aventureiro', color: '#ec4899', password: '123123123' },
   ];
 
   seeds.forEach((seed) => {
@@ -236,7 +238,7 @@ async function startServer() {
     if (!safeUser || safeUser.length < 2) {
       return res.status(400).json({ success: false, error: 'Nome de usuário deve ter pelo menos 2 caracteres alfanuméricos.' });
     }
-    const finalPassword = password && password.trim() ? password : '123';
+    const finalPassword = password && password.trim() ? password : '123123123';
 
     const filePath = path.join(CHARACTERS_DIR, `${safeUser}.json`);
     if (fs.existsSync(filePath)) {
@@ -293,6 +295,79 @@ async function startServer() {
   app.post('/api/auth/register', handleRegisterOrCreateCharacter);
   app.post('/api/characters', handleRegisterOrCreateCharacter);
   app.post('/api/characters/:username', handleRegisterOrCreateCharacter);
+
+  // 3.1 Change Password Endpoint (Player or GM)
+  app.post('/api/auth/change-password', (req, res) => {
+    const { username, currentPassword, newPassword, isGm, gmPassword } = req.body;
+
+    if (!newPassword || newPassword.trim().length < 3) {
+      return res.status(400).json({ success: false, error: 'A nova senha deve ter pelo menos 3 caracteres.' });
+    }
+
+    // Changing GM password
+    if (isGm || username === 'gm' || username === 'gamemaster' || username === 'mestre') {
+      try {
+        if (!fs.existsSync(GM_FILE)) ensureGmFile();
+        const gmData = JSON.parse(fs.readFileSync(GM_FILE, 'utf-8'));
+
+        if (currentPassword !== gmData.password) {
+          return res.status(401).json({ success: false, error: 'Senha atual do Game Master incorreta.' });
+        }
+
+        gmData.password = newPassword.trim();
+        gmData.updatedAt = new Date().toISOString();
+        fs.writeFileSync(GM_FILE, JSON.stringify(gmData, null, 2), 'utf-8');
+        console.log('[Server] Game Master password updated successfully');
+        return res.json({ success: true, message: 'Senha do Game Master atualizada com sucesso.' });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: 'Erro ao alterar senha do Mestre: ' + err.message });
+      }
+    }
+
+    // Changing Player character password
+    const safeUser = sanitizeUsername(username);
+    if (!safeUser) {
+      return res.status(400).json({ success: false, error: 'Nome de usuário inválido.' });
+    }
+
+    const filePath = path.join(CHARACTERS_DIR, `${safeUser}.json`);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: `Ficha "${safeUser}" não foi encontrada no servidor.` });
+    }
+
+    try {
+      const fileData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+      // Authorized if matching current character password OR valid GM password provided
+      let authorized = false;
+      if (gmPassword) {
+        if (!fs.existsSync(GM_FILE)) ensureGmFile();
+        const gmData = JSON.parse(fs.readFileSync(GM_FILE, 'utf-8'));
+        if (gmPassword === gmData.password) {
+          authorized = true;
+        }
+      }
+      if (!authorized && currentPassword && fileData.password === currentPassword) {
+        authorized = true;
+      }
+
+      if (!authorized) {
+        return res.status(401).json({ success: false, error: 'Senha atual incorreta. Acesso negado.' });
+      }
+
+      fileData.password = newPassword.trim();
+      fileData.updatedAt = new Date().toISOString();
+      fs.writeFileSync(filePath, JSON.stringify(fileData, null, 2), 'utf-8');
+      console.log(`[Server] Password updated for character: ${safeUser}.json`);
+
+      return res.json({
+        success: true,
+        message: `Senha da ficha "${fileData.name || safeUser}" atualizada com sucesso.`
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: 'Erro ao alterar senha da ficha: ' + err.message });
+    }
+  });
 
   // 4. List all character sheets (from file-system)
   app.get('/api/characters', (_req, res) => {
@@ -373,7 +448,7 @@ async function startServer() {
     const updatedData = {
       ...existingData,
       username: safeUser,
-      password: existingData.password || '123',
+      password: existingData.password || '123123123',
       name: name || character?.identity?.name || existingData.name || safeUser,
       color: color || existingData.color || '#a855f7',
       character: character || existingData.character,

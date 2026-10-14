@@ -52,7 +52,7 @@ function getLocalPasswords(): Record<string, string> {
     const raw = localStorage.getItem(LOCAL_CHAR_PASSWORDS_KEY);
     if (raw) return JSON.parse(raw);
   } catch {}
-  return { elias: '123', valerius: '123', kaelen: '123' };
+  return { jose: '123123123', breno: '123123123', lucas: '123123123', gabo: '123123123', kami: '123123123' };
 }
 
 function saveLocalPassword(username: string, pass: string) {
@@ -410,5 +410,38 @@ export const StorageApi = {
       }
     } catch {}
     return false;
+  },
+
+  async changePassword(params: {
+    username: string;
+    currentPassword?: string;
+    newPassword: string;
+    isGm?: boolean;
+    gmPassword?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const cleanUser = params.username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...params,
+          username: cleanUser,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Erro ao alterar senha.');
+      }
+      saveLocalPassword(cleanUser, params.newPassword);
+      return data;
+    } catch (err: any) {
+      if (err.message && (err.message.includes('Senha') || err.message.includes('Acesso') || err.message.includes('incorreta') || err.message.includes('dígitos') || err.message.includes('caracteres'))) {
+        throw err;
+      }
+      saveLocalPassword(cleanUser, params.newPassword);
+      return { success: true, message: 'Senha atualizada com sucesso.' };
+    }
   }
 };

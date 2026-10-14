@@ -22,7 +22,7 @@ interface AuthModalProps {
   onClose?: () => void;
   availableCharacters: CharacterSummary[];
   onLoginSuccess: (session: { role: 'player' | 'gamemaster'; username: string; name: string; color?: string }, characterData?: any) => void;
-  defaultTab?: 'player' | 'gm' | 'register';
+  defaultTab?: 'player' | 'gm' | 'register' | 'change-password';
   isInitialScreen?: boolean;
   currentSession?: AuthSession | null;
   onLogout?: () => void;
@@ -47,7 +47,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   currentSession,
   onLogout,
 }) => {
-  const [tab, setTab] = useState<'player' | 'gm' | 'register'>(defaultTab);
+  const [tab, setTab] = useState<'player' | 'gm' | 'register' | 'change-password'>(defaultTab);
   const [internalList, setInternalList] = useState<CharacterSummary[]>(availableCharacters);
 
   React.useEffect(() => {
@@ -62,16 +62,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Player login state
   const [playerUsername, setPlayerUsername] = useState('');
-  const [playerPassword, setPlayerPassword] = useState('');
+  const [playerPassword, setPlayerPassword] = useState('123123123');
 
   // GM login state
   const [gmPassword, setGmPassword] = useState('');
 
   // Register state
   const [regUsername, setRegUsername] = useState('');
-  const [regPassword, setRegPassword] = useState('');
+  const [regPassword, setRegPassword] = useState('123123123');
   const [regName, setRegName] = useState('');
   const [regColor, setRegColor] = useState('#a855f7');
+
+  // Change password state
+  const [changeUser, setChangeUser] = useState(
+    currentSession?.username && currentSession.username !== 'gamemaster' ? currentSession.username : ''
+  );
+  const [changeOldPass, setChangeOldPass] = useState('123123123');
+  const [changeNewPass, setChangeNewPass] = useState('');
+  const [changeConfirmPass, setChangeConfirmPass] = useState('');
+  const [changeIsGm, setChangeIsGm] = useState(currentSession?.role === 'gamemaster');
+  const [changeSuccessMessage, setChangeSuccessMessage] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,11 +189,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // Preencher rápido apenas com o login (sem preencher a senha)
+  // Preencher rápido com o login e senha padrão
   const selectQuickUser = (u: string) => {
     setPlayerUsername(u);
-    setPlayerPassword('');
+    setPlayerPassword('123123123');
     setError(null);
+  };
+
+  // Handle Change Password
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setChangeSuccessMessage(null);
+
+    if (!changeIsGm && !changeUser.trim()) {
+      setError('Por favor, informe ou selecione o usuário da ficha.');
+      return;
+    }
+    if (!changeOldPass) {
+      setError('Por favor, informe a senha atual.');
+      return;
+    }
+    if (!changeNewPass || changeNewPass.length < 3) {
+      setError('A nova senha deve ter pelo menos 3 dígitos.');
+      return;
+    }
+    if (changeNewPass !== changeConfirmPass) {
+      setError('A confirmação da nova senha não confere.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await StorageApi.changePassword({
+        username: changeIsGm ? 'gamemaster' : changeUser.trim(),
+        currentPassword: changeOldPass,
+        newPassword: changeNewPass,
+        isGm: changeIsGm,
+      });
+      setChangeSuccessMessage(res.message || 'Senha alterada com sucesso!');
+      setChangeOldPass(changeNewPass);
+      setChangeNewPass('');
+      setChangeConfirmPass('');
+    } catch (err: any) {
+      setError(err.message || 'Erro ao alterar senha.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const cardContent = (
@@ -223,43 +275,62 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         )}
       </div>
 
-      {/* Tab Switcher */}
-      <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl">
+      {/* Tab Switcher - 4 Abas incluindo Mudar Senha */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl">
         <button
           type="button"
-          onClick={() => { setTab('player'); setError(null); }}
-          className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          onClick={() => { setTab('player'); setError(null); setChangeSuccessMessage(null); }}
+          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
             tab === 'player'
               ? 'bg-violet-600/90 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
-          <User size={14} />
+          <User size={13} />
           <span>Jogador</span>
         </button>
         <button
           type="button"
-          onClick={() => { setTab('gm'); setError(null); }}
-          className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          onClick={() => { setTab('gm'); setError(null); setChangeSuccessMessage(null); }}
+          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
             tab === 'gm'
               ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)] font-black'
               : 'text-amber-300/70 hover:text-amber-200 hover:bg-white/5'
           }`}
         >
-          <Crown size={14} />
-          <span>Mestre (GM)</span>
+          <Crown size={13} />
+          <span>Mestre</span>
         </button>
         <button
           type="button"
-          onClick={() => { setTab('register'); setError(null); }}
-          className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+          onClick={() => { setTab('register'); setError(null); setChangeSuccessMessage(null); }}
+          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
             tab === 'register'
               ? 'bg-cyan-600/90 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]'
               : 'text-white/60 hover:text-white hover:bg-white/5'
           }`}
         >
-          <UserPlus size={14} />
+          <UserPlus size={13} />
           <span>Nova Ficha</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { 
+            setTab('change-password'); 
+            setError(null); 
+            setChangeSuccessMessage(null);
+            if (currentSession?.username && currentSession.username !== 'gamemaster') {
+              setChangeUser(currentSession.username);
+            }
+          }}
+          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+            tab === 'change-password'
+              ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_0_15px_rgba(129,140,248,0.4)]'
+              : 'text-white/60 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Key size={13} />
+          <span>Mudar Senha</span>
         </button>
       </div>
 
@@ -327,7 +398,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <input
               type="password"
               required
-              placeholder="1"
+              placeholder="123123123"
               value={playerPassword}
               onChange={(e) => setPlayerPassword(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
@@ -421,7 +492,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <input
                 type="password"
                 required
-                placeholder="1"
+                placeholder="123123123"
                 value={regPassword}
                 onChange={(e) => setRegPassword(e.target.value)}
                 className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors"
@@ -476,23 +547,171 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </form>
       )}
 
+      {/* 4. CHANGE PASSWORD TAB */}
+      {tab === 'change-password' && (
+        <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
+          <div className="text-[11px] text-white/60 bg-white/[0.02] border border-white/5 rounded-xl p-2.5 leading-relaxed">
+            Altere a senha da sua ficha ou da conta de Mestre no servidor. Todas as fichas iniciam com a senha padrão <strong className="text-violet-300 font-mono">123123123</strong>.
+          </div>
+
+          {changeSuccessMessage && (
+            <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-xs text-emerald-300 font-medium flex items-center gap-2 animate-in fade-in">
+              <ShieldCheck size={16} className="shrink-0 text-emerald-400" />
+              <span>{changeSuccessMessage}</span>
+            </div>
+          )}
+
+          {/* Account type toggle */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-black/30 border border-white/10 rounded-xl text-xs">
+            <button
+              type="button"
+              onClick={() => { setChangeIsGm(false); setError(null); }}
+              className={`py-1.5 px-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                !changeIsGm ? 'bg-violet-600/90 text-white' : 'text-white/60 hover:text-white'
+              }`}
+            >
+              <User size={13} />
+              <span>Ficha de Jogador</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setChangeIsGm(true); setError(null); }}
+              className={`py-1.5 px-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                changeIsGm ? 'bg-amber-500 text-black font-black' : 'text-amber-300/70 hover:text-amber-200'
+              }`}
+            >
+              <Crown size={13} />
+              <span>Game Master (GM)</span>
+            </button>
+          </div>
+
+          {!changeIsGm && (
+            <div>
+              <label className="text-xs font-semibold text-white/80 block mb-1">
+                Ficha / Personagem
+              </label>
+              {internalList.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {internalList.map((c) => (
+                    <button
+                      key={c.username}
+                      type="button"
+                      onClick={() => setChangeUser(c.username)}
+                      className={`px-2 py-0.5 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
+                        changeUser === c.username
+                          ? 'bg-violet-500/30 border-violet-400 text-white shadow-[0_0_8px_rgba(168,85,247,0.3)]'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full inline-block shrink-0"
+                        style={{ backgroundColor: c.color || '#a855f7' }}
+                      />
+                      <span>{c.name || c.username}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                type="text"
+                required
+                placeholder="Vazio"
+                value={changeUser}
+                onChange={(e) => setChangeUser(e.target.value)}
+                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-semibold text-white/80 block mb-1">
+              {changeIsGm ? 'Senha Atual do Game Master' : 'Senha Atual da Ficha'}
+            </label>
+            <input
+              type="password"
+              required
+              placeholder="123123123"
+              value={changeOldPass}
+              onChange={(e) => setChangeOldPass(e.target.value)}
+              className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="text-xs font-semibold text-white/80 block mb-1">
+                Nova Senha
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="Nova senha"
+                value={changeNewPass}
+                onChange={(e) => setChangeNewPass(e.target.value)}
+                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-white/80 block mb-1">
+                Confirmar Nova Senha
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="Confirmar senha"
+                value={changeConfirmPass}
+                onChange={(e) => setChangeConfirmPass(e.target.value)}
+                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="pt-1">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-bold text-xs shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Key size={15} />}
+              <span>Salvar Nova Senha</span>
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* Disconnect/Logout option when already logged in and opening modal */}
-      {currentSession && !isInitialScreen && onLogout && (
-        <div className="flex items-center justify-between pt-2.5 border-t border-white/10 mt-1">
+      {currentSession && !isInitialScreen && (
+        <div className="flex items-center justify-between pt-2.5 border-t border-white/10 mt-1 flex-wrap gap-2">
           <div className="text-[11px] text-white/50 truncate">
             Sessão ativa: <strong className="text-white">{currentSession.name || currentSession.username}</strong>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              onLogout();
-              if (onClose) onClose();
-            }}
-            className="text-[11px] text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-medium"
-          >
-            <LogOut size={12} />
-            <span>Desconectar / Sair</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setTab('change-password');
+                setError(null);
+                setChangeSuccessMessage(null);
+              }}
+              className="text-[11px] text-violet-300 hover:text-white bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-medium"
+            >
+              <Key size={12} />
+              <span>Mudar Senha</span>
+            </button>
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  onLogout();
+                  if (onClose) onClose();
+                }}
+                className="text-[11px] text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-medium"
+              >
+                <LogOut size={12} />
+                <span>Desconectar / Sair</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -191,7 +191,7 @@ export default function App() {
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalTab, setAuthModalTab] = useState<'player' | 'gm' | 'register'>('player');
+  const [authModalTab, setAuthModalTab] = useState<'player' | 'gm' | 'register' | 'change-password'>('player');
   const [characterToDelete, setCharacterToDelete] = useState<CampaignCharacter | null>(null);
   const [availableCharacters, setAvailableCharacters] = useState<CharacterSummary[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
@@ -202,72 +202,60 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((c: any) => ({
-            ...c,
-            data: normalizeCharacterData(c.data)
-          }));
+          // If previous cache only has old deleted characters, discard it
+          const hasOldSeeds = parsed.some((c: any) => c.id === 'char-elias' || c.id === 'char-valerius');
+          if (!hasOldSeeds) {
+            return parsed.map((c: any) => ({
+              ...c,
+              data: normalizeCharacterData(c.data)
+            }));
+          }
         }
       } catch (e) {
         console.error('Error loading campaign characters:', e);
       }
     }
 
-    // Hydrate from legacy character data if available
-    const legacySaved = localStorage.getItem('arcana_character_data');
-    let baseData = initialCharacterData;
-    if (legacySaved) {
-      try {
-        baseData = normalizeCharacterData(JSON.parse(legacySaved));
-      } catch (e) {}
-    }
-
     return [
       {
-        id: 'char-elias',
-        name: baseData.identity?.name || 'Elias Iyanu',
-        avatarUrl: baseData.identity?.avatarUrl,
+        id: 'char-jose',
+        name: 'Jose',
         color: '#a855f7',
-        data: baseData
+        data: createEmptyCharacterData('Jose', '#a855f7')
       },
       {
-        id: 'char-valerius',
-        name: 'Valerius',
-        color: '#10b981',
-        data: {
-          ...initialCharacterData,
-          identity: {
-            ...initialCharacterData.identity,
-            name: 'Valerius',
-            origin: 'Guerreiro Paladino',
-            ideals: 'Proteger os indefesos a qualquer custo',
-            age: '28',
-            hair: 'Castanho curto',
-            eyes: 'Âmbar'
-          }
-        }
-      },
-      {
-        id: 'char-kaelen',
-        name: 'Kaelen',
+        id: 'char-breno',
+        name: 'Breno',
         color: '#06b6d4',
-        data: {
-          ...initialCharacterData,
-          identity: {
-            ...initialCharacterData.identity,
-            name: 'Kaelen',
-            origin: 'Erudito Arcano',
-            ideals: 'Desvendar os segredos dos astros',
-            age: '24',
-            hair: 'Prateado',
-            eyes: 'Azul Celeste'
-          }
-        }
+        data: createEmptyCharacterData('Breno', '#06b6d4')
+      },
+      {
+        id: 'char-lucas',
+        name: 'Lucas',
+        color: '#10b981',
+        data: createEmptyCharacterData('Lucas', '#10b981')
+      },
+      {
+        id: 'char-gabo',
+        name: 'Gabo',
+        color: '#f59e0b',
+        data: createEmptyCharacterData('Gabo', '#f59e0b')
+      },
+      {
+        id: 'char-kami',
+        name: 'Kami',
+        color: '#ec4899',
+        data: createEmptyCharacterData('Kami', '#ec4899')
       }
     ];
   });
 
   const [activeCharacterId, setActiveCharacterId] = useState<string>(() => {
-    return localStorage.getItem('arcana_active_character_id') || 'char-elias';
+    const saved = localStorage.getItem('arcana_active_character_id');
+    if (saved && saved !== 'char-elias' && saved !== 'char-valerius' && saved !== 'char-kaelen') {
+      return saved;
+    }
+    return 'char-jose';
   });
 
   const activeChar = campaignCharacters.find((c) => c.id === activeCharacterId) || campaignCharacters[0];
@@ -870,9 +858,41 @@ export default function App() {
             </div>
           </div>
 
-          {/* Lado Direito: Switch de 2 Ícones (Ficha / Battle Tracker) + Ícones Circulares */}
+          {/* Lado Direito: 1. Login -> 2. Switch Ficha/Battle Tracker -> 3. Edit/Lock -> 4. ? -> 5. Aurora -> 6. GM */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Switch de 2 Ícones: Ficha (Folha) vs Battle Tracker (Espadinhas) */}
+            {/* 1. Login (User Account / Session Button) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (authSession) {
+                  setAuthModalTab('change-password');
+                } else {
+                  setAuthModalTab('player');
+                }
+                setIsAuthModalOpen(true);
+              }}
+              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
+                authSession?.role === 'gamemaster'
+                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+              }`}
+              title={
+                authSession
+                  ? `Conectado como ${authSession.name || authSession.username} (Clique para Mudar Senha ou Trocar de Conta)`
+                  : 'Autenticação & Persistência / Fazer Login'
+              }
+            >
+              {authSession?.role === 'gamemaster' ? (
+                <Crown size={13} className="text-amber-400 shrink-0" />
+              ) : (
+                <User size={13} className="text-violet-400 shrink-0" />
+              )}
+              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
+                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username || 'Login'}
+              </span>
+            </button>
+
+            {/* 2. Switch de 2 Ícones: Ficha (Folha) vs Battle Tracker (Espadinhas) */}
             <div 
               className="flex items-center p-0.5 bg-[#060212] border border-white/10 rounded-full shadow-inner gap-0.5 shrink-0"
               role="group"
@@ -910,31 +930,7 @@ export default function App() {
             {/* Divisor sutil */}
             <div className="w-px h-5 bg-white/10 mx-0.5 hidden xs:block" />
 
-            {/* 1. Login (User Account / Session Button) */}
-            <button
-              type="button"
-              onClick={() => {
-                setAuthModalTab('player');
-                setIsAuthModalOpen(true);
-              }}
-              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
-                authSession?.role === 'gamemaster'
-                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
-              }`}
-              title="Autenticação & Persistência / Trocar de Usuário"
-            >
-              {authSession?.role === 'gamemaster' ? (
-                <Crown size={13} className="text-amber-400 shrink-0" />
-              ) : (
-                <User size={13} className="text-violet-400 shrink-0" />
-              )}
-              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
-                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username}
-              </span>
-            </button>
-
-            {/* 2. Edit / Lock (ícone mudado para lápis/cadeado) */}
+            {/* 3. Edit / Lock (ícones invertidos: travado mostra lápis para editar, editando mostra cadeado para travar) */}
             <button 
               type="button"
               onClick={() => setIsEditing(!isEditing)}
@@ -943,12 +939,12 @@ export default function App() {
                   ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/40'
                   : 'bg-white/[0.03] hover:bg-emerald-500/20 border-emerald-400/30 text-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.15)]'
               }`}
-              title={isEditing ? 'Travar Ficha (Modo de Jogo Ativo)' : 'Editar Ficha (Modo de Edição Ativo)'}
+              title={isEditing ? 'Travar Ficha (Modo de Leitura / Jogo Ativo)' : 'Editar Ficha (Modo de Edição Ativo)'}
             >
-              {isEditing ? <Pencil size={14} /> : <Lock size={14} />}
+              {isEditing ? <Lock size={14} /> : <Pencil size={14} />}
             </button>
 
-            {/* 3. Question mark (Ajuda & Guia ?) */}
+            {/* 4. Question mark (Ajuda & Guia ?) */}
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
@@ -958,7 +954,7 @@ export default function App() {
               <HelpCircle size={15} className="text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
             </button>
 
-            {/* 4. Aurora (Assistente Semi-Inteligente) */}
+            {/* 5. Aurora (Assistente Semi-Inteligente) */}
             <button
               type="button"
               onClick={() => setIsAuroraOpen(!isAuroraOpen)}
@@ -980,7 +976,7 @@ export default function App() {
               )}
             </button>
 
-            {/* 5. GM (Game Master / Player View) */}
+            {/* 6. GM (Game Master / Player View) */}
             <button
               type="button"
               onClick={handleToggleGmView}
@@ -1009,25 +1005,27 @@ export default function App() {
         </div>
       </header>
 
-      {/* Campaign Characters Roster Bar (Visible for both Players and GM so all players share the same view of server files) */}
-      <GmRosterBar
-        characters={campaignCharacters}
-        activeCharacterId={activeCharacterId}
-        onSelectCharacter={(id) => {
-          setActiveCharacterId(id);
-          const targetChar = campaignCharacters.find((c) => c.id === id);
-          if (targetChar) {
-            loadedCharacterIdRef.current = id;
-            lastSavedJsonRef.current = JSON.stringify(targetChar.data);
-            setData(targetChar.data);
-          }
-        }}
-        onAddCharacter={handleAddCampaignCharacter}
-        onRequestDeleteCharacter={(char) => setCharacterToDelete(char)}
-        isEditing={isEditing}
-        onToggleEdit={() => setIsEditing(!isEditing)}
-        isGmView={isGmView}
-      />
+      {/* Campaign Characters Roster Bar (Visível estritamente para o Mestre: isGmView) */}
+      {isGmView && (
+        <GmRosterBar
+          characters={campaignCharacters}
+          activeCharacterId={activeCharacterId}
+          onSelectCharacter={(id) => {
+            setActiveCharacterId(id);
+            const targetChar = campaignCharacters.find((c) => c.id === id);
+            if (targetChar) {
+              loadedCharacterIdRef.current = id;
+              lastSavedJsonRef.current = JSON.stringify(targetChar.data);
+              setData(targetChar.data);
+            }
+          }}
+          onAddCharacter={handleAddCampaignCharacter}
+          onRequestDeleteCharacter={(char) => setCharacterToDelete(char)}
+          isEditing={isEditing}
+          onToggleEdit={() => setIsEditing(!isEditing)}
+          isGmView={isGmView}
+        />
+      )}
 
       {/* CONDITIONAL ENVIRONMENT RENDER */}
       {activeEnvironment === 'battleTracker' ? (

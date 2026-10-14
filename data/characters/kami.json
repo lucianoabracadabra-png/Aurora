@@ -1,0 +1,68 @@
+{
+  "username": "kami",
+  "password": "123123123",
+  "name": "Kami",
+  "color": "#ec4899",
+  "createdAt": "2026-10-14T12:00:00.000Z",
+  "updatedAt": "2026-10-14T12:00:00.000Z",
+  "character": {
+    "identity": {
+      "name": "Kami",
+      "avatarUrl": "",
+      "height": "",
+      "weight": "",
+      "hair": "",
+      "eyes": "",
+      "skin": "",
+      "age": "",
+      "ideals": "",
+      "origin": "",
+      "languages": []
+    },
+    "alignment": { "altruism": 1, "logic": 1, "integrity": 1 },
+    "personality": { "courage": 1, "conviction": 1, "serenity": 1 },
+    "attributes": {
+      "physical": { "strength": 1, "dexterity": 1, "agility": 1, "constitution": 1 },
+      "mental": { "intelligence": 1, "perception": 1, "reasoning": 1, "wisdom": 1 },
+      "social": { "empathy": 1, "manipulation": 1, "expression": 1, "resilience": 1 }
+    },
+    "skills": {
+      "physical": { "melee": 1, "firearms": 1, "archery": 1, "throwing": 1, "brawl": 1, "combat": 1, "stealth": 1, "alertness": 1 },
+      "mental": { "academics": 1, "traps": 1, "intuition": 1, "investigation": 1, "medicine": 1, "occultism": 1, "security": 1, "survival": 1 },
+      "social": { "bargain": 1, "taming": 1, "etiquette": 1, "intimidation": 1, "smoothTalk": 1, "leadership": 1, "riding": 1, "seduction": 1 }
+    },
+    "customSkills": { "treinamentos": [], "ciencias": [], "artes": [] },
+    "domains": { "water": 1, "air": 1, "anima": 1, "fire": 1, "earth": 1 },
+    "abilities": [],
+    "traits": [],
+    "manaSpent": { "physical": 0, "mental": 0, "social": 0 },
+    "naturezaSpent": { "water": 0, "air": 0, "anima": 0, "fire": 0, "earth": 0 },
+    "health": {
+      "head": ["none", "none", "none", "none", "none", "none", "none", "none"],
+      "torso": ["none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none"],
+      "leftArm": ["none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none"],
+      "rightArm": ["none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none"],
+      "leftLeg": ["none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none"],
+      "rightLeg": ["none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none", "none"]
+    },
+    "inventory": {
+      "equippedSlots": {},
+      "weapons": [],
+      "armors": [],
+      "projectiles": [],
+      "accessories": [],
+      "generalItems": [],
+      "currency": {
+        "gold": 1,
+        "silver": 1,
+        "copper": 1,
+        "gems": "",
+        "history": []
+      }
+    },
+    "flowAndPatron": {
+      "fluxo": { "level": 1, "hp": 1, "name": "", "notes": "" },
+      "patrono": { "level": 1, "hp": 1, "name": "", "notes": "" }
+    }
+  }
+}
