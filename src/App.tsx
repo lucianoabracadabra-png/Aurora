@@ -27,6 +27,7 @@ import { AuthModal } from './components/AuthModal';
 import { DeleteCharacterModal } from './components/DeleteCharacterModal';
 import { AuroraAssistant } from './components/AuroraAssistant';
 import { StorageApi, CharacterSummary, AuthSession } from './services/storageApi';
+import { realtimeSync } from './services/realtimeSync';
 
 function normalizeCharacterData(parsed: any): CharacterData {
   if (!parsed || typeof parsed !== 'object') return createEmptyCharacterData();
@@ -348,9 +349,64 @@ export default function App() {
     }
   };
 
-  // Load characters on initial mount
+  // Load characters on initial mount & initialize WebRTC realtime sync
   useEffect(() => {
     loadCharactersFromFileSystem();
+    realtimeSync.init();
+
+    const unsubSheet = realtimeSync.onSheetUpdate((sheetMsg) => {
+      try {
+        localStorage.setItem(`arcana_char_data_${sheetMsg.username}`, JSON.stringify(sheetMsg.character));
+      } catch {}
+
+      setCampaignCharacters((prev) => {
+        const charId = `char-${sheetMsg.username}`;
+        const existingIdx = prev.findIndex((c) => c.id === charId);
+        const updatedItem = {
+          id: charId,
+          name: sheetMsg.name || sheetMsg.character.identity?.name || sheetMsg.username,
+          avatarUrl: sheetMsg.character.identity?.avatarUrl,
+          color: sheetMsg.color || '#a855f7',
+          data: sheetMsg.character,
+        };
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = updatedItem;
+          return next;
+        } else {
+          return [...prev, updatedItem];
+        }
+      });
+
+      setAvailableCharacters((prev) => {
+        const existingIdx = prev.findIndex((c) => c.username === sheetMsg.username);
+        const summaryItem = {
+          id: `char-${sheetMsg.username}`,
+          username: sheetMsg.username,
+          name: sheetMsg.name || sheetMsg.character.identity?.name || sheetMsg.username,
+          avatarUrl: sheetMsg.character.identity?.avatarUrl,
+          color: sheetMsg.color || '#a855f7',
+          updatedAt: sheetMsg.updatedAt || new Date().toISOString()
+        };
+        if (existingIdx >= 0) {
+          const next = [...prev];
+          next[existingIdx] = summaryItem;
+          return next;
+        } else {
+          return [...prev, summaryItem];
+        }
+      });
+    });
+
+    const unsubDelete = realtimeSync.onDeleteSheet(({ username }) => {
+      setCampaignCharacters((prev) => prev.filter((c) => c.id !== `char-${username}`));
+      setAvailableCharacters((prev) => prev.filter((c) => c.username !== username));
+    });
+
+    return () => {
+      unsubSheet();
+      unsubDelete();
+    };
   }, []);
 
   // Periodic polling & window focus sync (keeps all players and GM synced with server files)
@@ -858,41 +914,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Lado Direito: 1. Login -> 2. Switch Ficha/Battle Tracker -> 3. Edit/Lock -> 4. ? -> 5. Aurora -> 6. GM */}
+          {/* Lado Direito: 1. Switch Ficha/Battle Tracker -> 2. Login -> 3. Edit/Lock -> 4. ? -> 5. Aurora -> 6. GM */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* 1. Login (User Account / Session Button) */}
-            <button
-              type="button"
-              onClick={() => {
-                if (authSession) {
-                  setAuthModalTab('change-password');
-                } else {
-                  setAuthModalTab('player');
-                }
-                setIsAuthModalOpen(true);
-              }}
-              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
-                authSession?.role === 'gamemaster'
-                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
-              }`}
-              title={
-                authSession
-                  ? `Conectado como ${authSession.name || authSession.username} (Clique para Mudar Senha ou Trocar de Conta)`
-                  : 'Autenticação & Persistência / Fazer Login'
-              }
-            >
-              {authSession?.role === 'gamemaster' ? (
-                <Crown size={13} className="text-amber-400 shrink-0" />
-              ) : (
-                <User size={13} className="text-violet-400 shrink-0" />
-              )}
-              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
-                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username || 'Login'}
-              </span>
-            </button>
-
-            {/* 2. Switch de 2 Ícones: Ficha (Folha) vs Battle Tracker (Espadinhas) */}
+            {/* 1. Switch de 2 Ícones: Ficha (Folha) vs Battle Tracker (Espadinhas) - Invertido com Login */}
             <div 
               className="flex items-center p-0.5 bg-[#060212] border border-white/10 rounded-full shadow-inner gap-0.5 shrink-0"
               role="group"
@@ -927,10 +951,42 @@ export default function App() {
               </button>
             </div>
 
+            {/* 2. Login (User Account / Session Button) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (authSession) {
+                  setAuthModalTab('player');
+                } else {
+                  setAuthModalTab('player');
+                }
+                setIsAuthModalOpen(true);
+              }}
+              className={`h-8 px-2 sm:px-2.5 rounded-full border flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition-all shadow-sm active:scale-95 ${
+                authSession?.role === 'gamemaster'
+                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                  : 'bg-violet-500/15 border-violet-400/40 text-violet-300 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+              }`}
+              title={
+                authSession
+                  ? `Conectado como ${authSession.name || authSession.username} (Clique para Mudar Senha ou Gerenciar Conta)`
+                  : 'Autenticação & Persistência / Fazer Login'
+              }
+            >
+              {authSession?.role === 'gamemaster' ? (
+                <Crown size={13} className="text-amber-400 shrink-0" />
+              ) : (
+                <User size={13} className="text-violet-400 shrink-0" />
+              )}
+              <span className="hidden sm:inline max-w-[90px] truncate text-[11px]">
+                {authSession?.role === 'gamemaster' ? 'Mestre' : data.identity?.name || authSession?.name || authSession?.username || 'Login'}
+              </span>
+            </button>
+
             {/* Divisor sutil */}
             <div className="w-px h-5 bg-white/10 mx-0.5 hidden xs:block" />
 
-            {/* 3. Edit / Lock (ícones invertidos: travado mostra lápis para editar, editando mostra cadeado para travar) */}
+            {/* 3. Edit / Lock (ícones invertidos: editando mostra Lápis ativo, travado mostra Cadeado) */}
             <button 
               type="button"
               onClick={() => setIsEditing(!isEditing)}
@@ -939,9 +995,9 @@ export default function App() {
                   ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/40'
                   : 'bg-white/[0.03] hover:bg-emerald-500/20 border-emerald-400/30 text-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.15)]'
               }`}
-              title={isEditing ? 'Travar Ficha (Modo de Leitura / Jogo Ativo)' : 'Editar Ficha (Modo de Edição Ativo)'}
+              title={isEditing ? 'Modo de Edição Ativo (Clique para Travar)' : 'Ficha Travada (Clique para Editar)'}
             >
-              {isEditing ? <Lock size={14} /> : <Pencil size={14} />}
+              {isEditing ? <Pencil size={14} /> : <Lock size={14} />}
             </button>
 
             {/* 4. Question mark (Ajuda & Guia ?) */}

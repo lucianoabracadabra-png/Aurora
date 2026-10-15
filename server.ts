@@ -16,6 +16,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const DATA_DIR = path.resolve(__dirname, 'data');
 const CHARACTERS_DIR = path.resolve(DATA_DIR, 'characters');
 const GM_FILE = path.resolve(DATA_DIR, 'gamemaster.json');
+const BATTLE_FILE = path.resolve(DATA_DIR, 'battle_tracker.json');
 
 // Ensure data directories exist
 if (!fs.existsSync(DATA_DIR)) {
@@ -23,6 +24,87 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 if (!fs.existsSync(CHARACTERS_DIR)) {
   fs.mkdirSync(CHARACTERS_DIR, { recursive: true });
+}
+
+// Seed default battle tracker file if missing
+function ensureBattleFile() {
+  if (!fs.existsSync(BATTLE_FILE)) {
+    const defaultBattle = {
+      currentTick: 0,
+      previousTick: 0,
+      minTimespan: 15,
+      entities: [
+        {
+          id: 'player-jose',
+          name: 'Jose',
+          type: 'player',
+          initiative: 5,
+          currentTick: 0,
+          color: '#a855f7',
+          hp: 20,
+          maxHp: 20,
+          status: [],
+          history: [],
+          steps: []
+        },
+        {
+          id: 'player-breno',
+          name: 'Breno',
+          type: 'player',
+          initiative: 4,
+          currentTick: 0,
+          color: '#06b6d4',
+          hp: 20,
+          maxHp: 20,
+          status: [],
+          history: [],
+          steps: []
+        },
+        {
+          id: 'player-lucas',
+          name: 'Lucas',
+          type: 'player',
+          initiative: 3,
+          currentTick: 0,
+          color: '#10b981',
+          hp: 20,
+          maxHp: 20,
+          status: [],
+          history: [],
+          steps: []
+        },
+        {
+          id: 'player-gabo',
+          name: 'Gabo',
+          type: 'player',
+          initiative: 2,
+          currentTick: 0,
+          color: '#f59e0b',
+          hp: 20,
+          maxHp: 20,
+          status: [],
+          history: [],
+          steps: []
+        },
+        {
+          id: 'player-kami',
+          name: 'Kami',
+          type: 'player',
+          initiative: 1,
+          currentTick: 0,
+          color: '#ec4899',
+          hp: 20,
+          maxHp: 20,
+          status: [],
+          history: [],
+          steps: []
+        }
+      ],
+      updatedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(BATTLE_FILE, JSON.stringify(defaultBattle, null, 2), 'utf-8');
+    console.log('[Server] Created battle_tracker.json with initial configuration');
+  }
 }
 
 function sanitizeUsername(input: string): string {
@@ -140,6 +222,7 @@ function ensureDefaultCharacters() {
 
 ensureGmFile();
 ensureDefaultCharacters();
+ensureBattleFile();
 
 async function startServer() {
   const app = express();
@@ -585,6 +668,37 @@ async function startServer() {
       }
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 11. Battle Tracker Endpoints (Shared live timeline for all players & GM)
+  app.get('/api/battle', (_req, res) => {
+    try {
+      if (!fs.existsSync(BATTLE_FILE)) ensureBattleFile();
+      const raw = fs.readFileSync(BATTLE_FILE, 'utf-8');
+      const battleData = JSON.parse(raw);
+      return res.json({ success: true, battle: battleData });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: 'Erro ao carregar Battle Tracker: ' + err.message });
+    }
+  });
+
+  app.put('/api/battle', (req, res) => {
+    try {
+      if (!fs.existsSync(BATTLE_FILE)) ensureBattleFile();
+      const { currentTick, previousTick, minTimespan, entities } = req.body;
+      const updatedBattle = {
+        currentTick: typeof currentTick === 'number' ? currentTick : 0,
+        previousTick: typeof previousTick === 'number' ? previousTick : 0,
+        minTimespan: typeof minTimespan === 'number' ? minTimespan : 15,
+        entities: Array.isArray(entities) ? entities : [],
+        updatedAt: new Date().toISOString()
+      };
+
+      fs.writeFileSync(BATTLE_FILE, JSON.stringify(updatedBattle, null, 2), 'utf-8');
+      return res.json({ success: true, battle: updatedBattle });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: 'Erro ao salvar Battle Tracker: ' + err.message });
     }
   });
 

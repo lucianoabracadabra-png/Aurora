@@ -22,7 +22,7 @@ interface AuthModalProps {
   onClose?: () => void;
   availableCharacters: CharacterSummary[];
   onLoginSuccess: (session: { role: 'player' | 'gamemaster'; username: string; name: string; color?: string }, characterData?: any) => void;
-  defaultTab?: 'player' | 'gm' | 'register' | 'change-password';
+  defaultTab?: 'player' | 'gm' | 'register';
   isInitialScreen?: boolean;
   currentSession?: AuthSession | null;
   onLogout?: () => void;
@@ -47,7 +47,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   currentSession,
   onLogout,
 }) => {
-  const [tab, setTab] = useState<'player' | 'gm' | 'register' | 'change-password'>(defaultTab);
+  const [tab, setTab] = useState<'player' | 'gm' | 'register'>(defaultTab);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [internalList, setInternalList] = useState<CharacterSummary[]>(availableCharacters);
 
   React.useEffect(() => {
@@ -275,71 +276,202 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         )}
       </div>
 
-      {/* Tab Switcher - 4 Abas incluindo Mudar Senha */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl">
-        <button
-          type="button"
-          onClick={() => { setTab('player'); setError(null); setChangeSuccessMessage(null); }}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'player'
-              ? 'bg-violet-600/90 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <User size={13} />
-          <span>Jogador</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => { setTab('gm'); setError(null); setChangeSuccessMessage(null); }}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'gm'
-              ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)] font-black'
-              : 'text-amber-300/70 hover:text-amber-200 hover:bg-white/5'
-          }`}
-        >
-          <Crown size={13} />
-          <span>Mestre</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => { setTab('register'); setError(null); setChangeSuccessMessage(null); }}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'register'
-              ? 'bg-cyan-600/90 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <UserPlus size={13} />
-          <span>Nova Ficha</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => { 
-            setTab('change-password'); 
-            setError(null); 
-            setChangeSuccessMessage(null);
-            if (currentSession?.username && currentSession.username !== 'gamemaster') {
-              setChangeUser(currentSession.username);
-            }
-          }}
-          className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
-            tab === 'change-password'
-              ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_0_15px_rgba(129,140,248,0.4)]'
-              : 'text-white/60 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <Key size={13} />
-          <span>Mudar Senha</span>
-        </button>
-      </div>
+      {/* If already logged into an account, show account panel with 'Mudar Senha' button */}
+      {currentSession && !isInitialScreen ? (
+        <div className="flex flex-col gap-4">
+          <div className="bg-gradient-to-r from-violet-950/40 via-purple-950/30 to-indigo-950/40 border border-violet-500/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-11 h-11 rounded-full border border-white/20 flex items-center justify-center text-white font-bold shadow-md shrink-0"
+                style={{ backgroundColor: currentSession.color || (currentSession.role === 'gamemaster' ? '#f59e0b' : '#a855f7') }}
+              >
+                {currentSession.role === 'gamemaster' ? <Crown size={20} className="text-black" /> : (currentSession.name?.charAt(0).toUpperCase() || 'P')}
+              </div>
+              <div>
+                <div className="text-[10px] text-white/50 font-bold uppercase tracking-wider">
+                  {currentSession.role === 'gamemaster' ? 'Mestre da Mesa' : 'Ficha Conectada'}
+                </div>
+                <div className="text-sm sm:text-base font-black text-white">
+                  {currentSession.name || currentSession.username}
+                </div>
+                <div className="text-[11px] text-violet-300/70 font-mono">
+                  Login: @{currentSession.username}
+                </div>
+              </div>
+            </div>
 
-      {error && (
-        <div className="bg-rose-500/20 border border-rose-500/50 rounded-xl p-3 text-xs text-rose-300 font-medium flex items-center gap-2 animate-in fade-in">
-          <AlertCircle size={16} className="shrink-0 text-rose-400" />
-          <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setIsChangingPassword(!isChangingPassword);
+                setError(null);
+                setChangeSuccessMessage(null);
+                setChangeUser(currentSession.username);
+                setChangeIsGm(currentSession.role === 'gamemaster');
+              }}
+              className="px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(168,85,247,0.35)] transition-all cursor-pointer shrink-0"
+            >
+              <Key size={14} />
+              <span>{isChangingPassword ? 'Fechar' : 'Mudar Senha'}</span>
+            </button>
+          </div>
+
+          {isChangingPassword ? (
+            <div className="bg-black/50 border border-violet-500/30 rounded-2xl p-4 animate-in fade-in flex flex-col gap-3">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Key size={14} className="text-cyan-400" />
+                  <span>Alterar Senha de {currentSession.name || currentSession.username}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsChangingPassword(false)}
+                  className="text-xs text-white/50 hover:text-white cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+
+              {changeSuccessMessage && (
+                <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-2.5 text-xs text-emerald-300 font-medium flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
+                  <span>{changeSuccessMessage}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-rose-500/20 border border-rose-500/50 rounded-xl p-2.5 text-xs text-rose-300 font-medium flex items-center gap-2">
+                  <AlertCircle size={16} className="text-rose-400 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-white/80 block mb-1">
+                    {currentSession.role === 'gamemaster' ? 'Senha Atual do Mestre' : 'Senha Atual da Ficha'}
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Sua senha atual"
+                    value={changeOldPass}
+                    onChange={(e) => setChangeOldPass(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-xs font-semibold text-white/80 block mb-1">Nova Senha</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Nova senha"
+                      value={changeNewPass}
+                      onChange={(e) => setChangeNewPass(e.target.value)}
+                      className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-white/80 block mb-1">Confirmar Senha</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Confirmar"
+                      value={changeConfirmPass}
+                      onChange={(e) => setChangeConfirmPass(e.target.value)}
+                      className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 size={14} className="animate-spin inline mr-1" /> : <Key size={14} className="inline mr-1" />}
+                    <span>Confirmar Nova Senha</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsChangingPassword(false)}
+                    className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-semibold cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              <span className="text-[11px] text-white/50">Deseja trocar de personagem ou sair?</span>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onLogout();
+                    if (onClose) onClose();
+                  }}
+                  className="text-xs text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer font-semibold"
+                >
+                  <LogOut size={13} />
+                  <span>Desconectar / Trocar de Ficha</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      ) : (
+        <>
+          {/* Tab Switcher - 3 Abas apenas na tela de login */}
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => { setTab('player'); setError(null); }}
+              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                tab === 'player'
+                  ? 'bg-violet-600/90 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <User size={14} />
+              <span>Jogador</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('gm'); setError(null); }}
+              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                tab === 'gm'
+                  ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)] font-black'
+                  : 'text-amber-300/70 hover:text-amber-200 hover:bg-white/5'
+              }`}
+            >
+              <Crown size={14} />
+              <span>Mestre</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('register'); setError(null); }}
+              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                tab === 'register'
+                  ? 'bg-cyan-600/90 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <UserPlus size={14} />
+              <span>Nova Ficha</span>
+            </button>
+          </div>
+
+          {error && (
+            <div className="bg-rose-500/20 border border-rose-500/50 rounded-xl p-3 text-xs text-rose-300 font-medium flex items-center gap-2 animate-in fade-in">
+              <AlertCircle size={16} className="shrink-0 text-rose-400" />
+              <span>{error}</span>
+            </div>
+          )}
 
       {/* 1. PLAYER LOGIN TAB */}
       {tab === 'player' && (
@@ -546,175 +678,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         </form>
       )}
-
-      {/* 4. CHANGE PASSWORD TAB */}
-      {tab === 'change-password' && (
-        <form onSubmit={handleChangePassword} className="flex flex-col gap-3">
-          <div className="text-[11px] text-white/60 bg-white/[0.02] border border-white/5 rounded-xl p-2.5 leading-relaxed">
-            Altere a senha da sua ficha ou da conta de Mestre no servidor. Todas as fichas iniciam com a senha padrão <strong className="text-violet-300 font-mono">123123123</strong>.
-          </div>
-
-          {changeSuccessMessage && (
-            <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-xs text-emerald-300 font-medium flex items-center gap-2 animate-in fade-in">
-              <ShieldCheck size={16} className="shrink-0 text-emerald-400" />
-              <span>{changeSuccessMessage}</span>
-            </div>
-          )}
-
-          {/* Account type toggle */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-black/30 border border-white/10 rounded-xl text-xs">
-            <button
-              type="button"
-              onClick={() => { setChangeIsGm(false); setError(null); }}
-              className={`py-1.5 px-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                !changeIsGm ? 'bg-violet-600/90 text-white' : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <User size={13} />
-              <span>Ficha de Jogador</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setChangeIsGm(true); setError(null); }}
-              className={`py-1.5 px-2 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                changeIsGm ? 'bg-amber-500 text-black font-black' : 'text-amber-300/70 hover:text-amber-200'
-              }`}
-            >
-              <Crown size={13} />
-              <span>Game Master (GM)</span>
-            </button>
-          </div>
-
-          {!changeIsGm && (
-            <div>
-              <label className="text-xs font-semibold text-white/80 block mb-1">
-                Ficha / Personagem
-              </label>
-              {internalList.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {internalList.map((c) => (
-                    <button
-                      key={c.username}
-                      type="button"
-                      onClick={() => setChangeUser(c.username)}
-                      className={`px-2 py-0.5 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
-                        changeUser === c.username
-                          ? 'bg-violet-500/30 border-violet-400 text-white shadow-[0_0_8px_rgba(168,85,247,0.3)]'
-                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
-                      }`}
-                    >
-                      <span
-                        className="w-2 h-2 rounded-full inline-block shrink-0"
-                        style={{ backgroundColor: c.color || '#a855f7' }}
-                      />
-                      <span>{c.name || c.username}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <input
-                type="text"
-                required
-                placeholder="Vazio"
-                value={changeUser}
-                onChange={(e) => setChangeUser(e.target.value)}
-                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="text-xs font-semibold text-white/80 block mb-1">
-              {changeIsGm ? 'Senha Atual do Game Master' : 'Senha Atual da Ficha'}
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="123123123"
-              value={changeOldPass}
-              onChange={(e) => setChangeOldPass(e.target.value)}
-              className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div>
-              <label className="text-xs font-semibold text-white/80 block mb-1">
-                Nova Senha
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="Nova senha"
-                value={changeNewPass}
-                onChange={(e) => setChangeNewPass(e.target.value)}
-                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-white/80 block mb-1">
-                Confirmar Nova Senha
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="Confirmar senha"
-                value={changeConfirmPass}
-                onChange={(e) => setChangeConfirmPass(e.target.value)}
-                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-violet-400 rounded-xl text-white text-xs outline-none transition-colors"
-              />
-            </div>
-          </div>
-
-          <div className="pt-1">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 text-white font-bold text-xs shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Key size={15} />}
-              <span>Salvar Nova Senha</span>
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* Disconnect/Logout option when already logged in and opening modal */}
-      {currentSession && !isInitialScreen && (
-        <div className="flex items-center justify-between pt-2.5 border-t border-white/10 mt-1 flex-wrap gap-2">
-          <div className="text-[11px] text-white/50 truncate">
-            Sessão ativa: <strong className="text-white">{currentSession.name || currentSession.username}</strong>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setTab('change-password');
-                setError(null);
-                setChangeSuccessMessage(null);
-              }}
-              className="text-[11px] text-violet-300 hover:text-white bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-medium"
-            >
-              <Key size={12} />
-              <span>Mudar Senha</span>
-            </button>
-            {onLogout && (
-              <button
-                type="button"
-                onClick={() => {
-                  onLogout();
-                  if (onClose) onClose();
-                }}
-                className="text-[11px] text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-medium"
-              >
-                <LogOut size={12} />
-                <span>Desconectar / Sair</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      </>
+    )}
+  </div>
   );
 
   if (isInitialScreen) {

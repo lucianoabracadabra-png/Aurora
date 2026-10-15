@@ -1,5 +1,6 @@
 import { CharacterData } from '../types';
 import { initialCharacterData, createEmptyCharacterData } from '../initialState';
+import { realtimeSync } from './realtimeSync';
 
 export interface CharacterSummary {
   id: string;
@@ -30,15 +31,23 @@ const LOCAL_STORAGE_PREFIX = 'arcana_char_data_';
 const LOCAL_CHAR_LIST_KEY = 'arcana_local_characters_list';
 const LOCAL_CHAR_PASSWORDS_KEY = 'arcana_char_passwords';
 
+export const DEFAULT_CHARACTERS: CharacterSummary[] = [
+  { id: 'char-jose', username: 'jose', name: 'Jose', color: '#a855f7', origin: 'Aventureiro' },
+  { id: 'char-breno', username: 'breno', name: 'Breno', color: '#06b6d4', origin: 'Aventureiro' },
+  { id: 'char-lucas', username: 'lucas', name: 'Lucas', color: '#10b981', origin: 'Aventureiro' },
+  { id: 'char-gabo', username: 'gabo', name: 'Gabo', color: '#f59e0b', origin: 'Aventureiro' },
+  { id: 'char-kami', username: 'kami', name: 'Kami', color: '#ec4899', origin: 'Aventureiro' },
+];
+
 function getLocalCharList(): CharacterSummary[] {
   try {
     const raw = localStorage.getItem(LOCAL_CHAR_LIST_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch {}
-  return [];
+  return DEFAULT_CHARACTERS;
 }
 
 function saveLocalCharList(list: CharacterSummary[]) {
@@ -315,7 +324,18 @@ export const StorageApi = {
       console.warn('[StorageApi] LocalStorage save warning:', e);
     }
 
-    // 2. Try server save
+    // 2. Broadcast via WebRTC real-time sync across the internet
+    try {
+      realtimeSync.broadcastSheet({
+        username: cleanUser,
+        name: name || character.identity?.name || cleanUser,
+        color: color || '#a855f7',
+        character,
+        updatedAt: new Date().toISOString()
+      });
+    } catch {}
+
+    // 3. Try server save (persists to /data on local/Node host)
     try {
       const res = await fetch(`/api/characters/${encodeURIComponent(cleanUser)}`, {
         method: 'PUT',
@@ -328,7 +348,7 @@ export const StorageApi = {
       }
     } catch (e) {
       // Server not reachable (e.g. static host/Vercel)
-      console.info('[StorageApi] File-system server offline or 404, saved to local cache.');
+      console.info('[StorageApi] File-system server offline or 404, saved to local cache and synced via WebRTC.');
     }
 
     return { success: true, localOnly: true, updatedAt: new Date().toISOString() };
@@ -342,6 +362,11 @@ export const StorageApi = {
       localStorage.removeItem(LOCAL_STORAGE_PREFIX + cleanUser);
       const list = getLocalCharList().filter(c => c.username !== cleanUser);
       saveLocalCharList(list);
+    } catch {}
+
+    // Broadcast deletion across WebRTC
+    try {
+      realtimeSync.broadcastDeleteSheet(cleanUser);
     } catch {}
 
     // Try server delete
@@ -443,5 +468,50 @@ export const StorageApi = {
       saveLocalPassword(cleanUser, params.newPassword);
       return { success: true, message: 'Senha atualizada com sucesso.' };
     }
+  },
+
+  async getBattleState(): Promise<any> {
+    try {
+      const res = await fetch('/api/battle');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.battle) {
+          localStorage.setItem('arcana_battle_tracker_state', JSON.stringify(data.battle));
+          return data.battle;
+        }
+      }
+    } catch {}
+
+    const local = localStorage.getItem('arcana_battle_tracker_state');
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch {}
+    }
+    return null;
+  },
+
+  async saveBattleState(battleState: any): Promise<boolean> {
+    try {
+      localStorage.setItem('arcana_battle_tracker_state', JSON.stringify(battleState));
+    } catch {}
+
+    // Broadcast battle tracker state in real time over WebRTC to all players & GM on the internet
+    try {
+      realtimeSync.broadcastBattle(battleState);
+    } catch {}
+
+    try {
+      const res = await fetch('/api/battle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(battleState),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return !!data.success;
+      }
+    } catch {}
+    return false;
   }
 };

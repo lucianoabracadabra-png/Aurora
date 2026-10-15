@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { BentoBox } from './BentoBox';
 import { CombatEntity, CombatEntityType, CombatStep } from '../types';
+import { StorageApi } from '../services/storageApi';
+import { realtimeSync } from '../services/realtimeSync';
 
 interface BattleTrackerEnvironmentProps {
   characterName?: string;
@@ -149,14 +151,105 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
   const [newEntityType, setNewEntityType] = useState<CombatEntityType>('enemy');
   const [newEntityTick, setNewEntityTick] = useState(0);
   const [newEntityHp, setNewEntityHp] = useState<number | undefined>(15);
+  const [peersCount, setPeersCount] = useState<number>(0);
 
   // Auto-scroll ref
   const chartScrollContainerRef = useRef<HTMLDivElement>(null);
   const currentTickLineRef = useRef<HTMLDivElement>(null);
+  const lastSavedJsonRef = useRef<string>(JSON.stringify(state));
+  const isSyncingFromServerRef = useRef<boolean>(false);
+  const saveTimeoutRef = useRef<any>(null);
 
-  // Save to localStorage
+  // Subscribe to real-time WebRTC updates from other players and GM across the internet
+  useEffect(() => {
+    const unsubBattle = realtimeSync.onBattleUpdate((remoteBattle) => {
+      if (remoteBattle && Array.isArray(remoteBattle.entities)) {
+        const remoteJson = JSON.stringify(remoteBattle);
+        if (remoteJson !== lastSavedJsonRef.current) {
+          isSyncingFromServerRef.current = true;
+          lastSavedJsonRef.current = remoteJson;
+          setState({
+            currentTick: typeof remoteBattle.currentTick === 'number' ? remoteBattle.currentTick : 0,
+            previousTick: typeof remoteBattle.previousTick === 'number' ? remoteBattle.previousTick : 0,
+            minTimespan: Math.max(15, remoteBattle.minTimespan || 15),
+            entities: remoteBattle.entities
+          });
+          setTimeout(() => {
+            isSyncingFromServerRef.current = false;
+          }, 150);
+        }
+      }
+    });
+
+    const unsubPeers = realtimeSync.onPeerCountChange((count) => {
+      setPeersCount(count);
+    });
+
+    return () => {
+      unsubBattle();
+      unsubPeers();
+    };
+  }, []);
+
+  // Sync state from server on mount and periodically (keeps all players and GM synchronized on the same timeline)
+  const syncFromServer = async () => {
+    try {
+      const serverBattle = await StorageApi.getBattleState();
+      if (serverBattle && Array.isArray(serverBattle.entities)) {
+        const serverJson = JSON.stringify(serverBattle);
+        if (serverJson !== lastSavedJsonRef.current) {
+          isSyncingFromServerRef.current = true;
+          lastSavedJsonRef.current = serverJson;
+          setState({
+            currentTick: typeof serverBattle.currentTick === 'number' ? serverBattle.currentTick : 0,
+            previousTick: typeof serverBattle.previousTick === 'number' ? serverBattle.previousTick : 0,
+            minTimespan: Math.max(15, serverBattle.minTimespan || 15),
+            entities: serverBattle.entities
+          });
+          setTimeout(() => {
+            isSyncingFromServerRef.current = false;
+          }, 200);
+        }
+      }
+    } catch (e) {
+      console.warn('Battle sync warning:', e);
+    }
+  };
+
+  useEffect(() => {
+    syncFromServer();
+    const interval = setInterval(syncFromServer, 3000);
+    const handleFocus = () => syncFromServer();
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  // Save to localStorage and auto-sync to server
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    if (isSyncingFromServerRef.current) return;
+
+    const currentJson = JSON.stringify(state);
+    if (currentJson === lastSavedJsonRef.current) return;
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await StorageApi.saveBattleState(state);
+        lastSavedJsonRef.current = currentJson;
+      } catch (err) {
+        console.error('Failed to sync battle state to server:', err);
+      }
+    }, 400);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, [state]);
 
   // Initial scroll into view on mount
@@ -425,14 +518,30 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
   return (
     <main className="p-4 flex flex-col gap-8 max-w-lg mx-auto relative z-0">
       
-      {/* 1. TÍTULO DO BATTLE TRACKER (Limpo, sem Anterior e Atual ao lado) */}
-      <div className="flex items-center gap-3 px-2 pt-1">
-        <div className="w-9 h-9 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.25)] shrink-0">
-          <Swords size={18} className="text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
+      {/* 1. TÍTULO DO BATTLE TRACKER (Com indicador de sincronização em tempo real na internet) */}
+      <div className="flex items-center justify-between px-2 pt-1">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.25)] shrink-0">
+            <Swords size={18} className="text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
+          </div>
+          <h1 className="text-sm tracking-[0.3em] font-bold uppercase text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-amber-400 drop-shadow-[0_0_12px_rgba(245,158,11,0.5)]">
+            Battle Tracker
+          </h1>
         </div>
-        <h1 className="text-sm tracking-[0.3em] font-bold uppercase text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-amber-400 drop-shadow-[0_0_12px_rgba(245,158,11,0.5)]">
-          Battle Tracker
-        </h1>
+
+        {/* Live Internet Sync Badge */}
+        <div 
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/25 text-[10px] text-emerald-300 font-medium shadow-sm"
+          title="Battle Tracker sincronizado em tempo real via WebRTC para todos os jogadores e Mestre na internet"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Ao Vivo</span>
+          {peersCount > 0 && (
+            <span className="font-mono text-[9px] text-emerald-200/80 bg-emerald-400/20 px-1 rounded">
+              +{peersCount}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 2. O GRÁFICO (O NOME É SÓ "TIMELINE", SEM EXPLICAÇÃO DE BOLINHAS) */}
