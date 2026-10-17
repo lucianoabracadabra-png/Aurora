@@ -484,7 +484,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {internalList.length > 0 && (
             <div>
               <label className="text-[11px] font-semibold text-white/70 block mb-1.5">
-                Personagens salvos (Clique para preencher o login):
+                Fichas salvas (Clique para preencher o login):
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {internalList.map((c) => (
@@ -492,6 +492,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     key={c.username}
                     type="button"
                     onClick={() => selectQuickUser(c.username)}
+                    title={`Ficha do usuário: ${c.username}`}
                     className={`px-2.5 py-1 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer ${
                       playerUsername === c.username
                         ? 'bg-violet-500/30 border-violet-400 text-white shadow-[0_0_10px_rgba(168,85,247,0.3)]'
@@ -502,7 +503,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
                       style={{ backgroundColor: c.color || '#a855f7' }}
                     />
-                    <span>{c.name || c.username}</span>
+                    <span>{c.username}</span>
                   </button>
                 ))}
               </div>

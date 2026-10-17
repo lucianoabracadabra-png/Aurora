@@ -103,7 +103,8 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
         <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none">
           {characters.map((char) => {
             const isActive = char.id === activeCharacterId;
-            const initial = char.name ? char.name.charAt(0).toUpperCase() : 'P';
+            const username = char.username || char.id.replace(/^char-/, '');
+            const initial = username.charAt(0).toUpperCase();
             const color = char.color || '#a855f7';
 
             return (
@@ -121,12 +122,12 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                   style={{
                     backgroundColor: char.avatarUrl ? 'transparent' : color,
                   }}
-                  title={`Carregar ficha de ${char.name || 'Personagem'}`}
+                  title={`Ficha de @${username}`}
                 >
                   {char.avatarUrl ? (
                     <img
                       src={char.avatarUrl}
-                      alt={char.name}
+                      alt={username}
                       className="w-full h-full rounded-full object-cover border border-white/20"
                     />
                   ) : (
@@ -145,8 +146,8 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
 
                 {/* Tooltip on hover */}
                 <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2.5 py-1 bg-[#050110] border border-white/20 rounded-lg text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 whitespace-nowrap text-center">
-                  <div className="text-xs font-bold text-white">{char.name || 'Sem Nome'}</div>
-                  <div className="text-[10px] text-white/50">{char.data?.identity?.origin || 'Aventureiro'}</div>
+                  <div className="text-xs font-bold text-white">@{username}</div>
+                  <div className="text-[10px] text-white/50">{char.name ? `${char.name} • ` : ''}{char.data?.identity?.origin || 'Aventureiro'}</div>
                   {isActive && <div className="text-[9px] text-emerald-400 font-bold">● Ativo na Tela</div>}
                 </div>
               </div>
@@ -171,10 +172,10 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
           <div className="flex items-center gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-white/10 justify-between sm:justify-start">
             <div className="text-right hidden md:block">
               <div className="text-xs font-bold text-white truncate max-w-[130px] flex items-center gap-1 justify-end">
-                <span>{activeChar.name}</span>
+                <span>@{activeChar.username || activeChar.id.replace(/^char-/, '')}</span>
               </div>
               <div className={`text-[10px] ${isGmView ? 'text-amber-300/80' : 'text-violet-300/80'}`}>
-                {activeChar.data?.identity?.origin || 'Personagem'}
+                {activeChar.name || activeChar.data?.identity?.origin || 'Personagem'}
               </div>
             </div>
 
@@ -184,7 +185,7 @@ export const GmRosterBar: React.FC<GmRosterBarProps> = ({
                 type="button"
                 onClick={() => onRequestDeleteCharacter(activeChar)}
                 className="w-8 h-8 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 flex items-center justify-center transition-colors cursor-pointer"
-                title={`Apagar ficha de ${activeChar.name} com a senha do GM`}
+                title={`Apagar ficha de @${activeChar.username || activeChar.id.replace(/^char-/, '')} com a senha do GM`}
               >
                 <Trash2 size={14} />
               </button>

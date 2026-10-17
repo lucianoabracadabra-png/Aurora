@@ -295,6 +295,7 @@ export interface BattleTrackerState {
 
 export interface CampaignCharacter {
   id: string;
+  username?: string;
   name: string;
   avatarUrl?: string;
   color?: string;

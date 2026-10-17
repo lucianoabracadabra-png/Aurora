@@ -222,30 +222,35 @@ export default function App() {
     return [
       {
         id: 'char-jose',
+        username: 'jose',
         name: 'Jose',
         color: '#a855f7',
         data: createEmptyCharacterData('Jose', '#a855f7')
       },
       {
         id: 'char-breno',
+        username: 'breno',
         name: 'Breno',
         color: '#06b6d4',
         data: createEmptyCharacterData('Breno', '#06b6d4')
       },
       {
         id: 'char-lucas',
+        username: 'lucas',
         name: 'Lucas',
         color: '#10b981',
         data: createEmptyCharacterData('Lucas', '#10b981')
       },
       {
         id: 'char-gabo',
+        username: 'gabo',
         name: 'Gabo',
         color: '#f59e0b',
         data: createEmptyCharacterData('Gabo', '#f59e0b')
       },
       {
         id: 'char-kami',
+        username: 'kami',
         name: 'Kami',
         color: '#ec4899',
         data: createEmptyCharacterData('Kami', '#ec4899')
@@ -254,6 +259,15 @@ export default function App() {
   });
 
   const [activeCharacterId, setActiveCharacterId] = useState<string>(() => {
+    const savedSession = localStorage.getItem('arcana_auth_session');
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed?.role === 'player' && parsed.username) {
+          return `char-${parsed.username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '')}`;
+        }
+      } catch (e) {}
+    }
     const saved = localStorage.getItem('arcana_active_character_id');
     if (saved && saved !== 'char-elias' && saved !== 'char-valerius' && saved !== 'char-kaelen') {
       return saved;
@@ -295,6 +309,7 @@ export default function App() {
               const res = await StorageApi.getCharacter(item.username);
               return {
                 id: `char-${item.username}`,
+                username: item.username,
                 name: res.name || item.name,
                 avatarUrl: item.avatarUrl,
                 color: item.color,
@@ -303,6 +318,7 @@ export default function App() {
             } catch {
               return {
                 id: `char-${item.username}`,
+                username: item.username,
                 name: item.name,
                 avatarUrl: item.avatarUrl,
                 color: item.color,
@@ -347,8 +363,97 @@ export default function App() {
     }
   };
 
-  // Load characters on initial mount & initialize WebRTC realtime sync
+  // Puxa e preenche com precisão a ficha do username selecionado diretamente do Pantry
+  const selectAndLoadCharacter = async (username: string, preloadedData?: any) => {
+    const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+    if (!cleanUser) return;
+    const charId = `char-${cleanUser}`;
+
+    console.log(`[App:selectAndLoadCharacter] Selecionando e preenchendo ficha para o username: "${cleanUser}"...`);
+
+    // Cancela qualquer timer pendente de salvamento anterior para evitar sobreposição entre fichas
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    setActiveCharacterId(charId);
+    loadedCharacterIdRef.current = charId;
+    localStorage.setItem('arcana_active_character_id', charId);
+
+    // Se recebemos dados pré-carregados (ex: payload do login), aplica imediatamente para resposta visual instantânea
+    if (preloadedData) {
+      const normalized = normalizeCharacterData(preloadedData);
+      lastSavedJsonRef.current = JSON.stringify(normalized);
+      setData(normalized);
+    } else {
+      const inMemoryMatch = campaignCharacters.find((c) => c.id === charId || c.username === cleanUser);
+      if (inMemoryMatch && inMemoryMatch.data) {
+        lastSavedJsonRef.current = JSON.stringify(inMemoryMatch.data);
+        setData(inMemoryMatch.data);
+      }
+    }
+
+    // SEMPRE puxa a versão autoritativa e fresca do Pantry para o username selecionado
+    try {
+      setSaveStatus('idle');
+      const res = await StorageApi.getCharacter(cleanUser, true);
+      if (res && res.character) {
+        const freshNormalized = normalizeCharacterData(res.character);
+        const freshJson = JSON.stringify(freshNormalized);
+
+        loadedCharacterIdRef.current = charId;
+        lastSavedJsonRef.current = freshJson;
+        setData(freshNormalized);
+
+        setCampaignCharacters((prev) => {
+          const idx = prev.findIndex((c) => c.id === charId || c.username === cleanUser);
+          const updatedItem: CampaignCharacter = {
+            id: charId,
+            username: cleanUser,
+            name: res.name || freshNormalized.identity?.name || cleanUser,
+            color: res.color || '#a855f7',
+            avatarUrl: freshNormalized.identity?.avatarUrl,
+            data: freshNormalized
+          };
+          let nextList: CampaignCharacter[];
+          if (idx >= 0) {
+            nextList = [...prev];
+            nextList[idx] = updatedItem;
+          } else {
+            nextList = [...prev, updatedItem];
+          }
+          try {
+            localStorage.setItem('arcana_campaign_characters', JSON.stringify(nextList));
+          } catch {}
+          return nextList;
+        });
+
+        console.log(`[App:selectAndLoadCharacter] Ficha do usuário "${cleanUser}" carregada com sucesso do Pantry.`);
+      }
+    } catch (err) {
+      console.error(`[App:selectAndLoadCharacter:ERROR] Falha ao puxar ficha do Pantry para "${cleanUser}":`, err);
+    }
+  };
+
+  // Carrega a ficha inicial com base no usuário logado e inicializa WebRTC realtime sync
   useEffect(() => {
+    let initialUser = 'jose';
+    const savedSession = localStorage.getItem('arcana_auth_session');
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed?.role === 'player' && parsed.username) {
+          initialUser = parsed.username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+        } else {
+          initialUser = activeCharacterId.replace(/^char-/, '') || 'jose';
+        }
+      } catch (e) {}
+    } else {
+      initialUser = activeCharacterId.replace(/^char-/, '') || 'jose';
+    }
+
+    selectAndLoadCharacter(initialUser);
     loadCharactersFromFileSystem();
     realtimeSync.init();
 
@@ -362,6 +467,7 @@ export default function App() {
         const existingIdx = prev.findIndex((c) => c.id === charId);
         const updatedItem = {
           id: charId,
+          username: sheetMsg.username,
           name: sheetMsg.name || sheetMsg.character.identity?.name || sheetMsg.username,
           avatarUrl: sheetMsg.character.identity?.avatarUrl,
           color: sheetMsg.color || '#a855f7',
@@ -407,7 +513,7 @@ export default function App() {
     };
   }, []);
 
-  // Periodic polling & window focus sync (keeps all players and GM synced with server files)
+  // Sincronização periódica & foco da janela (mantém players e GM sincronizados com o Pantry)
   useEffect(() => {
     const interval = setInterval(() => {
       if (saveStatus !== 'saving') {
@@ -427,20 +533,6 @@ export default function App() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [activeCharacterId, isEditing, saveStatus]);
-
-  // When activeCharacterId changes, sync sheet data safely
-  useEffect(() => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    const target = campaignCharacters.find((c) => c.id === activeCharacterId);
-    if (target) {
-      loadedCharacterIdRef.current = activeCharacterId;
-      lastSavedJsonRef.current = JSON.stringify(target.data);
-      setData(target.data);
-    }
-    localStorage.setItem('arcana_active_character_id', activeCharacterId);
-  }, [activeCharacterId]);
 
   // Debounced Auto-Save to File-System JSON file
   const saveTimeoutRef = useRef<any>(null);
@@ -520,6 +612,7 @@ export default function App() {
 
       const newChar: CampaignCharacter = {
         id: newId,
+        username: safeUser,
         name,
         color: color || '#06b6d4',
         data: normalizeCharacterData(res.character || emptyData)
@@ -536,6 +629,7 @@ export default function App() {
       console.warn('Fallback creating character:', err);
       const fallbackChar: CampaignCharacter = {
         id: newId,
+        username: safeUser,
         name,
         color: color || '#06b6d4',
         data: emptyData
@@ -590,14 +684,11 @@ export default function App() {
     if (newSession.role === 'gamemaster') {
       setIsGmView(true);
       loadCharactersFromFileSystem();
+      const currentUsername = activeCharacterId.replace(/^char-/, '') || 'jose';
+      selectAndLoadCharacter(currentUsername);
     } else {
-      // Player login
-      const targetId = `char-${newSession.username}`;
-      setActiveCharacterId(targetId);
-      if (characterData) {
-        setData(normalizeCharacterData(characterData));
-      }
-      loadCharactersFromFileSystem();
+      setIsGmView(false);
+      selectAndLoadCharacter(newSession.username, characterData);
     }
   };
 
@@ -1102,13 +1193,8 @@ export default function App() {
           characters={campaignCharacters}
           activeCharacterId={activeCharacterId}
           onSelectCharacter={(id) => {
-            setActiveCharacterId(id);
-            const targetChar = campaignCharacters.find((c) => c.id === id);
-            if (targetChar) {
-              loadedCharacterIdRef.current = id;
-              lastSavedJsonRef.current = JSON.stringify(targetChar.data);
-              setData(targetChar.data);
-            }
+            const cleanUser = id.replace(/^char-/, '');
+            selectAndLoadCharacter(cleanUser);
           }}
           onAddCharacter={handleAddCampaignCharacter}
           onRequestDeleteCharacter={(char) => setCharacterToDelete(char)}
