@@ -326,13 +326,9 @@ export default function App() {
         } else {
           const currentMatch = fullCharacters.find((c) => c.id === activeCharacterId);
           if (currentMatch) {
-            if (isInitialMountRef.current) {
-              loadedCharacterIdRef.current = currentMatch.id;
-              lastSavedJsonRef.current = JSON.stringify(currentMatch.data);
-              setData(currentMatch.data);
-            } else if (!isEditing) {
-              const serverJson = JSON.stringify(currentMatch.data);
-              if (serverJson !== lastSavedJsonRef.current && lastSavedJsonRef.current !== '') {
+            const serverJson = JSON.stringify(currentMatch.data);
+            if (isInitialMountRef.current || (!isEditing && saveStatus !== 'saving')) {
+              if (serverJson !== lastSavedJsonRef.current) {
                 lastSavedJsonRef.current = serverJson;
                 setData(currentMatch.data);
               }
@@ -414,11 +410,15 @@ export default function App() {
   // Periodic polling & window focus sync (keeps all players and GM synced with server files)
   useEffect(() => {
     const interval = setInterval(() => {
-      loadCharactersFromFileSystem(true);
-    }, 4000);
+      if (saveStatus !== 'saving') {
+        loadCharactersFromFileSystem(true);
+      }
+    }, 12000);
 
     const handleFocus = () => {
-      loadCharactersFromFileSystem(true);
+      if (saveStatus !== 'saving') {
+        loadCharactersFromFileSystem(true);
+      }
     };
     window.addEventListener('focus', handleFocus);
 
@@ -426,7 +426,7 @@ export default function App() {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [activeCharacterId, isEditing]);
+  }, [activeCharacterId, isEditing, saveStatus]);
 
   // When activeCharacterId changes, sync sheet data safely
   useEffect(() => {
@@ -919,15 +919,19 @@ export default function App() {
               Aurora
             </h1>
 
-            {/* Status de Salvamento (separado, exibe apenas a bolinha e o estado) */}
-            <div 
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-xs shadow-inner min-w-0 transition-colors"
+            {/* Status de Salvamento no Pantry */}
+            <button
+              type="button"
+              onClick={() => {
+                loadCharactersFromFileSystem(false);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs shadow-inner min-w-0 transition-colors cursor-pointer"
               title={
                 saveStatus === 'saving'
-                  ? 'Salvando alterações no disco...'
+                  ? 'Salvando alterações no Pantry...'
                   : saveStatus === 'error'
-                  ? 'Erro ao salvar alterações no disco'
-                  : `Todas as alterações foram salvas (${data.identity?.name || 'Personagem'})`
+                  ? 'Erro ao salvar no Pantry (clique para sincronizar)'
+                  : `Pantry sincronizado (clique para recarregar)`
               }
             >
               <span
@@ -940,9 +944,9 @@ export default function App() {
                 }`}
               />
               <span className="text-[11px] font-semibold text-white/90">
-                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Não salvo' : 'Salvo'}
+                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Não salvo' : 'Pantry Salvo'}
               </span>
-            </div>
+            </button>
           </div>
 
           {/* Lado Direito: 1. Switch Ficha/Battle Tracker -> 2. Login -> 3. Edit/Lock -> 4. ? -> 5. Aurora -> 6. GM */}

@@ -65,21 +65,49 @@ export const PantryApi = {
 // Internal cache / helper to get or initialize pantry data
 let cachedPantryData: any = null;
 
-async function fetchMasterData(): Promise<any> {
-  if (cachedPantryData) return cachedPantryData;
-  const remote = await PantryApi.getBasket();
-  if (remote && remote.characters) {
-    cachedPantryData = remote;
-    return remote;
+async function fetchMasterData(forceRefresh = false): Promise<any> {
+  if (!forceRefresh && cachedPantryData && cachedPantryData.characters && Object.keys(cachedPantryData.characters).length > 0) {
+    return cachedPantryData;
   }
-  // Initialize pantry with initial seed if empty
-  await PantryApi.saveBasket(initialPantryJson);
+  try {
+    const remote = await PantryApi.getBasket();
+    if (remote && remote.characters && Object.keys(remote.characters).length > 0) {
+      cachedPantryData = remote;
+      try {
+        localStorage.setItem('arcana_pantry_cached_master', JSON.stringify(remote));
+      } catch {}
+      return remote;
+    }
+  } catch (e) {
+    console.warn('[StorageApi] Error fetching pantry basket:', e);
+  }
+
+  if (cachedPantryData && cachedPantryData.characters && Object.keys(cachedPantryData.characters).length > 0) {
+    return cachedPantryData;
+  }
+
+  // Try local storage cache
+  try {
+    const local = localStorage.getItem('arcana_pantry_cached_master');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (parsed && parsed.characters && Object.keys(parsed.characters).length > 0) {
+        cachedPantryData = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+
+  // Last resort: initial seed
   cachedPantryData = initialPantryJson;
   return initialPantryJson;
 }
 
 async function persistMasterData(data: any): Promise<void> {
   cachedPantryData = data;
+  try {
+    localStorage.setItem('arcana_pantry_cached_master', JSON.stringify(data));
+  } catch {}
   await PantryApi.saveBasket(data);
 }
 
@@ -196,8 +224,8 @@ export const StorageApi = {
     };
   },
 
-  async getCharactersList(): Promise<CharacterSummary[]> {
-    const data = await fetchMasterData();
+  async getCharactersList(force = true): Promise<CharacterSummary[]> {
+    const data = await fetchMasterData(force);
     const characters = data.characters || {};
     return Object.values(characters).map((c: any) => ({
       id: `char-${c.username}`,
@@ -209,16 +237,20 @@ export const StorageApi = {
     }));
   },
 
-  async getCharacter(username: string): Promise<{ username: string; name: string; color: string; character: CharacterData }> {
+  async getCharacter(username: string, force = false): Promise<{ username: string; name: string; color: string; character: CharacterData }> {
     const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-    const data = await fetchMasterData();
+    const data = await fetchMasterData(force);
     const characters = data.characters || {};
     const charRecord = characters[cleanUser];
 
     if (charRecord) {
+      const charName = charRecord.name || charRecord.character?.identity?.name || cleanUser;
+      if (charRecord.character && charRecord.character.identity) {
+        charRecord.character.identity.name = charName;
+      }
       return {
         username: cleanUser,
-        name: charRecord.name || charRecord.character?.identity?.name || cleanUser,
+        name: charName,
         color: charRecord.color || '#a855f7',
         character: charRecord.character || createEmptyCharacterData(cleanUser)
       };
@@ -229,21 +261,26 @@ export const StorageApi = {
 
   async saveCharacter(username: string, character: CharacterData, color?: string, name?: string) {
     const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-    const data = await fetchMasterData();
+    const data = await fetchMasterData(false);
     if (!data.characters) data.characters = {};
+
+    const charName = name || character.identity?.name || cleanUser;
+    if (character.identity) {
+      character.identity.name = charName;
+    }
 
     if (!data.characters[cleanUser]) {
       data.characters[cleanUser] = {
         username: cleanUser,
         password: '123123123',
-        name: name || character.identity?.name || cleanUser,
+        name: charName,
         color: color || '#a855f7',
         createdAt: new Date().toISOString()
       };
     }
 
     data.characters[cleanUser].character = character;
-    if (name) data.characters[cleanUser].name = name;
+    data.characters[cleanUser].name = charName;
     if (color) data.characters[cleanUser].color = color;
     data.characters[cleanUser].updatedAt = new Date().toISOString();
 

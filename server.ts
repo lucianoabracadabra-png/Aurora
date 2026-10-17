@@ -227,71 +227,146 @@ ensureBattleFile();
 const PANTRY_ID = '872bd76e-a6c0-46a0-b338-a474ed699114';
 const PANTRY_BASKET = 'arcana';
 const PANTRY_URL = `https://getpantry.cloud/apiv1/pantry/${PANTRY_ID}/basket/${PANTRY_BASKET}`;
+const PANTRY_FILE = path.resolve(DATA_DIR, 'pantry_basket.json');
 
-async function ensurePantrySeeded() {
+// In-memory master state synchronized with data/pantry_basket.json and GetPantry cloud
+let memoryPantryBasket: any = null;
+let pantrySyncTimeout: NodeJS.Timeout | null = null;
+let lastCloudSyncTime = 0;
+
+function loadLocalPantryFile(): any {
   try {
-    const res = await fetch(PANTRY_URL);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.characters) {
-        console.log('[Server] Pantry basket already seeded and active.');
-        return;
+    if (fs.existsSync(PANTRY_FILE)) {
+      const raw = fs.readFileSync(PANTRY_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.characters && Object.keys(parsed.characters).length > 0) {
+        return parsed;
       }
     }
   } catch (e) {
-    console.warn('[Server] Could not reach Pantry GET, attempting seed upload:', e);
+    console.warn('[Server] Error reading local pantry_basket.json:', e);
   }
 
+  // Fallback to initial seed
   try {
     const seedPath = path.resolve(__dirname, 'src/initialPantryData.json');
     if (fs.existsSync(seedPath)) {
-      const seedContent = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
-      const postRes = await fetch(PANTRY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(seedContent)
-      });
-      if (postRes.ok) {
-        console.log('[Server] Successfully seeded Pantry basket with initial data!');
-      } else {
-        console.warn('[Server] Failed to seed Pantry basket, status:', postRes.status);
-      }
+      const seed = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
+      fs.writeFileSync(PANTRY_FILE, JSON.stringify(seed, null, 2), 'utf-8');
+      return seed;
     }
+  } catch (e) {}
+
+  return { characters: {}, gamemaster: {}, battle: {} };
+}
+
+function saveLocalPantryFile(data: any) {
+  try {
+    fs.writeFileSync(PANTRY_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (e) {
-    console.error('[Server] Error seeding Pantry basket:', e);
+    console.error('[Server] Failed to write local pantry_basket.json:', e);
   }
 }
 
+// Background push to GetPantry with 429 rate limit backoff
+async function pushToGetPantryCloud(retryCount = 0) {
+  if (!memoryPantryBasket || !memoryPantryBasket.characters) return;
+  try {
+    const postRes = await fetch(PANTRY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(memoryPantryBasket)
+    });
+
+    if (postRes.ok) {
+      lastCloudSyncTime = Date.now();
+      console.log('[Server] Successfully pushed updated basket to GetPantry cloud.');
+    } else if (postRes.status === 429) {
+      console.warn('[Server] GetPantry cloud rate-limited (429). Retrying in 5 seconds...');
+      if (retryCount < 4) {
+        setTimeout(() => pushToGetPantryCloud(retryCount + 1), 5000);
+      }
+    } else {
+      console.warn('[Server] GetPantry cloud push returned status:', postRes.status);
+    }
+  } catch (e: any) {
+    console.warn('[Server] GetPantry cloud push network error:', e.message);
+  }
+}
+
+function scheduleCloudSync() {
+  if (pantrySyncTimeout) clearTimeout(pantrySyncTimeout);
+  pantrySyncTimeout = setTimeout(() => {
+    pushToGetPantryCloud();
+  }, 1500);
+}
+
+async function initPantryBasket() {
+  memoryPantryBasket = loadLocalPantryFile();
+
+  // Try to pull latest from GetPantry cloud
+  try {
+    const res = await fetch(PANTRY_URL);
+    if (res.ok) {
+      const cloudData = await res.json();
+      if (cloudData && cloudData.characters && Object.keys(cloudData.characters).length > 0) {
+        memoryPantryBasket = cloudData;
+        saveLocalPantryFile(memoryPantryBasket);
+        console.log('[Server] Pulled existing character basket from GetPantry cloud.');
+        return;
+      }
+    } else if (res.status === 429) {
+      console.warn('[Server] GetPantry initial pull hit 429, using local pantry_basket.json.');
+      return;
+    }
+  } catch (e) {
+    console.warn('[Server] Could not reach GetPantry cloud on boot, using local pantry_basket.json.');
+  }
+
+  // If cloud was empty or newly initialized, sync to cloud
+  pushToGetPantryCloud();
+}
+
 async function startServer() {
-  await ensurePantrySeeded();
+  await initPantryBasket();
 
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
   // API Routes
-  // 0. Pantry Proxy
-  app.get('/api/pantry', async (_req, res) => {
-    try {
-      const resp = await fetch(PANTRY_URL);
-      const data = await resp.json();
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+  // 0. Pantry Routes
+  app.get('/api/pantry', (_req, res) => {
+    if (!memoryPantryBasket) {
+      memoryPantryBasket = loadLocalPantryFile();
+    }
+    res.json(memoryPantryBasket);
+  });
+
+  app.post('/api/pantry', (req, res) => {
+    const update = req.body;
+    if (update && typeof update === 'object') {
+      memoryPantryBasket = update;
+      saveLocalPantryFile(memoryPantryBasket);
+      scheduleCloudSync();
+      res.json({ success: true, savedAt: new Date().toISOString() });
+    } else {
+      res.status(400).json({ error: 'Payload inválido.' });
     }
   });
 
-  app.post('/api/pantry', async (req, res) => {
+  app.post('/api/pantry/sync', async (_req, res) => {
     try {
-      const resp = await fetch(PANTRY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req.body)
-      });
-      const data = await resp.json().catch(() => ({ success: resp.ok }));
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
+      const resp = await fetch(PANTRY_URL);
+      if (resp.ok) {
+        const cloudData = await resp.json();
+        if (cloudData && cloudData.characters) {
+          memoryPantryBasket = cloudData;
+          saveLocalPantryFile(memoryPantryBasket);
+          return res.json({ success: true, source: 'cloud', data: memoryPantryBasket });
+        }
+      }
+    } catch (e: any) {}
+    res.json({ success: true, source: 'local', data: memoryPantryBasket });
   });
 
   // 1. Health & Info
