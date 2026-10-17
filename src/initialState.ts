@@ -503,19 +503,10 @@ export const initialCharacterData: CharacterData = {
       ]
     }
   },
-  flowAndPatron: {
-    fluxo: {
-      level: 3,
-      hp: 10,
-      name: 'Fluxo Cósmico',
-      notes: 'Corrente contínua de éter que atravessa o arcano.'
-    },
-    patrono: {
-      level: 4,
-      hp: 10,
-      name: 'Guardião do Pilar Igbalim',
-      notes: 'Entidade solar ancestral que concedeu a bênção de sangue.'
-    }
+  spiritus: {
+    fluxo: 3,
+    patrono: 4,
+    rachadura: Array(10).fill(false)
   }
 };
 
@@ -601,18 +592,9 @@ export const createEmptyCharacterData = (name: string = '', _color?: string): Ch
       history: [],
     },
   },
-  flowAndPatron: {
-    fluxo: {
-      level: 1,
-      hp: 1,
-      name: '',
-      notes: '',
-    },
-    patrono: {
-      level: 1,
-      hp: 1,
-      name: '',
-      notes: '',
-    },
+  spiritus: {
+    fluxo: 1,
+    patrono: 1,
+    rachadura: Array(10).fill(false)
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface StarPoint {
   x: number;
@@ -27,7 +27,7 @@ interface ShootingStar {
   color: string;
 }
 
-export const GalaxyAuroraBackground: React.FC = () => {
+export const GalaxyAuroraBackground = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {

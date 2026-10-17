@@ -66,10 +66,10 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(({
           {rightContent ? (
             rightContent
           ) : (
-            <div className="flex gap-1.5 items-center">
-              <div className={`w-1.5 h-1.5 rounded-full ${titleClassName.replace('text-', 'bg-')} shadow-[0_0_8px_currentColor]`} />
-              <div className={`w-1.5 h-1.5 rounded-full ${titleClassName.replace('text-', 'bg-')} opacity-60`} />
-              <div className={`w-1.5 h-1.5 rounded-full ${titleClassName.replace('text-', 'bg-')} opacity-30`} />
+            <div className={`flex gap-1.5 items-center ${titleClassName}`}>
+              <div className="w-1.5 h-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" />
+              <div className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
+              <div className="w-1.5 h-1.5 rounded-full bg-current opacity-30" />
             </div>
           )}
         </div>

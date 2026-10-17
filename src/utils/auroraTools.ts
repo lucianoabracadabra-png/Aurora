@@ -1,4 +1,5 @@
 import { CharacterData, EquipmentSlot, DamageType, Ability, Trait } from '../types';
+import { Type } from '@google/genai';
 
 export type ValidCoin = 'gold' | 'silver' | 'copper';
 export const VALID_COINS: readonly ValidCoin[] = ['gold', 'silver', 'copper'];
@@ -178,9 +179,10 @@ export function buildCharacterContext(data: CharacterData): string {
 • Acessórios: ${accList}
 • Itens Gerais: ${itemsList}
 
-=== FLUXO & PATRONO ===
-• Fluxo: Nível ${data.flowAndPatron?.fluxo?.level || 0}, HP ${data.flowAndPatron?.fluxo?.hp || 10}/10${data.flowAndPatron?.fluxo?.name ? ` (${data.flowAndPatron.fluxo.name})` : ''}
-• Patrono: Nível ${data.flowAndPatron?.patrono?.level || 0}, HP ${data.flowAndPatron?.patrono?.hp || 10}/10${data.flowAndPatron?.patrono?.name ? ` (${data.flowAndPatron.patrono.name})` : ''}`;
+=== SPIRITUS ===
+• Fluxo: ${data.spiritus?.fluxo || 0}
+• Patrono: ${data.spiritus?.patrono || 0}
+• Rachadura Ativas: ${(data.spiritus?.rachadura || []).filter(Boolean).length} / 10`;
   } catch (err) {
     console.error('Failed to build character context:', err);
     return 'Ficha carregada com sucesso.';
@@ -245,7 +247,7 @@ export const AURORA_TOOL_DEFINITIONS = [
         },
         languages: {
           type: 'array',
-          items: { type: 'string' },
+          items: { type: Type.STRING },
           description: 'Lista de idiomas quando action for "set_list".'
         }
       },
@@ -834,12 +836,12 @@ export function executeAuroraTool(
           };
         }
 
-        if (sec === 'flowandpatron' || sec === 'fluxo' || sec === 'patrono') {
-          const fp = updatedData.flowAndPatron;
+        if (sec === 'spiritus' || sec === 'fluxo' || sec === 'patrono') {
+          const sp = updatedData.spiritus;
           return {
             success: true,
-            category: 'flow',
-            message: `🔮 **Fluxo & Patrono**: Fluxo [Nível: ${fp?.fluxo?.level || 0}, HP: ${fp?.fluxo?.hp || 10}/10, Nome: "${fp?.fluxo?.name || '-'}"], Patrono [Nível: ${fp?.patrono?.level || 0}, HP: ${fp?.patrono?.hp || 10}/10, Nome: "${fp?.patrono?.name || '-'}"]`
+            category: 'spiritus',
+            message: `🔮 **Spiritus**: Fluxo: ${sp?.fluxo || 0} | Patrono: ${sp?.patrono || 0} | Rachadura Ativas: ${(sp?.rachadura || []).filter(Boolean).length}/10`
           };
         }
 
@@ -1704,42 +1706,43 @@ export function executeAuroraTool(
         return { success: false, message: `Ação de inventário não suportada: "${action}".` };
       }
 
-      // 16. MANAGE FLOW & PATRON
+      // 16. MANAGE SPIRITUS (FLUXO & PATRONO)
       case 'manage_flow_patron': {
-        const { target, action, value, name, notes } = args;
-        const validTarget: 'fluxo' | 'patrono' = target === 'patrono' ? 'patrono' : 'fluxo';
-        const label = validTarget === 'patrono' ? 'Patrono' : 'Fluxo';
+        const { target, action, value } = args;
+        const isPatrono = target === 'patrono';
+        const label = isPatrono ? 'Patrono' : 'Fluxo';
 
-        if (!updatedData.flowAndPatron) {
-          updatedData.flowAndPatron = {
-            fluxo: { level: 0, hp: 10, name: '', notes: '' },
-            patrono: { level: 0, hp: 10, name: '', notes: '' }
+        if (!updatedData.spiritus) {
+          updatedData.spiritus = {
+            fluxo: 1,
+            patrono: 1,
+            rachadura: Array(10).fill(false)
           };
         }
 
-        const currentEntry = updatedData.flowAndPatron[validTarget];
         const num = typeof value === 'number' && !isNaN(value) ? Math.floor(value) : 1;
+        const currentVal = isPatrono ? updatedData.spiritus.patrono : updatedData.spiritus.fluxo;
+        let nextVal = currentVal;
 
-        if (action === 'set_hp') {
-          currentEntry.hp = Math.max(0, Math.min(10, num));
-        } else if (action === 'adjust_hp') {
-          currentEntry.hp = Math.max(0, Math.min(10, currentEntry.hp + num));
-        } else if (action === 'set_level') {
-          currentEntry.level = Math.max(0, num);
-        } else if (action === 'adjust_level') {
-          currentEntry.level = Math.max(0, currentEntry.level + num);
+        if (action === 'set_level' || action === 'set_hp' || action === 'set') {
+          nextVal = Math.max(0, num);
+        } else if (action === 'adjust_level' || action === 'adjust_hp' || action === 'adjust') {
+          nextVal = Math.max(0, currentVal + num);
         }
 
-        if (name) currentEntry.name = name;
-        if (notes) currentEntry.notes = notes;
+        if (isPatrono) {
+          updatedData.spiritus.patrono = nextVal;
+        } else {
+          updatedData.spiritus.fluxo = nextVal;
+        }
 
         return {
           success: true,
-          category: 'flow',
+          category: 'spiritus',
           updatedData,
           undoData,
           description: `Atualização de ${label}`,
-          message: `🔮 **${label}**: Nível ${currentEntry.level}, HP ${currentEntry.hp}/10.${currentEntry.name ? ` (${currentEntry.name})` : ''}`
+          message: `🔮 **${label}**: Valor atualizado para ${nextVal}.`
         };
       }
 

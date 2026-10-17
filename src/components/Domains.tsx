@@ -6,11 +6,13 @@ type Props = {
   data: DomainsType;
   update: (field: keyof DomainsType, value: number) => void;
   readonly?: boolean;
+  onRoll?: (name: string, value: number, theme: 'blue' | 'cyan' | 'violet' | 'orange' | 'emerald') => void;
 };
 
 interface ElementDomainConfig {
   id: keyof DomainsType;
   label: string;
+  theme: 'blue' | 'cyan' | 'violet' | 'orange' | 'emerald';
   icon: React.ElementType;
   colorClass: string;
   glowClass: string;
@@ -22,6 +24,7 @@ const DOMAIN_ELEMENTS: ElementDomainConfig[] = [
   {
     id: 'water',
     label: 'Água',
+    theme: 'blue',
     icon: Droplets,
     colorClass: 'text-blue-400',
     glowClass: 'drop-shadow-[0_0_10px_rgba(96,165,250,0.8)]',
@@ -31,6 +34,7 @@ const DOMAIN_ELEMENTS: ElementDomainConfig[] = [
   {
     id: 'air',
     label: 'Ar',
+    theme: 'cyan',
     icon: Wind,
     colorClass: 'text-cyan-300',
     glowClass: 'drop-shadow-[0_0_10px_rgba(103,232,249,0.8)]',
@@ -40,6 +44,7 @@ const DOMAIN_ELEMENTS: ElementDomainConfig[] = [
   {
     id: 'anima',
     label: 'Anima',
+    theme: 'violet',
     icon: Sparkles,
     colorClass: 'text-violet-400',
     glowClass: 'drop-shadow-[0_0_10px_rgba(167,139,250,0.8)]',
@@ -49,6 +54,7 @@ const DOMAIN_ELEMENTS: ElementDomainConfig[] = [
   {
     id: 'fire',
     label: 'Fogo',
+    theme: 'orange',
     icon: Flame,
     colorClass: 'text-orange-500',
     glowClass: 'drop-shadow-[0_0_10px_rgba(249,115,22,0.8)]',
@@ -58,6 +64,7 @@ const DOMAIN_ELEMENTS: ElementDomainConfig[] = [
   {
     id: 'earth',
     label: 'Terra',
+    theme: 'emerald',
     icon: Mountain,
     colorClass: 'text-emerald-400',
     glowClass: 'drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]',
@@ -66,7 +73,7 @@ const DOMAIN_ELEMENTS: ElementDomainConfig[] = [
   }
 ];
 
-export const Domains: React.FC<Props> = ({ data, update, readonly = false }) => {
+export const Domains: React.FC<Props> = ({ data, update, readonly = false, onRoll }) => {
   return (
     <div className="grid grid-cols-5 gap-2 sm:gap-3.5 w-full">
       {DOMAIN_ELEMENTS.map(elem => {
@@ -74,22 +81,26 @@ export const Domains: React.FC<Props> = ({ data, update, readonly = false }) => 
         const isActive = value > 0;
         const Icon = elem.icon;
 
-        const cycleValue = () => {
-          if (readonly) return;
-          update(elem.id, value >= 5 ? 0 : value + 1);
+        const handleCardClick = () => {
+          if (readonly) {
+            if (onRoll) {
+              onRoll(elem.label, value, elem.theme);
+            }
+          } else {
+            update(elem.id, value >= 5 ? 0 : value + 1);
+          }
         };
 
         return (
           <div
             key={elem.id}
-            onClick={cycleValue}
-            title={readonly ? `${elem.label}: Nível ${value}` : `Clique para alterar nível de ${elem.label} (${value}/5)`}
-            className={`relative flex flex-col items-center justify-between p-2.5 sm:p-4 rounded-2xl border transition-all duration-300 select-none overflow-hidden h-28 sm:h-36 shadow-[0_4px_24px_rgba(0,0,0,0.35)] ${
+            onClick={handleCardClick}
+            title={readonly ? (onRoll ? `Clique para rolar teste de Domínio: ${elem.label} (${value}d10)` : `${elem.label}: Nível ${value}`) : `Clique para alterar nível de ${elem.label} (${value}/5)`}
+            className={`relative group flex flex-col items-center justify-between p-2.5 sm:p-4 rounded-2xl border transition-all duration-300 select-none overflow-hidden h-28 sm:h-36 shadow-[0_4px_24px_rgba(0,0,0,0.35)] ${
               isActive
-                ? `${elem.borderClass} bg-[#050508]/60 backdrop-blur-xl hover:border-white/30`
+                ? `${elem.borderClass} bg-[#050508]/60 backdrop-blur-xl hover:border-white/40 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]`
                 : 'border-white/10 bg-[#050508]/40 backdrop-blur-xl opacity-60 hover:opacity-90 hover:border-white/20'
-            } ${readonly ? 'cursor-default' : 'cursor-pointer active:scale-95 hover:bg-white/[0.04]'}`}
-          >
+            } cursor-pointer active:scale-95 hover:bg-white/[0.04]`}>
             {/* Background ambient element tint */}
             {isActive && (
               <div className={`absolute inset-0 ${elem.bgGlow} opacity-30 pointer-events-none`} />
@@ -127,7 +138,7 @@ export const Domains: React.FC<Props> = ({ data, update, readonly = false }) => 
                 onClick={(e) => {
                   if (!readonly) {
                     e.stopPropagation();
-                    cycleValue();
+                    update(elem.id, value >= 5 ? 0 : value + 1);
                   }
                 }}
                 className={`text-2xl sm:text-3xl font-light leading-none tracking-tight transition-all duration-300 ${

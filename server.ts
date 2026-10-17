@@ -224,17 +224,82 @@ ensureGmFile();
 ensureDefaultCharacters();
 ensureBattleFile();
 
+const PANTRY_ID = '872bd76e-a6c0-46a0-b338-a474ed699114';
+const PANTRY_BASKET = 'arcana';
+const PANTRY_URL = `https://getpantry.cloud/apiv1/pantry/${PANTRY_ID}/basket/${PANTRY_BASKET}`;
+
+async function ensurePantrySeeded() {
+  try {
+    const res = await fetch(PANTRY_URL);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.characters) {
+        console.log('[Server] Pantry basket already seeded and active.');
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('[Server] Could not reach Pantry GET, attempting seed upload:', e);
+  }
+
+  try {
+    const seedPath = path.resolve(__dirname, 'src/initialPantryData.json');
+    if (fs.existsSync(seedPath)) {
+      const seedContent = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
+      const postRes = await fetch(PANTRY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(seedContent)
+      });
+      if (postRes.ok) {
+        console.log('[Server] Successfully seeded Pantry basket with initial data!');
+      } else {
+        console.warn('[Server] Failed to seed Pantry basket, status:', postRes.status);
+      }
+    }
+  } catch (e) {
+    console.error('[Server] Error seeding Pantry basket:', e);
+  }
+}
+
 async function startServer() {
+  await ensurePantrySeeded();
+
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
   // API Routes
+  // 0. Pantry Proxy
+  app.get('/api/pantry', async (_req, res) => {
+    try {
+      const resp = await fetch(PANTRY_URL);
+      const data = await resp.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/pantry', async (req, res) => {
+    try {
+      const resp = await fetch(PANTRY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      });
+      const data = await resp.json().catch(() => ({ success: resp.ok }));
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // 1. Health & Info
   app.get('/api/status', (_req, res) => {
     res.json({
       status: 'online',
-      storageType: 'file-system',
-      dataDir: DATA_DIR,
+      storageType: 'pantry-cloud',
+      dataDir: PANTRY_ID,
       timestamp: new Date().toISOString()
     });
   });
@@ -727,6 +792,12 @@ async function startServer() {
       }
       if (prop.type === 'object' && prop.properties) {
         geminiProp.properties = mapPropertiesToGemini(prop.properties);
+      }
+      if (prop.type === 'array' && prop.items) {
+        geminiProp.items = {
+          type: convertToGeminiType(prop.items.type),
+          ...(prop.items.properties ? { properties: mapPropertiesToGemini(prop.items.properties) } : {})
+        };
       }
       result[key] = geminiProp;
     }

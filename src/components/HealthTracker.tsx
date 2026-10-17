@@ -1,11 +1,14 @@
 import React from 'react';
 import { BodyHealth, DamageType } from '../types';
-import { Heart } from 'lucide-react';
+import { Heart, Minus, Plus } from 'lucide-react';
 
 type Props = {
   data: BodyHealth;
   update: (part: keyof BodyHealth, index: number, value: DamageType) => void;
   readonly?: boolean;
+  isGmView?: boolean;
+  isEditing?: boolean;
+  onResizePart?: (part: keyof BodyHealth, delta: number) => void;
 };
 
 const DamageBox: React.FC<{ value: DamageType; onChange: (v: DamageType) => void; readonly: boolean }> = ({ value, onChange, readonly }) => {
@@ -50,7 +53,9 @@ const BodyPart = ({
   onReset,
   readonly,
   columns = 4,
-  icon
+  isGmView,
+  isEditing,
+  onResize
 }: { 
   label: string; 
   boxes: DamageType[]; 
@@ -58,7 +63,9 @@ const BodyPart = ({
   onReset?: () => void;
   readonly: boolean;
   columns?: number;
-  icon?: React.ReactNode;
+  isGmView?: boolean;
+  isEditing?: boolean;
+  onResize?: (delta: number) => void;
 }) => {
   return (
     <div 
@@ -66,13 +73,48 @@ const BodyPart = ({
         if (!readonly && onReset) onReset();
       }}
       title={!readonly ? `${label} (Clique duplo para limpar esta caixa)` : undefined}
-      className="flex flex-col justify-between bg-[#050508]/40 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3.5 relative overflow-hidden h-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-300 cursor-pointer"
+      className="flex flex-col justify-between bg-[#050508]/40 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3 relative overflow-hidden h-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-300 cursor-pointer"
     >
       <div className="absolute inset-0 bg-gradient-to-b from-rose-500/[0.03] to-transparent pointer-events-none" />
-      <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/70 mb-2 text-center flex flex-col items-center gap-1 select-none relative z-10">
-        {icon}
-        <span>{label}</span>
+      
+      {/* Título: sem caixas/espaçadores ocultos empurrando o texto. Botões do GM posicionados de forma limpa */}
+      <div className="flex items-center justify-center w-full mb-2 relative z-10 select-none min-h-[22px]">
+        {isGmView && isEditing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onResize) onResize(-1);
+            }}
+            disabled={boxes.length <= 1}
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-md bg-white/5 hover:bg-rose-500/20 active:scale-90 text-white/50 hover:text-rose-300 border border-white/10 flex items-center justify-center transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed z-20 shrink-0"
+            title={`Diminuir caixas de HP de ${label} (-)`}
+          >
+            <Minus size={10} />
+          </button>
+        )}
+
+        <div className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/90 text-center flex items-center gap-1 justify-center leading-tight ${isGmView && isEditing ? 'px-4' : 'px-0.5'}`}>
+          <span className="whitespace-normal text-center leading-tight">{label}</span>
+          <span className="text-[9px] font-mono text-white/40 font-normal shrink-0">({boxes.length})</span>
+        </div>
+
+        {isGmView && isEditing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onResize) onResize(1);
+            }}
+            disabled={boxes.length >= 16}
+            className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 rounded-md bg-white/5 hover:bg-emerald-500/20 active:scale-90 text-white/50 hover:text-emerald-300 border border-white/10 flex items-center justify-center transition-all cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed z-20 shrink-0"
+            title={`Aumentar caixas de HP de ${label} (+)`}
+          >
+            <Plus size={10} />
+          </button>
+        )}
       </div>
+
       <div 
         className="grid gap-1.5 sm:gap-2 mt-auto w-full relative z-10"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
@@ -90,7 +132,14 @@ const BodyPart = ({
   );
 };
 
-export const HealthTracker: React.FC<Props> = ({ data, update, readonly = false }) => {
+export const HealthTracker: React.FC<Props> = ({ 
+  data, 
+  update, 
+  readonly = false, 
+  isGmView = false,
+  isEditing = false,
+  onResizePart 
+}) => {
   const clearPart = (part: keyof BodyHealth) => {
     data[part].forEach((_, i) => update(part, i, 'none'));
   };
@@ -98,11 +147,14 @@ export const HealthTracker: React.FC<Props> = ({ data, update, readonly = false 
   return (
     <div className="grid grid-cols-3 gap-2.5 sm:gap-4 w-full">
       <BodyPart 
-        label="Braço Esq." 
+        label="Braço Esquerdo" 
         boxes={data.leftArm} 
         onChange={(i, v) => update('leftArm', i, v)} 
         onReset={() => clearPart('leftArm')}
         readonly={readonly} 
+        isGmView={isGmView}
+        isEditing={isEditing}
+        onResize={(delta) => onResizePart && onResizePart('leftArm', delta)}
       />
       <BodyPart 
         label="Cabeça" 
@@ -110,21 +162,30 @@ export const HealthTracker: React.FC<Props> = ({ data, update, readonly = false 
         onChange={(i, v) => update('head', i, v)} 
         onReset={() => clearPart('head')}
         readonly={readonly} 
+        isGmView={isGmView}
+        isEditing={isEditing}
+        onResize={(delta) => onResizePart && onResizePart('head', delta)}
       />
       <BodyPart 
-        label="Braço Dir." 
+        label="Braço Direito" 
         boxes={data.rightArm} 
         onChange={(i, v) => update('rightArm', i, v)} 
         onReset={() => clearPart('rightArm')}
         readonly={readonly} 
+        isGmView={isGmView}
+        isEditing={isEditing}
+        onResize={(delta) => onResizePart && onResizePart('rightArm', delta)}
       />
       
       <BodyPart 
-        label="Perna Esq." 
+        label="Perna Esquerda" 
         boxes={data.leftLeg} 
         onChange={(i, v) => update('leftLeg', i, v)} 
         onReset={() => clearPart('leftLeg')}
         readonly={readonly} 
+        isGmView={isGmView}
+        isEditing={isEditing}
+        onResize={(delta) => onResizePart && onResizePart('leftLeg', delta)}
       />
       <BodyPart 
         label="Torso" 
@@ -132,13 +193,19 @@ export const HealthTracker: React.FC<Props> = ({ data, update, readonly = false 
         onChange={(i, v) => update('torso', i, v)} 
         onReset={() => clearPart('torso')}
         readonly={readonly} 
+        isGmView={isGmView}
+        isEditing={isEditing}
+        onResize={(delta) => onResizePart && onResizePart('torso', delta)}
       />
       <BodyPart 
-        label="Perna Dir." 
+        label="Perna Direita" 
         boxes={data.rightLeg} 
         onChange={(i, v) => update('rightLeg', i, v)} 
         onReset={() => clearPart('rightLeg')}
         readonly={readonly} 
+        isGmView={isGmView}
+        isEditing={isEditing}
+        onResize={(delta) => onResizePart && onResizePart('rightLeg', delta)}
       />
     </div>
   );

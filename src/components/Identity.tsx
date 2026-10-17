@@ -182,9 +182,14 @@ const LanguageSelector = ({
 
 export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, update, readonly = false, expanded = true }) => {
   const [showLightbox, setShowLightbox] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const imageSrc = data.avatarUrl || defaultPortrait;
+  React.useEffect(() => {
+    setImgError(false);
+  }, [data.avatarUrl]);
+
+  const imageSrc = !imgError && data.avatarUrl ? data.avatarUrl : defaultPortrait;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -229,6 +234,7 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
               src={imageSrc} 
               alt={data.name || 'Retrato do Personagem'} 
               referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
               className="w-full h-full object-cover transition-transform duration-500 group-hover/portrait:scale-105" 
             />
             
@@ -388,6 +394,7 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
                 src={imageSrc} 
                 alt={data.name || 'Retrato'} 
                 referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
                 className="w-full h-full object-cover" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 pointer-events-none" />

@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Dices, RotateCcw, CheckCircle2, XCircle, Zap, Plus, Calculator, Shield, Brain, Crown } from 'lucide-react';
-import { Attributes } from '../types';
+import { Attributes, SpiritusData } from '../types';
 
 export type DiceRollRequest = 
   | {
       type: 'attribute';
       name: string;
       value: number;
-      theme: 'rose' | 'cyan' | 'emerald' | 'violet';
+      theme: 'rose' | 'cyan' | 'emerald' | 'violet' | 'amber' | 'blue' | 'orange';
     }
   | {
-      type: 'skill' | 'personality';
+      type: 'skill' | 'personality' | 'domain';
       name: string;
       dots: number;
-      theme: 'rose' | 'cyan' | 'emerald' | 'violet';
+      theme: 'rose' | 'cyan' | 'emerald' | 'violet' | 'amber' | 'blue' | 'orange';
     }
   | {
       type: 'damage';
@@ -24,13 +24,14 @@ export type DiceRollRequest =
       damageType: string;
       ap?: number;
       precision?: number;
-      theme?: 'rose' | 'cyan' | 'emerald' | 'violet' | 'amber';
+      theme?: 'rose' | 'cyan' | 'emerald' | 'violet' | 'amber' | 'blue' | 'orange';
     };
 
 type Props = {
   request: DiceRollRequest | null;
   onClose: () => void;
   attributes?: Attributes;
+  spiritus?: SpiritusData;
 };
 
 type DieType = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20';
@@ -53,7 +54,7 @@ const DIE_LABELS: Record<DieType, string> = {
   d20: 'Extremo'
 };
 
-export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes }) => {
+export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes, spiritus }) => {
   const [selectedDie, setSelectedDie] = useState<DieType>('d8');
   const [isRolling, setIsRolling] = useState(false);
   const [landedAnimationKey, setLandedAnimationKey] = useState<number>(0);
@@ -85,7 +86,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
     name: string;
     value: number;
     category: string;
-    theme: 'rose' | 'cyan' | 'emerald';
+    theme: 'rose' | 'cyan' | 'emerald' | 'violet' | 'amber' | 'blue' | 'orange';
   };
   const [selectedAttribute, setSelectedAttribute] = useState<SelectedAttrInfo | null>(null);
   const [showAttributePicker, setShowAttributePicker] = useState(false);
@@ -115,6 +116,38 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
       sumTitle: 'text-emerald-400',
       dieCard: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 shadow-[0_0_8px_rgba(52,211,153,0.15)]',
       dieSubtext: 'text-emerald-300/60',
+    },
+    violet: {
+      btnActive: 'bg-violet-500/20 border-violet-400/60 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.35)]',
+      plusIcon: 'text-violet-400',
+      sumBox: 'border-violet-500/30 bg-violet-950/20',
+      sumTitle: 'text-violet-400',
+      dieCard: 'bg-violet-500/10 border-violet-500/30 text-violet-200 shadow-[0_0_8px_rgba(139,92,246,0.15)]',
+      dieSubtext: 'text-violet-300/60',
+    },
+    amber: {
+      btnActive: 'bg-amber-500/20 border-amber-400/60 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.35)]',
+      plusIcon: 'text-amber-400',
+      sumBox: 'border-amber-500/30 bg-amber-950/20',
+      sumTitle: 'text-amber-400',
+      dieCard: 'bg-amber-500/10 border-amber-500/30 text-amber-200 shadow-[0_0_8px_rgba(245,158,11,0.15)]',
+      dieSubtext: 'text-amber-300/60',
+    },
+    blue: {
+      btnActive: 'bg-blue-500/20 border-blue-400/60 text-blue-200 shadow-[0_0_12px_rgba(96,165,250,0.35)]',
+      plusIcon: 'text-blue-400',
+      sumBox: 'border-blue-500/30 bg-blue-950/20',
+      sumTitle: 'text-blue-400',
+      dieCard: 'bg-blue-500/10 border-blue-500/30 text-blue-200 shadow-[0_0_8px_rgba(96,165,250,0.15)]',
+      dieSubtext: 'text-blue-300/60',
+    },
+    orange: {
+      btnActive: 'bg-orange-500/20 border-orange-400/60 text-orange-200 shadow-[0_0_12px_rgba(249,115,22,0.35)]',
+      plusIcon: 'text-orange-400',
+      sumBox: 'border-orange-500/30 bg-orange-950/20',
+      sumTitle: 'text-orange-400',
+      dieCard: 'bg-orange-500/10 border-orange-500/30 text-orange-200 shadow-[0_0_8px_rgba(249,115,22,0.15)]',
+      dieSubtext: 'text-orange-300/60',
     }
   };
 
@@ -141,22 +174,25 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
 
   // Helper to dynamically get current attribute value from the character sheet attributes
   const getAttrValue = (category: string, code: string, defaultValue: number) => {
-    if (!attributes) return defaultValue;
-    if (category === 'Físico') {
+    if (!attributes && !spiritus) return defaultValue;
+    if (category === 'Físico' && attributes) {
       if (code === 'FOR') return attributes.physical?.strength ?? 0;
       if (code === 'DES') return attributes.physical?.dexterity ?? 0;
       if (code === 'AGI') return attributes.physical?.agility ?? 0;
       if (code === 'CON') return attributes.physical?.constitution ?? 0;
-    } else if (category === 'Mental') {
+    } else if (category === 'Mental' && attributes) {
       if (code === 'INT') return attributes.mental?.intelligence ?? 0;
       if (code === 'PER') return attributes.mental?.perception ?? 0;
       if (code === 'RAC') return attributes.mental?.reasoning ?? 0;
       if (code === 'SAB') return attributes.mental?.wisdom ?? 0;
-    } else if (category === 'Social') {
+    } else if (category === 'Social' && attributes) {
       if (code === 'EMP') return attributes.social?.empathy ?? 0;
       if (code === 'MAN') return attributes.social?.manipulation ?? 0;
       if (code === 'EXP') return attributes.social?.expression ?? 0;
       if (code === 'RES') return attributes.social?.resilience ?? 0;
+    } else if (category === 'Spiritus') {
+      if (code === 'FLUX') return spiritus?.fluxo ?? defaultValue;
+      if (code === 'PATR') return spiritus?.patrono ?? defaultValue;
     }
     return defaultValue;
   };
@@ -217,6 +253,23 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
         { code: 'MAN', name: 'Manipulação', value: attributes?.social?.manipulation ?? 0 },
         { code: 'EXP', name: 'Expressão', value: attributes?.social?.expression ?? 0 },
         { code: 'RES', name: 'Resiliência', value: attributes?.social?.resilience ?? 0 },
+      ]
+    },
+    {
+      category: 'Spiritus',
+      focusName: 'Spiritus / Fluxo',
+      tag: 'Alma',
+      theme: 'amber' as const,
+      icon: Zap,
+      containerStyle: 'from-amber-950/40 via-amber-900/10 to-transparent border-amber-500/25 shadow-[inset_0_1px_10px_rgba(245,158,11,0.08)]',
+      badgeStyle: 'bg-amber-500/20 border-amber-500/40 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]',
+      tagStyle: 'text-amber-400/80 bg-amber-500/10 border-amber-500/20',
+      titleColor: 'text-amber-400',
+      activeBorder: 'border-amber-400 bg-amber-500/25 text-amber-100 shadow-[0_0_16px_rgba(245,158,11,0.45)] ring-1 ring-amber-400/60',
+      idleClass: 'bg-amber-500/[0.04] border-amber-500/20 hover:border-amber-400/60 hover:bg-amber-500/15 text-amber-200/90',
+      items: [
+        { code: 'FLUX', name: 'Fluxo', value: spiritus?.fluxo ?? 1 },
+        { code: 'PATR', name: 'Patrono', value: spiritus?.patrono ?? 1 },
       ]
     },
   ];
@@ -381,6 +434,18 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
       border: 'border-amber-500/40',
       glow: 'shadow-[0_0_20px_rgba(245,158,11,0.3)]',
       bgGlow: 'bg-amber-500/10'
+    },
+    blue: {
+      text: 'text-blue-400',
+      border: 'border-blue-500/40',
+      glow: 'shadow-[0_0_20px_rgba(96,165,250,0.3)]',
+      bgGlow: 'bg-blue-500/10'
+    },
+    orange: {
+      text: 'text-orange-400',
+      border: 'border-orange-500/40',
+      glow: 'shadow-[0_0_20px_rgba(249,115,22,0.3)]',
+      bgGlow: 'bg-orange-500/10'
     }
   }[currentTheme];
 
@@ -534,9 +599,11 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
                   ? 'Rolagem de Atributo' 
                   : request.type === 'personality' 
                     ? 'Rolagem de Personalidade' 
-                    : request.type === 'damage'
-                      ? `Rolagem de Dano • ${request.actionName || 'Golpe'}`
-                      : 'Rolagem de Perícia'}
+                    : request.type === 'domain'
+                      ? 'Rolagem de Domínio Elemental'
+                      : request.type === 'damage'
+                        ? `Rolagem de Dano • ${request.actionName || 'Golpe'}`
+                        : 'Rolagem de Perícia'}
               </span>
               <h3 className={`font-bold text-lg text-white flex items-center gap-2 ${themeColors.text} drop-shadow-[0_0_8px_currentColor]`}>
                 {request.name}
@@ -794,19 +861,51 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes 
                     </span>
                   </div>
 
-                  {/* Botão para Somar Atributo */}
-                  <button
-                    type="button"
-                    onClick={() => setShowAttributePicker(true)}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
-                      selectedAttribute && activeFocusStyle
-                        ? activeFocusStyle.btnActive
-                        : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/80 hover:text-white hover:border-white/20'
-                    }`}
-                  >
-                    <Plus size={13} className={activeFocusStyle ? activeFocusStyle.plusIcon : 'text-white/60'} />
-                    <span>{selectedAttribute ? `${selectedAttribute.name} (+${currentSelectedValue})` : 'Somar'}</span>
-                  </button>
+                  {/* Botões para Somar Atributo: Atalho Rápido de Fluxo e Seletor Completo */}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const fluxoVal = spiritus?.fluxo ?? 1;
+                        if (selectedAttribute?.code === 'FLUX') {
+                          setSelectedAttribute(null);
+                        } else {
+                          setSelectedAttribute({
+                            code: 'FLUX',
+                            name: 'Fluxo',
+                            value: fluxoVal,
+                            category: 'Spiritus',
+                            theme: 'amber'
+                          });
+                        }
+                      }}
+                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                        selectedAttribute?.code === 'FLUX'
+                          ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)] ring-1 ring-amber-400/60'
+                          : (request.type === 'domain' || request.type === 'personality')
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20 hover:border-amber-400/50 hover:text-white'
+                            : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/70 hover:text-white'
+                      }`}
+                      title={selectedAttribute?.code === 'FLUX' ? "Clique para remover a soma do Fluxo" : `Clique para somar Fluxo (+${spiritus?.fluxo ?? 1}) a cada face`}
+                    >
+                      <Zap size={13} className={selectedAttribute?.code === 'FLUX' ? "text-amber-400 fill-amber-400 animate-pulse" : "text-amber-400"} />
+                      <span>{selectedAttribute?.code === 'FLUX' ? `Fluxo (+${spiritus?.fluxo ?? 1})` : `+ Fluxo (+${spiritus?.fluxo ?? 1})`}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAttributePicker(true)}
+                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
+                        selectedAttribute && selectedAttribute.code !== 'FLUX' && activeFocusStyle
+                          ? activeFocusStyle.btnActive
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/80 hover:text-white hover:border-white/20'
+                      }`}
+                      title="Escolher outro atributo para somar às faces"
+                    >
+                      <Plus size={13} className={selectedAttribute && selectedAttribute.code !== 'FLUX' && activeFocusStyle ? activeFocusStyle.plusIcon : 'text-white/60'} />
+                      <span>{selectedAttribute && selectedAttribute.code !== 'FLUX' ? `${selectedAttribute.name} (+${currentSelectedValue})` : 'Somar'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Rolled Dice Faces or Empty Waiting State */}

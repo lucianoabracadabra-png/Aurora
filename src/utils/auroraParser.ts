@@ -651,45 +651,36 @@ export function parseAndExecuteAurora(
     }
   }
 
-  // --- 11. FLUXO & PATRONO ---
+  // --- 11. SPIRITUS (FLUXO & PATRONO) ---
   if (norm.includes('fluxo') || norm.includes('patrono')) {
     const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
-    if (!updated.flowAndPatron) {
-      updated.flowAndPatron = {
-        fluxo: { level: 1, hp: 10 },
-        patrono: { level: 1, hp: 10 }
+    if (!updated.spiritus) {
+      updated.spiritus = {
+        fluxo: 1,
+        patrono: 1,
+        rachadura: Array(10).fill(false)
       };
     }
-    const targetKey = norm.includes('patrono') ? 'patrono' : 'fluxo';
-    const label = targetKey === 'patrono' ? 'Patrono' : 'Fluxo';
+    const isPatrono = norm.includes('patrono');
+    const label = isPatrono ? 'Patrono' : 'Fluxo';
     const num = extractNumber(command, 1);
+    const currentVal = isPatrono ? updated.spiritus.patrono : updated.spiritus.fluxo;
+    const nextVal = isDecrease ? Math.max(0, currentVal - num) : currentVal + num;
 
-    if (norm.includes('nivel')) {
-      const currentVal = updated.flowAndPatron[targetKey].level;
-      const nextVal = isDecrease ? Math.max(1, currentVal - num) : currentVal + num;
-      updated.flowAndPatron[targetKey].level = nextVal;
-      return {
-        success: true,
-        category: 'flow',
-        updatedData: updated,
-        undoData: currentData,
-        message: `🔮 Nível do **${label}** ajustado de **${currentVal}** para **${nextVal}**.`,
-        description: `Alterar nível do ${label}`
-      };
+    if (isPatrono) {
+      updated.spiritus.patrono = nextVal;
     } else {
-      // HP
-      const currentVal = updated.flowAndPatron[targetKey].hp;
-      const nextVal = isDecrease ? Math.max(0, currentVal - num) : Math.min(10, currentVal + num);
-      updated.flowAndPatron[targetKey].hp = nextVal;
-      return {
-        success: true,
-        category: 'flow',
-        updatedData: updated,
-        undoData: currentData,
-        message: `🔮 HP do **${label}** ajustado de **${currentVal}** para **${nextVal}/10**.`,
-        description: `Alterar HP do ${label}`
-      };
+      updated.spiritus.fluxo = nextVal;
     }
+
+    return {
+      success: true,
+      category: 'flow',
+      updatedData: updated,
+      undoData: currentData,
+      message: `🔮 **${label}** ajustado de **${currentVal}** para **${nextVal}**.`,
+      description: `Alterar ${label}`
+    };
   }
 
   // --- 12. IDIOMAS (LANGUAGES) ---

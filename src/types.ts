@@ -252,7 +252,13 @@ export type FlowAndPatron = {
   patrono: FlowPatronData;
 };
 
-export type CombatEntityType = 'player' | 'ally' | 'enemy' | 'boss';
+export type SpiritusData = {
+  fluxo: number;
+  patrono: number;
+  rachadura: boolean[];
+};
+
+export type CombatEntityType = 'player' | 'ally' | 'enemy' | 'boss' | 'aliado' | 'neutro' | 'inimigo' | 'chefe';
 
 export interface CombatStep {
   fromTick: number;
@@ -278,6 +284,7 @@ export interface CombatEntity {
   maxHp?: number;
   notes?: string;
   defaultDelay?: number;
+  health?: BodyHealth;
 }
 
 export interface BattleTrackerState {
@@ -308,5 +315,5 @@ export type CharacterData = {
   naturezaSpent: NaturezaSpent;
   health: BodyHealth;
   inventory: Inventory;
-  flowAndPatron?: FlowAndPatron;
+  spiritus: SpiritusData;
 };

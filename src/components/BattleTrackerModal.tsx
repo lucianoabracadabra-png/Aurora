@@ -51,6 +51,22 @@ const TYPE_CONFIG: Record<CombatEntityType, { label: string; color: string; bord
     text: 'text-emerald-300',
     icon: Shield
   },
+  aliado: {
+    label: 'Aliado',
+    color: '#34d399',
+    border: 'border-emerald-400/40',
+    bg: 'bg-emerald-500/15',
+    text: 'text-emerald-300',
+    icon: Shield
+  },
+  neutro: {
+    label: 'Neutro',
+    color: '#60a5fa',
+    border: 'border-blue-400/40',
+    bg: 'bg-blue-500/15',
+    text: 'text-blue-300',
+    icon: User
+  },
   enemy: {
     label: 'Inimigo',
     color: '#f43f5e',
@@ -59,7 +75,23 @@ const TYPE_CONFIG: Record<CombatEntityType, { label: string; color: string; bord
     text: 'text-rose-300',
     icon: Skull
   },
+  inimigo: {
+    label: 'Inimigo',
+    color: '#f43f5e',
+    border: 'border-rose-400/40',
+    bg: 'bg-rose-500/15',
+    text: 'text-rose-300',
+    icon: Skull
+  },
   boss: {
+    label: 'Chefe',
+    color: '#f59e0b',
+    border: 'border-amber-400/40',
+    bg: 'bg-amber-500/15',
+    text: 'text-amber-300',
+    icon: Flame
+  },
+  chefe: {
     label: 'Chefe',
     color: '#f59e0b',
     border: 'border-amber-400/40',
