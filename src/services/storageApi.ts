@@ -679,7 +679,7 @@ export const StorageApi = {
   // -------------------------------------------------------------------
   async getBattleState(): Promise<any> {
     try {
-      const { data } = await supabase.from('battle').select('data, version, updated_at').eq('id', 'main').single();
+      const { data } = await supabase.from('battle').select('*').eq('id', 'main').single();
       if (data && data.data) {
         return {
           ...data.data,
@@ -725,9 +725,17 @@ export const StorageApi = {
       const { error } = await supabase.from('battle').upsert({
         id: 'main',
         data: payload,
+        version: (battleState as any).version || 1,
         updated_at: updatedAt
       });
-      if (error && error.code === '42501') {
+      if (error && error.code === '42703') {
+        // If version column does not exist yet on existing table, upsert without version
+        await supabase.from('battle').upsert({
+          id: 'main',
+          data: payload,
+          updated_at: updatedAt
+        });
+      } else if (error && error.code === '42501') {
         console.warn('[Supabase] RLS Policy warning ao salvar battle: execute supabase_schema.sql.');
       }
     } catch (e: any) {

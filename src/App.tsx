@@ -47,6 +47,10 @@ function normalizeCharacterData(parsed: any): CharacterData {
       origin: '',
       languages: [],
     };
+  } else {
+    if (!Array.isArray(parsed.identity.languages)) {
+      parsed.identity.languages = [];
+    }
   }
 
   if (!parsed.alignment) {

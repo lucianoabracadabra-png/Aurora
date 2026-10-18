@@ -42,15 +42,16 @@ const InlineInput = ({ label, value, onChange, fullWidth = false, readonly = fal
 );
 
 const LanguageSelector = ({ 
-  selectedLanguages, 
+  selectedLanguages: rawLanguages = [], 
   onChange,
   readonly = false
 }: { 
-  selectedLanguages: string[]; 
+  selectedLanguages?: string[]; 
   onChange: (languages: string[]) => void;
   readonly?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const selectedLanguages = Array.isArray(rawLanguages) ? rawLanguages : [];
 
   const toggleLanguage = (lang: string) => {
     if (readonly) return;
@@ -328,7 +329,7 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
 
           {/* Seletor de Idiomas: Sempre visível */}
           <div className="w-full">
-            <LanguageSelector selectedLanguages={data.languages} onChange={(v) => update('languages', v)} readonly={readonly} />
+            <LanguageSelector selectedLanguages={data.languages || []} onChange={(v) => update('languages', v)} readonly={readonly} />
           </div>
         </div>
       </div>
