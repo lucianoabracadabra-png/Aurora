@@ -1,5 +1,5 @@
 import { CharacterData } from './types';
-import defaultPortrait from './assets/images/character_portrait_1789770891084.jpg';
+const defaultPortrait = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
 
 export const initialCharacterData: CharacterData = {
   identity: {

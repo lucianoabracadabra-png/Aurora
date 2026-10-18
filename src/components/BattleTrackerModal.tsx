@@ -346,8 +346,21 @@ export const BattleTrackerModal: React.FC<BattleTrackerModalProps> = ({
     }
   };
 
-  // Adjust entity HP
+  // Adjust entity HP (RLS check: GM edits all; Player edits only their own entity)
   const updateEntityHp = (entityId: string, delta: number) => {
+    const target = state.entities.find((e) => e.id === entityId);
+    if (!target) return;
+
+    if (!isGmView) {
+      const activeUser = (characterName || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+      const entityName = (target.name || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+      const isOwner = entityName === activeUser || target.id === `player-${activeUser}` || target.id === `char-${activeUser}`;
+      if (!isOwner) {
+        console.warn(`[BattleTrackerModal:RLS] Apenas o Mestre ou @${target.name} podem alterar este HP.`);
+        return;
+      }
+    }
+
     setState((prev) => ({
       ...prev,
       entities: prev.entities.map((e) => {

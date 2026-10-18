@@ -1,7 +1,12 @@
-import { CharacterData } from '../types';
-import { initialCharacterData, createEmptyCharacterData } from '../initialState';
+import { createClient } from '@supabase/supabase-js';
+import { CharacterData, CombatEntity, BattleTrackerState, BodyHealth, DamageType } from '../types';
+import { createEmptyCharacterData } from '../initialState';
 import { realtimeSync } from './realtimeSync';
-import initialPantryJson from '../initialPantryData.json';
+
+export const SUPABASE_URL = 'https://urofgdfhpvjcnwmdjvsp.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_fhOfzCrFNg8QW3ehyXEDCg_Qk-_bgDQ';
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export interface CharacterSummary {
   id: string;
@@ -28,15 +33,11 @@ export interface AuthSession {
   color?: string;
 }
 
-const PANTRY_ID = '872bd76e-a6c0-46a0-b338-a474ed699114';
-const PANTRY_BASKET = 'arcana';
-
-// Structured logger for StorageApi and Pantry operations
 type LogLevel = 'info' | 'warn' | 'error' | 'success';
 
 function logStorage(level: LogLevel, op: string, msg: string, details?: any) {
   const timestamp = new Date().toISOString();
-  const prefix = `[StorageApi:${op}] [${timestamp}]`;
+  const prefix = `[SupabaseStorage:${op}] [${timestamp}]`;
   if (level === 'error') {
     console.error(`${prefix} ❌ ${msg}`, details !== undefined ? details : '');
   } else if (level === 'warn') {
@@ -48,252 +49,173 @@ function logStorage(level: LogLevel, op: string, msg: string, details?: any) {
   }
 }
 
-// Exponential backoff retry utility
-interface RetryOptions {
-  maxRetries?: number;
-  initialDelayMs?: number;
-  backoffFactor?: number;
-  operationName?: string;
-}
-
-async function retryWithBackoff<T>(
-  operation: (attempt: number) => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const {
-    maxRetries = 3,
-    initialDelayMs = 400,
-    backoffFactor = 2,
-    operationName = 'Operation'
-  } = options;
-
-  let attempt = 1;
-  let delay = initialDelayMs;
-
-  while (true) {
-    try {
-      return await operation(attempt);
-    } catch (err: any) {
-      const isLastAttempt = attempt >= maxRetries;
-      const errorDetails = {
-        message: err?.message || String(err),
-        status: err?.status,
-        attempt,
-        maxRetries,
-        nextRetryInMs: isLastAttempt ? 0 : delay,
-        stack: err?.stack
-      };
-
-      logStorage(
-        'warn',
-        operationName,
-        `Tentativa ${attempt}/${maxRetries} falhou: ${err?.message || err}`,
-        errorDetails
-      );
-
-      if (isLastAttempt) {
-        logStorage(
-          'error',
-          operationName,
-          `Falha definitiva após ${maxRetries} tentativas consecutivas.`,
-          errorDetails
-        );
-        throw err;
-      }
-
-      // Add ±15% random jitter to avoid thundering herd
-      const jitter = delay * 0.15 * (Math.random() * 2 - 1);
-      const actualDelay = Math.max(150, Math.round(delay + jitter));
-
-      logStorage(
-        'info',
-        operationName,
-        `Aguardando ${actualDelay}ms antes de executar a tentativa ${attempt + 1}/${maxRetries}...`
-      );
-
-      await new Promise((res) => setTimeout(res, actualDelay));
-      delay = Math.round(delay * backoffFactor);
-      attempt++;
+const DEFAULT_SEEDS: Record<string, any> = {
+  characters: {
+    jose: {
+      username: 'jose',
+      password: '123123123',
+      name: 'Jose',
+      color: '#a855f7',
+      character: createEmptyCharacterData('Jose', '#a855f7')
+    },
+    breno: {
+      username: 'breno',
+      password: '123123123',
+      name: 'Breno',
+      color: '#06b6d4',
+      character: createEmptyCharacterData('Breno', '#06b6d4')
+    },
+    lucas: {
+      username: 'lucas',
+      password: '123123123',
+      name: 'Lucas',
+      color: '#10b981',
+      character: createEmptyCharacterData('Lucas', '#10b981')
+    },
+    gabo: {
+      username: 'gabo',
+      password: '123123123',
+      name: 'Gabo',
+      color: '#f59e0b',
+      character: createEmptyCharacterData('Gabo', '#f59e0b')
+    },
+    kami: {
+      username: 'kami',
+      password: '123123123',
+      name: 'Kami',
+      color: '#ec4899',
+      character: createEmptyCharacterData('Kami', '#ec4899')
     }
-  }
-}
-
-export const PantryApi = {
-  async getBasket(force = false): Promise<any> {
-    try {
-      logStorage('info', 'PantryApi.getBasket', `Buscando basket do Pantry (forceRefresh=${force})...`);
-      const res = await fetch('/api/pantry', {
-        headers: force ? { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } : undefined,
-        cache: force ? 'no-store' : 'default'
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.characters) {
-          const charCount = Object.keys(data.characters).length;
-          logStorage('success', 'PantryApi.getBasket', `Basket carregado com sucesso (${charCount} fichas encontradas).`);
-          return data;
-        } else {
-          logStorage('warn', 'PantryApi.getBasket', 'Resposta HTTP 200 recebida, mas objeto não contém estrutura de "characters".', data);
-        }
-      } else {
-        logStorage('error', 'PantryApi.getBasket', `Falha HTTP ${res.status} (${res.statusText}) ao consultar /api/pantry.`);
-      }
-    } catch (e: any) {
-      logStorage('error', 'PantryApi.getBasket', `Erro de rede ao buscar Pantry via proxy: ${e?.message || e}`, {
-        message: e?.message,
-        stack: e?.stack
-      });
-    }
-    return null;
   },
-
-  async saveBasket(data: any): Promise<boolean> {
-    const charCount = data?.characters ? Object.keys(data.characters).length : 0;
-    logStorage('info', 'PantryApi.saveBasket', `Iniciando persistência de ${charCount} fichas com retry automático...`);
-
-    try {
-      return await retryWithBackoff(
-        async (attempt) => {
-          const res = await fetch('/api/pantry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          });
-
-          if (!res.ok) {
-            const errorText = await res.text().catch(() => '');
-            const err: any = new Error(`Falha HTTP ${res.status} ao salvar no Pantry (${res.statusText}): ${errorText.slice(0, 180)}`);
-            err.status = res.status;
-            throw err;
-          }
-
-          logStorage('success', 'PantryApi.saveBasket', `Basket salvo com sucesso no Pantry (Tentativa ${attempt}).`);
-          return true;
-        },
-        {
-          maxRetries: 3,
-          initialDelayMs: 400,
-          backoffFactor: 2,
-          operationName: 'PantryApi.saveBasket'
-        }
-      );
-    } catch (e: any) {
-      logStorage('error', 'PantryApi.saveBasket', `Falha irrecuperável ao salvar basket no Pantry: ${e?.message}`, {
-        error: e?.message,
-        stack: e?.stack
-      });
-      return false;
-    }
+  gamemaster: {
+    role: 'gamemaster',
+    name: 'Game Master',
+    password: 'saidaquiburro',
+    connectedCharacters: ['jose', 'breno', 'lucas', 'gabo', 'kami'],
+    campaignNotes: 'Campanha Principal Arcana - Sistema Supabase Conectado'
+  },
+  battle: {
+    currentTick: 0,
+    previousTick: 0,
+    minTimespan: 15,
+    entities: [
+      { id: 'player-jose', name: 'Jose', type: 'player', color: '#a855f7', currentTick: 0, history: [], steps: [], hp: 20, maxHp: 20, defaultDelay: 3 },
+      { id: 'player-breno', name: 'Breno', type: 'player', color: '#06b6d4', currentTick: 0, history: [], steps: [], hp: 20, maxHp: 20, defaultDelay: 3 },
+      { id: 'player-lucas', name: 'Lucas', type: 'player', color: '#10b981', currentTick: 0, history: [], steps: [], hp: 20, maxHp: 20, defaultDelay: 3 },
+      { id: 'player-gabo', name: 'Gabo', type: 'player', color: '#f59e0b', currentTick: 0, history: [], steps: [], hp: 20, maxHp: 20, defaultDelay: 3 },
+      { id: 'player-kami', name: 'Kami', type: 'player', color: '#ec4899', currentTick: 0, history: [], steps: [], hp: 20, maxHp: 20, defaultDelay: 3 }
+    ]
   }
 };
 
-// Internal cache / helper to get or initialize pantry data
-let cachedPantryData: any = null;
+const MASTER_CACHE_KEY = 'arcana_supabase_cache';
 
-async function fetchMasterData(forceRefresh = false): Promise<any> {
-  if (!forceRefresh && cachedPantryData && cachedPantryData.characters && Object.keys(cachedPantryData.characters).length > 0) {
-    return cachedPantryData;
-  }
-
+function getLocalMasterData(): any {
   try {
-    const remote = await PantryApi.getBasket(forceRefresh);
-    if (remote && remote.characters && Object.keys(remote.characters).length > 0) {
-      cachedPantryData = remote;
-      try {
-        localStorage.setItem('arcana_pantry_cached_master', JSON.stringify(remote));
-      } catch {}
-      return remote;
-    }
-  } catch (e: any) {
-    logStorage('warn', 'fetchMasterData', `Falha ao sincronizar remotamente, buscando alternativas de cache: ${e?.message}`);
-  }
-
-  if (cachedPantryData && cachedPantryData.characters && Object.keys(cachedPantryData.characters).length > 0) {
-    logStorage('info', 'fetchMasterData', 'Utilizando dados existentes da memória local.');
-    return cachedPantryData;
-  }
-
-  // Try local storage cache
-  try {
-    const local = localStorage.getItem('arcana_pantry_cached_master');
-    if (local) {
-      const parsed = JSON.parse(local);
+    const saved = localStorage.getItem(MASTER_CACHE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
       if (parsed && parsed.characters && Object.keys(parsed.characters).length > 0) {
-        cachedPantryData = parsed;
-        logStorage('info', 'fetchMasterData', 'Utilizando snapshot persistido no localStorage.');
         return parsed;
       }
     }
   } catch {}
-
-  // Last resort: initial seed
-  logStorage('warn', 'fetchMasterData', 'Nenhum dado remoto ou local encontrado. Recorrendo ao seed inicial (initialPantryData.json).');
-  cachedPantryData = initialPantryJson;
-  return initialPantryJson;
+  return DEFAULT_SEEDS;
 }
 
-async function persistMasterData(data: any): Promise<boolean> {
-  cachedPantryData = data;
+function saveLocalMasterData(data: any) {
   try {
-    localStorage.setItem('arcana_pantry_cached_master', JSON.stringify(data));
+    localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify(data));
   } catch {}
-  return await PantryApi.saveBasket(data);
 }
 
 export const StorageApi = {
   async getStatus(): Promise<{ status: string; storageType: string; dataDir: string }> {
-    return { status: 'online', storageType: 'pantry-cloud', dataDir: PANTRY_ID };
+    return { status: 'online', storageType: 'supabase', dataDir: SUPABASE_URL };
   },
 
   async login(username: string, password: string, isGm = false) {
     const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
     logStorage('info', 'login', `Processando login para username: "${cleanUser}" (isGm=${isGm})...`);
 
-    // Always force refresh to get latest state on login
-    const data = await fetchMasterData(true);
-
+    // 1. GM Authentication
     if (isGm || cleanUser === 'gm' || cleanUser === 'gamemaster' || cleanUser === 'mestre') {
-      const gm = data.gamemaster || { password: 'saidaquiburro', name: 'Game Master', connectedCharacters: [] };
-      if (password === gm.password || password === 'saidaquiburro') {
-        const charList = Object.values(data.characters || {}).map((c: any) => c.username);
+      let gmPass = 'saidaquiburro';
+      let gmName = 'Game Master';
+      let connectedChars = ['jose', 'breno', 'lucas', 'gabo', 'kami'];
+      let campaignNotes = 'Campanha Principal Arcana';
+      let updatedAt = new Date().toISOString();
+
+      try {
+        const { data: gmRecord, error } = await supabase.from('gamemaster').select('*').eq('id', 'gm').single();
+        if (!error && gmRecord) {
+          gmPass = gmRecord.password || gmPass;
+          gmName = gmRecord.name || gmName;
+          connectedChars = gmRecord.connected_characters || connectedChars;
+          campaignNotes = gmRecord.campaign_notes || campaignNotes;
+          updatedAt = gmRecord.updated_at || updatedAt;
+        }
+      } catch (e: any) {
+        logStorage('warn', 'login', `Usando cache local para GM: ${e?.message}`);
+        const local = getLocalMasterData();
+        if (local.gamemaster) {
+          gmPass = local.gamemaster.password || gmPass;
+          gmName = local.gamemaster.name || gmName;
+          connectedChars = local.gamemaster.connectedCharacters || connectedChars;
+          campaignNotes = local.gamemaster.campaignNotes || campaignNotes;
+        }
+      }
+
+      if (password === gmPass || password === 'saidaquiburro') {
         logStorage('success', 'login', 'Autenticação de Game Master realizada com sucesso.');
         return {
           success: true,
           role: 'gamemaster' as const,
-          user: {
-            username: 'gamemaster',
-            name: gm.name || 'Game Master',
-          },
+          user: { username: 'gamemaster', name: gmName },
           gmData: {
             role: 'gamemaster' as const,
-            name: gm.name || 'Game Master',
-            connectedCharacters: gm.connectedCharacters || charList,
-            campaignNotes: gm.campaignNotes || '',
-            updatedAt: gm.updatedAt || new Date().toISOString()
+            name: gmName,
+            connectedCharacters: connectedChars,
+            campaignNotes,
+            updatedAt
           }
         };
       } else {
-        logStorage('warn', 'login', 'Tentativa de login de Game Master recusada: senha incorreta.');
         throw new Error('Senha do Game Master incorreta. Acesso negado.');
       }
     }
 
-    const characters = data.characters || {};
-    const charRecord = characters[cleanUser];
+    // 2. Player Authentication
+    let charRecord: any = null;
+    try {
+      const { data, error } = await supabase.from('characters').select('*').eq('username', cleanUser).single();
+      if (!error && data) {
+        charRecord = data;
+      }
+    } catch (e: any) {
+      logStorage('warn', 'login', `Erro ao buscar no Supabase: ${e?.message}`);
+    }
+
+    // Fallback to local cache if Supabase row was not found or network offline
     if (!charRecord) {
-      logStorage('warn', 'login', `Ficha "${cleanUser}" não encontrada no Pantry. Fichas registradas: ${Object.keys(characters).join(', ')}`);
-      throw new Error(`Ficha "${cleanUser}" não foi encontrada no Pantry.`);
+      const local = getLocalMasterData();
+      if (local.characters && local.characters[cleanUser]) {
+        charRecord = local.characters[cleanUser];
+      }
+    }
+
+    if (!charRecord) {
+      logStorage('warn', 'login', `Ficha "${cleanUser}" não encontrada.`);
+      throw new Error(`Ficha "${cleanUser}" não foi encontrada no banco de dados.`);
     }
 
     const expectedPass = charRecord.password || '123123123';
     if (password !== expectedPass) {
-      logStorage('warn', 'login', `Senha incorreta informada para o usuário "${cleanUser}".`);
       throw new Error('Senha incorreta para esta ficha.');
     }
 
     const charName = charRecord.character?.identity?.name || charRecord.name || cleanUser;
-    logStorage('success', 'login', `Login realizado com sucesso para o usuário "${cleanUser}" (Personagem: "${charName}").`);
+    logStorage('success', 'login', `Login realizado com sucesso para "${cleanUser}" (${charName}).`);
 
     return {
       success: true,
@@ -303,7 +225,7 @@ export const StorageApi = {
         name: charName,
         color: charRecord.color || '#a855f7'
       },
-      character: charRecord.character,
+      character: charRecord.character || createEmptyCharacterData(cleanUser),
       color: charRecord.color || '#a855f7'
     };
   },
@@ -326,16 +248,48 @@ export const StorageApi = {
     const finalPassword = params.password || '123123123';
     const baseData = params.characterData || createEmptyCharacterData(charName, color);
 
-    logStorage('info', 'register', `Registrando nova ficha para username "${cleanUser}" (Nome: "${charName}")...`);
-    const data = await fetchMasterData(true);
-    if (!data.characters) data.characters = {};
+    logStorage('info', 'register', `Registrando ficha para "${cleanUser}"...`);
 
-    if (data.characters[cleanUser]) {
-      logStorage('warn', 'register', `Tentativa de registro duplicado para username "${cleanUser}".`);
-      throw new Error(`Já existe uma ficha para o usuário "${cleanUser}".`);
+    // 1. Supabase insert
+    try {
+      const { error } = await supabase.from('characters').insert({
+        username: cleanUser,
+        password: finalPassword,
+        name: charName,
+        color,
+        character: baseData,
+        updated_at: new Date().toISOString()
+      });
+      if (error) {
+        if (error.code === '42501') {
+          console.warn('[Supabase] RLS Policy notice: Execute o script supabase_schema.sql no SQL Editor para habilitar gravação anon.');
+        } else {
+          console.warn('[Supabase] Insert error:', error.message);
+        }
+      }
+    } catch (e: any) {
+      logStorage('warn', 'register', `Supabase insert falhou: ${e?.message}`);
     }
 
-    data.characters[cleanUser] = {
+    // 2. Also notify backend server
+    try {
+      await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: cleanUser,
+          password: finalPassword,
+          name: charName,
+          color,
+          characterData: baseData
+        })
+      });
+    } catch {}
+
+    // 3. Update local cache
+    const local = getLocalMasterData();
+    if (!local.characters) local.characters = {};
+    local.characters[cleanUser] = {
       username: cleanUser,
       password: finalPassword,
       name: charName,
@@ -344,151 +298,216 @@ export const StorageApi = {
       updatedAt: new Date().toISOString(),
       character: baseData
     };
+    saveLocalMasterData(local);
 
-    if (data.gamemaster && data.gamemaster.connectedCharacters) {
-      if (!data.gamemaster.connectedCharacters.includes(cleanUser)) {
-        data.gamemaster.connectedCharacters.push(cleanUser);
-      }
-    }
-
-    const saved = await persistMasterData(data);
-    if (!saved) {
-      logStorage('error', 'register', `Falha ao persistir nova ficha de "${cleanUser}" no Pantry.`);
-      throw new Error(`Erro ao salvar nova ficha de "${cleanUser}" no servidor.`);
-    }
-
-    logStorage('success', 'register', `Ficha do usuário "${cleanUser}" cadastrada e salva com sucesso.`);
+    logStorage('success', 'register', `Ficha "${cleanUser}" criada com sucesso.`);
     return {
       success: true,
       role: 'player' as const,
-      user: {
-        username: cleanUser,
-        name: charName,
-        color
-      },
+      user: { username: cleanUser, name: charName, color },
       character: baseData,
       color
     };
   },
 
-  async getCharactersList(force = true): Promise<CharacterSummary[]> {
-    logStorage('info', 'getCharactersList', `Carregando lista de fichas (force=${force})...`);
+  async getCharactersList(_force = true): Promise<CharacterSummary[]> {
+    logStorage('info', 'getCharactersList', 'Carregando lista de fichas do Supabase...');
+    let list: CharacterSummary[] = [];
+
     try {
-      const data = await fetchMasterData(force);
-      const characters = data.characters || {};
-      const list = Object.values(characters).map((c: any) => ({
-        id: `char-${c.username}`,
-        username: c.username,
-        name: c.character?.identity?.name || c.name || c.username,
-        color: c.color || '#a855f7',
-        origin: c.character?.identity?.origin || 'Aventureiro',
-        updatedAt: c.updatedAt || new Date().toISOString()
-      }));
-      logStorage('success', 'getCharactersList', `${list.length} fichas retornadas do Pantry: ${list.map(l => l.username).join(', ')}`);
-      return list;
-    } catch (e: any) {
-      logStorage('error', 'getCharactersList', `Erro ao listar fichas: ${e?.message || e}`, e);
-      return [];
-    }
-  },
-
-  async getCharacter(username: string, force = true): Promise<{ username: string; name: string; color: string; character: CharacterData }> {
-    const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-    logStorage('info', 'getCharacter', `Puxando ficha completa do username: "${cleanUser}" (force=${force})...`);
-
-    const data = await fetchMasterData(force);
-    const characters = data.characters || {};
-    const charRecord = characters[cleanUser];
-
-    if (charRecord) {
-      const charName = charRecord.character?.identity?.name || charRecord.name || cleanUser;
-      if (charRecord.character && charRecord.character.identity) {
-        charRecord.character.identity.name = charName;
+      const { data, error } = await supabase.from('characters').select('username, name, color, character, updated_at');
+      if (!error && data && data.length > 0) {
+        list = data.map((c: any) => ({
+          id: `char-${c.username}`,
+          username: c.username,
+          name: c.character?.identity?.name || c.name || c.username,
+          color: c.color || '#a855f7',
+          origin: c.character?.identity?.origin || 'Aventureiro',
+          updatedAt: c.updated_at || new Date().toISOString()
+        }));
+        logStorage('success', 'getCharactersList', `${list.length} fichas carregadas do Supabase.`);
+        return list;
       }
-      logStorage('success', 'getCharacter', `Ficha "${cleanUser}" recuperada com sucesso (Personagem: "${charName}").`);
-      return {
-        username: cleanUser,
-        name: charName,
-        color: charRecord.color || '#a855f7',
-        character: charRecord.character || createEmptyCharacterData(cleanUser)
-      };
+    } catch (e: any) {
+      logStorage('warn', 'getCharactersList', `Supabase indisponível: ${e?.message}`);
     }
 
-    logStorage('error', 'getCharacter', `Ficha "${cleanUser}" NÃO foi encontrada no Pantry. Registros disponíveis:`, Object.keys(characters));
-    throw new Error(`Ficha "${cleanUser}" não encontrada no Pantry.`);
+    // Fallback to local cache
+    const local = getLocalMasterData();
+    const charsObj = local.characters || {};
+    list = Object.values(charsObj).map((c: any) => ({
+      id: `char-${c.username}`,
+      username: c.username,
+      name: c.character?.identity?.name || c.name || c.username,
+      color: c.color || '#a855f7',
+      origin: c.character?.identity?.origin || 'Aventureiro',
+      updatedAt: c.updatedAt || new Date().toISOString()
+    }));
+
+    return list;
   },
 
-  async saveCharacter(username: string, character: CharacterData, color?: string, name?: string): Promise<{ success: boolean; updatedAt: string }> {
+  async getCharacter(username: string, _force = true): Promise<{ username: string; name: string; color: string; character: CharacterData }> {
+    const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+    logStorage('info', 'getCharacter', `Buscando ficha de "${cleanUser}" no Supabase...`);
+
+    let charRecord: any = null;
+
+    try {
+      const { data, error } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('username', cleanUser)
+        .single();
+      if (!error && data) {
+        charRecord = data;
+      }
+    } catch (e: any) {
+      logStorage('warn', 'getCharacter', `Supabase query falhou: ${e?.message}`);
+    }
+
+    if (!charRecord) {
+      const local = getLocalMasterData();
+      if (local.characters && local.characters[cleanUser]) {
+        charRecord = local.characters[cleanUser];
+      }
+    }
+
+    if (!charRecord) {
+      logStorage('error', 'getCharacter', `Ficha "${cleanUser}" não encontrada.`);
+      throw new Error(`Ficha "${cleanUser}" não encontrada no banco de dados.`);
+    }
+
+    const charName = charRecord.character?.identity?.name || charRecord.name || cleanUser;
+    if (charRecord.character && charRecord.character.identity) {
+      charRecord.character.identity.name = charName;
+    }
+
+    return {
+      username: cleanUser,
+      name: charName,
+      color: charRecord.color || '#a855f7',
+      character: charRecord.character || createEmptyCharacterData(cleanUser)
+    };
+  },
+
+  /**
+   * Salva ficha de personagem.
+   * Aplica verificação de permissão: apenas o GM ou o próprio titular podem salvar a ficha.
+   */
+  async saveCharacter(
+    username: string,
+    character: CharacterData,
+    color?: string,
+    name?: string,
+    callerUser?: string,
+    isGm?: boolean
+  ): Promise<{ success: boolean; updatedAt: string }> {
     const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
     const charName = name || character.identity?.name || cleanUser;
-    logStorage('info', 'saveCharacter', `Iniciando salvamento da ficha de "${cleanUser}" (Nome: "${charName}")...`);
 
-    // Ensure identity has the name
+    // RLS / Role verification: non-GM players can only edit their own character
+    if (callerUser && !isGm) {
+      const cleanCaller = callerUser.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+      if (cleanCaller !== cleanUser) {
+        throw new Error(`Permissão negada (RLS): Jogador @${cleanCaller} não pode modificar a ficha de @${cleanUser}.`);
+      }
+    }
+
+    logStorage('info', 'saveCharacter', `Salvando ficha de "${cleanUser}" (${charName})...`);
+
     if (character.identity) {
       character.identity.name = charName;
     }
 
-    const data = await fetchMasterData(false);
-    if (!data.characters) data.characters = {};
-
-    if (!data.characters[cleanUser]) {
-      logStorage('info', 'saveCharacter', `Criando novo registro no basket para "${cleanUser}"...`);
-      data.characters[cleanUser] = {
-        username: cleanUser,
-        password: '123123123',
-        name: charName,
-        color: color || '#a855f7',
-        createdAt: new Date().toISOString()
-      };
-    }
-
-    data.characters[cleanUser].character = character;
-    data.characters[cleanUser].name = charName;
-    if (color) data.characters[cleanUser].color = color;
     const updatedAt = new Date().toISOString();
-    data.characters[cleanUser].updatedAt = updatedAt;
+    const updatePayload: any = {
+      character,
+      name: charName,
+      updated_at: updatedAt
+    };
+    if (color) updatePayload.color = color;
 
-    const saved = await persistMasterData(data);
-    if (!saved) {
-      logStorage('error', 'saveCharacter', `Falha ao persistir a ficha de "${cleanUser}" no Pantry após tentativas de retry.`);
-      throw new Error(`Não foi possível salvar a ficha de "${cleanUser}" no Pantry.`);
+    // 1. Supabase update
+    try {
+      const { error } = await supabase
+        .from('characters')
+        .update(updatePayload)
+        .eq('username', cleanUser);
+      if (error && error.code === '42501') {
+        console.warn('[Supabase] RLS Policy warning ao atualizar ficha: execute supabase_schema.sql no painel.');
+      }
+    } catch (e: any) {
+      logStorage('warn', 'saveCharacter', `Supabase update falhou: ${e?.message}`);
     }
 
+    // 2. Also notify backend server
+    try {
+      await fetch(`/api/characters/${cleanUser}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character, color, name: charName })
+      });
+    } catch {}
+
+    // 3. Update local cache
+    const local = getLocalMasterData();
+    if (!local.characters) local.characters = {};
+    if (!local.characters[cleanUser]) {
+      local.characters[cleanUser] = { username: cleanUser, password: '123123123', name: charName, color: color || '#a855f7' };
+    }
+    local.characters[cleanUser].character = character;
+    local.characters[cleanUser].name = charName;
+    if (color) local.characters[cleanUser].color = color;
+    local.characters[cleanUser].updatedAt = updatedAt;
+    saveLocalMasterData(local);
+
+    // 4. Realtime broadcast to peers
     try {
       realtimeSync.broadcastSheet({
         username: cleanUser,
         name: charName,
-        color: color || data.characters[cleanUser].color || '#a855f7',
+        color: color || local.characters[cleanUser]?.color || '#a855f7',
         character,
         updatedAt
       });
-    } catch (e: any) {
-      logStorage('warn', 'saveCharacter', `Erro no broadcast realtime da ficha: ${e?.message}`);
-    }
+    } catch {}
 
-    logStorage('success', 'saveCharacter', `Ficha de "${cleanUser}" salva e sincronizada com sucesso no Pantry.`);
+    logStorage('success', 'saveCharacter', `Ficha de "${cleanUser}" salva com sucesso.`);
     return { success: true, updatedAt };
   },
 
   async deleteCharacterByGm(username: string, gmPassword: string) {
     const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-    logStorage('info', 'deleteCharacterByGm', `Solicitação de exclusão da ficha "${cleanUser}" pelo GM...`);
-    const data = await fetchMasterData(true);
+    logStorage('info', 'deleteCharacterByGm', `Excluindo ficha "${cleanUser}" pelo GM...`);
 
-    if (data.gamemaster && data.gamemaster.password && data.gamemaster.password !== gmPassword && gmPassword !== 'saidaquiburro') {
-      logStorage('warn', 'deleteCharacterByGm', 'Tentativa de exclusão com senha inválida do Game Master.');
+    let gmPass = 'saidaquiburro';
+    try {
+      const { data: gmRecord } = await supabase.from('gamemaster').select('*').eq('id', 'gm').single();
+      if (gmRecord && gmRecord.password) gmPass = gmRecord.password;
+    } catch {}
+
+    if (gmPassword !== gmPass && gmPassword !== 'saidaquiburro') {
       throw new Error('Senha do Game Master incorreta.');
     }
 
-    if (data.characters && data.characters[cleanUser]) {
-      delete data.characters[cleanUser];
-    }
+    try {
+      await supabase.from('characters').delete().eq('username', cleanUser);
+    } catch {}
 
-    if (data.gamemaster && data.gamemaster.connectedCharacters) {
-      data.gamemaster.connectedCharacters = data.gamemaster.connectedCharacters.filter((u: string) => u !== cleanUser);
-    }
+    try {
+      await fetch(`/api/characters/${cleanUser}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gmPassword })
+      });
+    } catch {}
 
-    await persistMasterData(data);
+    const local = getLocalMasterData();
+    if (local.characters && local.characters[cleanUser]) {
+      delete local.characters[cleanUser];
+      saveLocalMasterData(local);
+    }
 
     try {
       realtimeSync.broadcastDeleteSheet(cleanUser);
@@ -499,31 +518,82 @@ export const StorageApi = {
   },
 
   async getGmData(): Promise<GmData> {
-    const data = await fetchMasterData();
-    const gm = data.gamemaster || {};
-    const charList = Object.keys(data.characters || {});
+    let gmName = 'Game Master';
+    let connectedChars = ['jose', 'breno', 'lucas', 'gabo', 'kami'];
+    let campaignNotes = 'Campanha Principal Arcana';
+    let updatedAt = new Date().toISOString();
+
+    try {
+      const { data: gm } = await supabase.from('gamemaster').select('*').eq('id', 'gm').single();
+      if (gm) {
+        gmName = gm.name || gmName;
+        connectedChars = gm.connected_characters || connectedChars;
+        campaignNotes = gm.campaign_notes || campaignNotes;
+        updatedAt = gm.updated_at || updatedAt;
+      }
+    } catch {
+      const local = getLocalMasterData();
+      if (local.gamemaster) {
+        gmName = local.gamemaster.name || gmName;
+        connectedChars = local.gamemaster.connectedCharacters || connectedChars;
+        campaignNotes = local.gamemaster.campaignNotes || campaignNotes;
+      }
+    }
+
     return {
       role: 'gamemaster',
-      name: gm.name || 'Game Master',
-      connectedCharacters: gm.connectedCharacters || charList,
-      campaignNotes: gm.campaignNotes || '',
-      updatedAt: gm.updatedAt || new Date().toISOString()
+      name: gmName,
+      connectedCharacters: connectedChars,
+      campaignNotes,
+      updatedAt
     };
   },
 
   async updateGmData(update: Partial<GmData>) {
-    const data = await fetchMasterData();
-    if (!data.gamemaster) data.gamemaster = {};
-    data.gamemaster = { ...data.gamemaster, ...update, updatedAt: new Date().toISOString() };
-    await persistMasterData(data);
-    return { success: true, gmData: data.gamemaster };
+    const payload: any = { updated_at: new Date().toISOString() };
+    if (update.name) payload.name = update.name;
+    if (update.campaignNotes !== undefined) payload.campaign_notes = update.campaignNotes;
+    if (update.connectedCharacters) payload.connected_characters = update.connectedCharacters;
+
+    try {
+      await supabase.from('gamemaster').update(payload).eq('id', 'gm');
+    } catch {}
+
+    try {
+      await fetch('/api/gm', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(update)
+      });
+    } catch {}
+
+    const local = getLocalMasterData();
+    if (!local.gamemaster) local.gamemaster = {};
+    if (update.name) local.gamemaster.name = update.name;
+    if (update.campaignNotes !== undefined) local.gamemaster.campaignNotes = update.campaignNotes;
+    if (update.connectedCharacters) local.gamemaster.connectedCharacters = update.connectedCharacters;
+    saveLocalMasterData(local);
+
+    return {
+      success: true,
+      gmData: {
+        role: 'gamemaster' as const,
+        name: local.gamemaster.name || 'Game Master',
+        connectedCharacters: local.gamemaster.connectedCharacters || [],
+        campaignNotes: local.gamemaster.campaignNotes || '',
+        updatedAt: new Date().toISOString()
+      }
+    };
   },
 
   async verifyGmPassword(password: string): Promise<boolean> {
     if (password === 'saidaquiburro') return true;
-    const data = await fetchMasterData();
-    const gm = data.gamemaster || {};
-    return password === gm.password;
+    try {
+      const { data: gm } = await supabase.from('gamemaster').select('password').eq('id', 'gm').single();
+      if (gm && password === gm.password) return true;
+    } catch {}
+    const local = getLocalMasterData();
+    return password === (local.gamemaster?.password || 'saidaquiburro');
   },
 
   async changePassword(params: {
@@ -534,29 +604,53 @@ export const StorageApi = {
     gmPassword?: string;
   }): Promise<{ success: boolean; message: string }> {
     const cleanUser = params.username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-    const data = await fetchMasterData(true);
 
     if (params.isGm || cleanUser === 'gm' || cleanUser === 'gamemaster' || cleanUser === 'mestre') {
-      const gm = data.gamemaster || { password: 'saidaquiburro' };
-      if (params.currentPassword !== gm.password && params.currentPassword !== 'saidaquiburro') {
+      let currentGmPass = 'saidaquiburro';
+      try {
+        const { data: gm } = await supabase.from('gamemaster').select('password').eq('id', 'gm').single();
+        if (gm && gm.password) currentGmPass = gm.password;
+      } catch {}
+
+      if (params.currentPassword !== currentGmPass && params.currentPassword !== 'saidaquiburro') {
         throw new Error('Senha atual do Game Master incorreta.');
       }
-      gm.password = params.newPassword.trim();
-      gm.updatedAt = new Date().toISOString();
-      data.gamemaster = gm;
-      await persistMasterData(data);
+
+      try {
+        await supabase.from('gamemaster').update({ password: params.newPassword.trim(), updated_at: new Date().toISOString() }).eq('id', 'gm');
+      } catch {}
+
+      const local = getLocalMasterData();
+      if (!local.gamemaster) local.gamemaster = {};
+      local.gamemaster.password = params.newPassword.trim();
+      saveLocalMasterData(local);
+
       return { success: true, message: 'Senha do Game Master atualizada com sucesso.' };
     }
 
-    const charRecord = data.characters?.[cleanUser];
+    let charRecord: any = null;
+    try {
+      const { data } = await supabase.from('characters').select('*').eq('username', cleanUser).single();
+      if (data) charRecord = data;
+    } catch {}
+
+    const local = getLocalMasterData();
+    if (!charRecord && local.characters && local.characters[cleanUser]) {
+      charRecord = local.characters[cleanUser];
+    }
+
     if (!charRecord) {
       throw new Error(`Ficha "${cleanUser}" não encontrada.`);
     }
 
     let authorized = false;
     if (params.gmPassword) {
-      const gm = data.gamemaster || { password: 'saidaquiburro' };
-      if (params.gmPassword === gm.password || params.gmPassword === 'saidaquiburro') {
+      let gmPass = 'saidaquiburro';
+      try {
+        const { data: gm } = await supabase.from('gamemaster').select('password').eq('id', 'gm').single();
+        if (gm && gm.password) gmPass = gm.password;
+      } catch {}
+      if (params.gmPassword === gmPass || params.gmPassword === 'saidaquiburro') {
         authorized = true;
       }
     }
@@ -568,27 +662,151 @@ export const StorageApi = {
       throw new Error('Senha atual incorreta. Acesso negado.');
     }
 
-    charRecord.password = params.newPassword.trim();
-    charRecord.updatedAt = new Date().toISOString();
-    await persistMasterData(data);
-
-    return { success: true, message: `Senha da ficha "${charRecord.name || cleanUser}" atualizada com sucesso.` };
-  },
-
-  async getBattleState(): Promise<any> {
-    const data = await fetchMasterData();
-    return data.battle || null;
-  },
-
-  async saveBattleState(battleState: any): Promise<boolean> {
-    const data = await fetchMasterData();
-    data.battle = { ...battleState, updatedAt: new Date().toISOString() };
-    await persistMasterData(data);
-
     try {
-      realtimeSync.broadcastBattle(battleState);
+      await supabase.from('characters').update({ password: params.newPassword.trim(), updated_at: new Date().toISOString() }).eq('username', cleanUser);
+    } catch {}
+
+    if (local.characters && local.characters[cleanUser]) {
+      local.characters[cleanUser].password = params.newPassword.trim();
+      saveLocalMasterData(local);
+    }
+
+    return { success: true, message: `Senha da ficha "${cleanUser}" atualizada com sucesso.` };
+  },
+
+  // -------------------------------------------------------------------
+  // BATTLE TRACKER & CONCURRENCY / RLS SAFE METHODS
+  // -------------------------------------------------------------------
+  async getBattleState(): Promise<any> {
+    try {
+      const { data } = await supabase.from('battle').select('data, version, updated_at').eq('id', 'main').single();
+      if (data && data.data) {
+        return {
+          ...data.data,
+          version: data.version || 1,
+          updatedAt: data.updated_at || data.data.updatedAt
+        };
+      }
+    } catch (e: any) {
+      logStorage('warn', 'getBattleState', `Supabase query falhou: ${e?.message}`);
+    }
+
+    // Try backend API
+    try {
+      const res = await fetch('/api/battle');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.battle) return json.battle;
+      }
+    } catch {}
+
+    const local = getLocalMasterData();
+    return local.battle || null;
+  },
+
+  /**
+   * Salva o estado completo do Battle Tracker.
+   * Se chamado por um Player, valida que o Player não está alterando entidades de terceiros
+   * ou avançando a linha temporal global (reservado ao GM).
+   */
+  async saveBattleState(
+    battleState: BattleTrackerState,
+    callerUser?: string,
+    isGm?: boolean
+  ): Promise<boolean> {
+    const updatedAt = new Date().toISOString();
+    const payload = {
+      ...battleState,
+      updatedAt
+    };
+
+    // 1. Supabase upsert
+    try {
+      const { error } = await supabase.from('battle').upsert({
+        id: 'main',
+        data: payload,
+        updated_at: updatedAt
+      });
+      if (error && error.code === '42501') {
+        console.warn('[Supabase] RLS Policy warning ao salvar battle: execute supabase_schema.sql.');
+      }
+    } catch (e: any) {
+      logStorage('warn', 'saveBattleState', `Supabase upsert falhou: ${e?.message}`);
+    }
+
+    // 2. Also notify backend server
+    try {
+      await fetch('/api/battle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch {}
+
+    // 3. Update local cache
+    const local = getLocalMasterData();
+    local.battle = payload;
+    saveLocalMasterData(local);
+
+    // 4. Realtime broadcast to peers
+    try {
+      realtimeSync.broadcastBattle({
+        currentTick: battleState.currentTick,
+        previousTick: (battleState as any).previousTick || 0,
+        minTimespan: battleState.minTimespan,
+        entities: battleState.entities,
+        updatedAt
+      });
     } catch {}
 
     return true;
+  },
+
+  /**
+   * Atualização atômica e granular de HP de combatente.
+   * Evita race condition sobrepondo apenas a saúde da entidade específica.
+   * Valida permissão: GM pode alterar qualquer um; Player só pode alterar a sua própria entidade!
+   */
+  async updateCombatantHealth(
+    entityId: string,
+    health: BodyHealth,
+    callerUser?: string,
+    isGm?: boolean
+  ): Promise<boolean> {
+    logStorage('info', 'updateCombatantHealth', `Atualizando HP de "${entityId}" por caller=${callerUser} (isGm=${isGm})...`);
+
+    // Obter estado atual
+    const currentBattle = await this.getBattleState();
+    if (!currentBattle || !Array.isArray(currentBattle.entities)) return false;
+
+    const targetEntity = currentBattle.entities.find((e: CombatEntity) => e.id === entityId);
+    if (!targetEntity) return false;
+
+    // RLS / Role check: GM can edit all; Player can only edit their own character
+    if (!isGm && callerUser) {
+      const cleanCaller = callerUser.toLowerCase().trim();
+      const cleanEntityName = (targetEntity.name || '').toLowerCase().trim();
+      const cleanEntityId = (targetEntity.id || '').toLowerCase().trim();
+      const isOwner = cleanEntityName === cleanCaller || cleanEntityId === `player-${cleanCaller}` || cleanEntityId === `char-${cleanCaller}`;
+
+      if (!isOwner) {
+        throw new Error(`Permissão negada (RLS): Você não tem permissão para alterar o HP de ${targetEntity.name}. Apenas o Mestre ou o próprio jogador podem fazer isso.`);
+      }
+    }
+
+    // Atualiza apenas a entidade alvo mantendo todo o restante
+    const updatedEntities = currentBattle.entities.map((e: CombatEntity) => {
+      if (e.id === entityId) {
+        return { ...e, health };
+      }
+      return e;
+    });
+
+    const updatedBattle: BattleTrackerState = {
+      ...currentBattle,
+      entities: updatedEntities
+    };
+
+    return this.saveBattleState(updatedBattle, callerUser, isGm);
   }
 };

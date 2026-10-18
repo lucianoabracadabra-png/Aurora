@@ -426,8 +426,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
       ) : (
         <>
-          {/* Tab Switcher - 3 Abas apenas na tela de login */}
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl">
+          {/* Tab Switcher - Apenas Jogador e Mestre */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl">
             <button
               type="button"
               onClick={() => { setTab('player'); setError(null); }}
@@ -451,18 +451,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             >
               <Crown size={14} />
               <span>Mestre</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setTab('register'); setError(null); }}
-              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                tab === 'register'
-                  ? 'bg-cyan-600/90 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <UserPlus size={14} />
-              <span>Nova Ficha</span>
             </button>
           </div>
 

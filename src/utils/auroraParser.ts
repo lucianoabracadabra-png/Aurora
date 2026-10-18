@@ -1,5 +1,6 @@
 import { CharacterData } from '../types';
 import { safeJsonParse, normalizeCoinType } from './auroraTools';
+import { createEmptyCharacterData } from '../initialState';
 
 export interface AuroraActionResult {
   success: boolean;
@@ -651,7 +652,20 @@ export function parseAndExecuteAurora(
     }
   }
 
-  // --- 11. SPIRITUS (FLUXO & PATRONO) ---
+  // --- 11. RESET / FICHA LIMPA ---
+  if (norm.includes('ficha limpa') || norm.includes('zerar ficha') || norm.includes('limpar ficha')) {
+    const freshData = safeJsonParse<CharacterData>(JSON.stringify(createEmptyCharacterData(currentData.identity?.name || 'Aventureiro')), currentData);
+    return {
+      success: true,
+      category: 'identity',
+      updatedData: freshData,
+      undoData: currentData,
+      message: '✨ **Ficha Limpa**: Todos os campos da ficha foram zerados e reiniciados com sucesso!',
+      description: 'Zerar ficha limpa'
+    };
+  }
+
+  // --- 12. SPIRITUS (FLUXO & PATRONO) ---
   if (norm.includes('fluxo') || norm.includes('patrono')) {
     const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
     if (!updated.spiritus) {

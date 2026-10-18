@@ -1,5 +1,6 @@
 import { CharacterData, EquipmentSlot, DamageType, Ability, Trait } from '../types';
 import { Type } from '@google/genai';
+import { createEmptyCharacterData } from '../initialState';
 
 export type ValidCoin = 'gold' | 'silver' | 'copper';
 export const VALID_COINS: readonly ValidCoin[] = ['gold', 'silver', 'copper'];
@@ -720,6 +721,22 @@ export const AURORA_TOOL_DEFINITIONS = [
         }
       },
       required: ['formula']
+    }
+  },
+
+  // 18. RESETAR / ZERAR FICHA LIMPA
+  {
+    name: 'reset_character_sheet',
+    description: 'Zera e limpa todos os campos da ficha de personagem, retornando a um estado limpo inicial.',
+    parameters: {
+      type: 'object',
+      properties: {
+        confirm: {
+          type: 'boolean',
+          description: 'Confirmação obrigatória como true para zerar a ficha.'
+        }
+      },
+      required: ['confirm']
     }
   }
 ];
@@ -1784,6 +1801,19 @@ export function executeAuroraTool(
           category: 'dice',
           diceRoll: { formula: `${count}d${sides}${mod !== 0 ? (mod > 0 ? `+${mod}` : `${mod}`) : ''}`, rolls, total, modifier: mod },
           message: `🎲 **Rolagem ${formula}**${reason ? ` (${reason})` : ''}: ${rollList}${modStr} = **${total}**!`
+        };
+      }
+
+      // 18. RESET CHARACTER SHEET
+      case 'reset_character_sheet': {
+        const freshData = createEmptyCharacterData(updatedData.identity?.name || 'Aventureiro');
+        return {
+          success: true,
+          category: 'system',
+          updatedData: freshData,
+          undoData,
+          description: 'Zerar ficha limpa',
+          message: '✨ **Ficha Limpa**: Todos os campos da ficha foram zerados e reiniciados com sucesso!'
         };
       }
 

@@ -5,6 +5,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 import { AURORA_TOOL_DEFINITIONS } from './src/utils/auroraTools';
 
 dotenv.config();
@@ -224,157 +225,90 @@ ensureGmFile();
 ensureDefaultCharacters();
 ensureBattleFile();
 
-const PANTRY_ID = '872bd76e-a6c0-46a0-b338-a474ed699114';
-const PANTRY_BASKET = 'arcana';
-const PANTRY_URL = `https://getpantry.cloud/apiv1/pantry/${PANTRY_ID}/basket/${PANTRY_BASKET}`;
-const PANTRY_FILE = path.resolve(DATA_DIR, 'pantry_basket.json');
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://urofgdfhpvjcnwmdjvsp.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_fhOfzCrFNg8QW3ehyXEDCg_Qk-_bgDQ';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// In-memory master state synchronized with data/pantry_basket.json and GetPantry cloud
-let memoryPantryBasket: any = null;
-let pantrySyncTimeout: NodeJS.Timeout | null = null;
-let lastCloudSyncTime = 0;
-
-function loadLocalPantryFile(): any {
+// Helper to push character to Supabase asynchronously without blocking local operations
+async function syncCharacterToSupabase(charRecord: any) {
   try {
-    if (fs.existsSync(PANTRY_FILE)) {
-      const raw = fs.readFileSync(PANTRY_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.characters && Object.keys(parsed.characters).length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('[Server] Error reading local pantry_basket.json:', e);
-  }
-
-  // Fallback to initial seed
-  try {
-    const seedPath = path.resolve(__dirname, 'src/initialPantryData.json');
-    if (fs.existsSync(seedPath)) {
-      const seed = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
-      fs.writeFileSync(PANTRY_FILE, JSON.stringify(seed, null, 2), 'utf-8');
-      return seed;
-    }
-  } catch (e) {}
-
-  return { characters: {}, gamemaster: {}, battle: {} };
-}
-
-function saveLocalPantryFile(data: any) {
-  try {
-    fs.writeFileSync(PANTRY_FILE, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (e) {
-    console.error('[Server] Failed to write local pantry_basket.json:', e);
-  }
-}
-
-// Background push to GetPantry with 429 rate limit backoff
-async function pushToGetPantryCloud(retryCount = 0) {
-  if (!memoryPantryBasket || !memoryPantryBasket.characters) return;
-  try {
-    const postRes = await fetch(PANTRY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(memoryPantryBasket)
+    const { error } = await supabase.from('characters').upsert({
+      username: charRecord.username,
+      name: charRecord.name || charRecord.character?.identity?.name || charRecord.username,
+      color: charRecord.color || '#a855f7',
+      character: charRecord.character || {},
+      password: charRecord.password || '123123123',
+      updated_at: charRecord.updatedAt || new Date().toISOString()
     });
-
-    if (postRes.ok) {
-      lastCloudSyncTime = Date.now();
-      console.log('[Server] Successfully pushed updated basket to GetPantry cloud.');
-    } else if (postRes.status === 429) {
-      console.warn('[Server] GetPantry cloud rate-limited (429). Retrying in 5 seconds...');
-      if (retryCount < 4) {
-        setTimeout(() => pushToGetPantryCloud(retryCount + 1), 5000);
-      }
+    if (error) {
+      console.warn(`[Supabase:syncCharacter] Sync warning for ${charRecord.username}:`, error.message);
     } else {
-      console.warn('[Server] GetPantry cloud push returned status:', postRes.status);
+      console.log(`[Supabase:syncCharacter] Successfully synced ${charRecord.username} to Supabase.`);
     }
-  } catch (e: any) {
-    console.warn('[Server] GetPantry cloud push network error:', e.message);
+  } catch (err: any) {
+    console.warn(`[Supabase:syncCharacter] Network error for ${charRecord.username}:`, err.message);
   }
 }
 
-function scheduleCloudSync() {
-  if (pantrySyncTimeout) clearTimeout(pantrySyncTimeout);
-  pantrySyncTimeout = setTimeout(() => {
-    pushToGetPantryCloud();
-  }, 1500);
-}
-
-async function initPantryBasket() {
-  memoryPantryBasket = loadLocalPantryFile();
-
-  // Try to pull latest from GetPantry cloud
+// Helper to push battle state to Supabase
+async function syncBattleToSupabase(battleData: any) {
   try {
-    const res = await fetch(PANTRY_URL);
-    if (res.ok) {
-      const cloudData = await res.json();
-      if (cloudData && cloudData.characters && Object.keys(cloudData.characters).length > 0) {
-        memoryPantryBasket = cloudData;
-        saveLocalPantryFile(memoryPantryBasket);
-        console.log('[Server] Pulled existing character basket from GetPantry cloud.');
-        return;
-      }
-    } else if (res.status === 429) {
-      console.warn('[Server] GetPantry initial pull hit 429, using local pantry_basket.json.');
-      return;
+    const { error } = await supabase.from('battle').upsert({
+      id: 'main',
+      data: battleData,
+      updated_at: battleData.updatedAt || new Date().toISOString()
+    });
+    if (error) {
+      console.warn('[Supabase:syncBattle] Sync warning:', error.message);
+    } else {
+      console.log('[Supabase:syncBattle] Successfully synced battle state to Supabase.');
     }
-  } catch (e) {
-    console.warn('[Server] Could not reach GetPantry cloud on boot, using local pantry_basket.json.');
+  } catch (err: any) {
+    console.warn('[Supabase:syncBattle] Network error:', err.message);
   }
+}
 
-  // If cloud was empty or newly initialized, sync to cloud
-  pushToGetPantryCloud();
+// Helper to push gamemaster data to Supabase
+async function syncGmToSupabase(gmData: any) {
+  try {
+    const { error } = await supabase.from('gamemaster').upsert({
+      id: 'gm',
+      name: gmData.name || 'Game Master',
+      password: gmData.password || 'saidaquiburro',
+      connected_characters: gmData.connectedCharacters || [],
+      campaign_notes: gmData.campaignNotes || '',
+      updated_at: gmData.updatedAt || new Date().toISOString()
+    });
+    if (error) {
+      console.warn('[Supabase:syncGm] Sync warning:', error.message);
+    } else {
+      console.log('[Supabase:syncGm] Successfully synced GM state to Supabase.');
+    }
+  } catch (err: any) {
+    console.warn('[Supabase:syncGm] Network error:', err.message);
+  }
 }
 
 async function startServer() {
-  await initPantryBasket();
-
   const app = express();
   app.use(express.json({ limit: '10mb' }));
 
-  // API Routes
-  // 0. Pantry Routes
-  app.get('/api/pantry', (_req, res) => {
-    if (!memoryPantryBasket) {
-      memoryPantryBasket = loadLocalPantryFile();
-    }
-    res.json(memoryPantryBasket);
-  });
-
-  app.post('/api/pantry', (req, res) => {
-    const update = req.body;
-    if (update && typeof update === 'object') {
-      memoryPantryBasket = update;
-      saveLocalPantryFile(memoryPantryBasket);
-      scheduleCloudSync();
-      res.json({ success: true, savedAt: new Date().toISOString() });
-    } else {
-      res.status(400).json({ error: 'Payload inválido.' });
-    }
-  });
-
-  app.post('/api/pantry/sync', async (_req, res) => {
+  // 1. Health & Status Info
+  app.get('/api/status', async (_req, res) => {
+    let supabaseStatus = 'connecting';
     try {
-      const resp = await fetch(PANTRY_URL);
-      if (resp.ok) {
-        const cloudData = await resp.json();
-        if (cloudData && cloudData.characters) {
-          memoryPantryBasket = cloudData;
-          saveLocalPantryFile(memoryPantryBasket);
-          return res.json({ success: true, source: 'cloud', data: memoryPantryBasket });
-        }
-      }
-    } catch (e: any) {}
-    res.json({ success: true, source: 'local', data: memoryPantryBasket });
-  });
+      const { error } = await supabase.from('characters').select('username').limit(1);
+      supabaseStatus = error ? `rls-or-policy: ${error.message}` : 'connected';
+    } catch (e: any) {
+      supabaseStatus = `offline: ${e.message}`;
+    }
 
-  // 1. Health & Info
-  app.get('/api/status', (_req, res) => {
     res.json({
       status: 'online',
-      storageType: 'pantry-cloud',
-      dataDir: PANTRY_ID,
+      storageType: 'supabase',
+      database: 'postgresql',
+      supabaseUrl: SUPABASE_URL,
+      supabaseStatus,
       timestamp: new Date().toISOString()
     });
   });
@@ -483,6 +417,7 @@ async function startServer() {
       };
 
       fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
+      syncCharacterToSupabase(payload);
 
       // Update connectedCharacters in gamemaster.json
       if (fs.existsSync(GM_FILE)) {
@@ -680,6 +615,7 @@ async function startServer() {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(updatedData, null, 2), 'utf-8');
+      syncCharacterToSupabase(updatedData);
 
       // Update connectedCharacters in GM file if needed
       if (fs.existsSync(GM_FILE)) {
@@ -690,6 +626,7 @@ async function startServer() {
             gmData.connectedCharacters.push(safeUser);
             gmData.updatedAt = new Date().toISOString();
             fs.writeFileSync(GM_FILE, JSON.stringify(gmData, null, 2), 'utf-8');
+            syncGmToSupabase(gmData);
           }
         } catch {}
       }
@@ -705,7 +642,7 @@ async function startServer() {
   });
 
   // 7. Delete character sheet (GM permission only, requires GM password "saidaquiburro")
-  app.delete('/api/characters/:username', (req, res) => {
+  app.delete('/api/characters/:username', async (req, res) => {
     const safeUser = sanitizeUsername(req.params.username);
     const { gmPassword } = req.body;
 
@@ -725,6 +662,13 @@ async function startServer() {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         console.log(`[Server] Deleted character file: ${safeUser}.json by GM`);
+      }
+
+      // Also delete from Supabase
+      try {
+        await supabase.from('characters').delete().eq('username', safeUser);
+      } catch (e: any) {
+        console.warn(`[Supabase] Error deleting ${safeUser}:`, e.message);
       }
 
       // Remove from GM connected characters
@@ -836,6 +780,7 @@ async function startServer() {
       };
 
       fs.writeFileSync(BATTLE_FILE, JSON.stringify(updatedBattle, null, 2), 'utf-8');
+      syncBattleToSupabase(updatedBattle);
       return res.json({ success: true, battle: updatedBattle });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: 'Erro ao salvar Battle Tracker: ' + err.message });

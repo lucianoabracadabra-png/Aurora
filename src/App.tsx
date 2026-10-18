@@ -363,13 +363,13 @@ export default function App() {
     }
   };
 
-  // Puxa e preenche com precisão a ficha do username selecionado diretamente do Pantry
+  // Puxa e preenche com precisão a ficha do username selecionado diretamente do Supabase
   const selectAndLoadCharacter = async (username: string, preloadedData?: any) => {
     const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
     if (!cleanUser) return;
     const charId = `char-${cleanUser}`;
 
-    console.log(`[App:selectAndLoadCharacter] Selecionando e preenchendo ficha para o username: "${cleanUser}"...`);
+    console.log(`[App:selectAndLoadCharacter] Selecionando e preenchendo ficha para o username: "${cleanUser}" via Supabase...`);
 
     // Cancela qualquer timer pendente de salvamento anterior para evitar sobreposição entre fichas
     if (saveTimeoutRef.current) {
@@ -394,7 +394,7 @@ export default function App() {
       }
     }
 
-    // SEMPRE puxa a versão autoritativa e fresca do Pantry para o username selecionado
+    // SEMPRE puxa a versão autoritativa e fresca do Supabase para o username selecionado
     try {
       setSaveStatus('idle');
       const res = await StorageApi.getCharacter(cleanUser, true);
@@ -429,10 +429,10 @@ export default function App() {
           return nextList;
         });
 
-        console.log(`[App:selectAndLoadCharacter] Ficha do usuário "${cleanUser}" carregada com sucesso do Pantry.`);
+        console.log(`[App:selectAndLoadCharacter] Ficha do usuário "${cleanUser}" carregada com sucesso do Supabase.`);
       }
     } catch (err) {
-      console.error(`[App:selectAndLoadCharacter:ERROR] Falha ao puxar ficha do Pantry para "${cleanUser}":`, err);
+      console.error(`[App:selectAndLoadCharacter:ERROR] Falha ao puxar ficha do Supabase para "${cleanUser}":`, err);
     }
   };
 
@@ -513,7 +513,7 @@ export default function App() {
     };
   }, []);
 
-  // Sincronização periódica & foco da janela (mantém players e GM sincronizados com o Pantry)
+  // Sincronização periódica & foco da janela (mantém players e GM sincronizados com o Supabase)
   useEffect(() => {
     const interval = setInterval(() => {
       if (saveStatus !== 'saving') {
@@ -534,12 +534,27 @@ export default function App() {
     };
   }, [activeCharacterId, isEditing, saveStatus]);
 
-  // Debounced Auto-Save to File-System JSON file
+  // Permissão RLS: Game Master pode editar qualquer ficha. Jogador só pode editar a sua própria!
+  const canEditActiveCharacter = Boolean(
+    isGmView || (authSession?.role === 'player' && authSession.username === activeChar?.username)
+  );
+
+  // Trava automaticamente o modo de edição se o usuário selecionar a ficha de outro jogador
+  useEffect(() => {
+    if (!canEditActiveCharacter && isEditing) {
+      setIsEditing(false);
+    }
+  }, [activeCharacterId, canEditActiveCharacter]);
+
+  // Debounced Auto-Save to Supabase / Local database
   const saveTimeoutRef = useRef<any>(null);
   useEffect(() => {
     // Prevent saving if on initial mount or during character switch transition
     if (isInitialMountRef.current) return;
     if (loadedCharacterIdRef.current !== activeCharacterId) return;
+
+    // Se o usuário não tiver permissão para editar esta ficha, bloqueia o salvamento
+    if (!canEditActiveCharacter) return;
 
     const safeUser = activeCharacterId.replace(/^char-/, '');
     if (!safeUser) return;
@@ -568,16 +583,23 @@ export default function App() {
     });
     localStorage.setItem('arcana_character_data', currentJson);
 
-    // File-System save
+    // Supabase & File-System save
     setSaveStatus('saving');
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await StorageApi.saveCharacter(safeUser, data, activeChar?.color, data.identity?.name);
+        await StorageApi.saveCharacter(
+          safeUser, 
+          data, 
+          activeChar?.color, 
+          data.identity?.name,
+          authSession?.username,
+          isGmView
+        );
         lastSavedJsonRef.current = currentJson;
         setSaveStatus('saved');
       } catch (err) {
-        console.error('Failed to save to disk:', err);
+        console.error('Failed to save character to Supabase:', err);
         setSaveStatus('error');
       }
     }, 700);
@@ -585,7 +607,7 @@ export default function App() {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [data, activeCharacterId]);
+  }, [data, activeCharacterId, canEditActiveCharacter, authSession, isGmView]);
 
   // Handler for adding a new character directly to disk
   const handleAddCampaignCharacter = async (
@@ -1010,7 +1032,7 @@ export default function App() {
               Aurora
             </h1>
 
-            {/* Status de Salvamento no Pantry */}
+            {/* Status de Salvamento no Supabase */}
             <button
               type="button"
               onClick={() => {
@@ -1019,10 +1041,10 @@ export default function App() {
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs shadow-inner min-w-0 transition-colors cursor-pointer"
               title={
                 saveStatus === 'saving'
-                  ? 'Salvando alterações no Pantry...'
+                  ? 'Salvando alterações no Supabase...'
                   : saveStatus === 'error'
-                  ? 'Erro ao salvar no Pantry (clique para sincronizar)'
-                  : `Pantry sincronizado (clique para recarregar)`
+                  ? 'Erro ao salvar no Supabase (clique para sincronizar)'
+                  : `Supabase sincronizado (clique para recarregar)`
               }
             >
               <span
@@ -1035,7 +1057,7 @@ export default function App() {
                 }`}
               />
               <span className="text-[11px] font-semibold text-white/90">
-                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Não salvo' : 'Pantry Salvo'}
+                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Não salvo' : 'Supabase Conectado'}
               </span>
             </button>
           </div>
@@ -1112,18 +1134,38 @@ export default function App() {
             {/* Divisor sutil */}
             <div className="w-px h-5 bg-white/10 mx-0.5 hidden xs:block" />
 
-            {/* 3. Edit / Lock (ícones invertidos: editando mostra Lápis ativo, travado mostra Cadeado) */}
+            {/* 3. Edit / Lock (Protegido por RLS / Permissões: Somente GM ou titular podem editar) */}
             <button 
               type="button"
-              onClick={() => setIsEditing(!isEditing)}
+              onClick={() => {
+                if (!canEditActiveCharacter) {
+                  alert(`Acesso protegido: Apenas o Game Master ou o jogador titular (@${activeChar?.username || ''}) têm permissão para editar esta ficha.`);
+                  return;
+                }
+                setIsEditing(!isEditing);
+              }}
               className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
-                isEditing 
+                !canEditActiveCharacter
+                  ? 'bg-amber-500/10 border-amber-400/30 text-amber-300/80 cursor-not-allowed shadow-none'
+                  : isEditing 
                   ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/40'
                   : 'bg-white/[0.03] hover:bg-emerald-500/20 border-emerald-400/30 text-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.15)]'
               }`}
-              title={isEditing ? 'Modo de Edição Ativo (Clique para Travar)' : 'Ficha Travada (Clique para Editar)'}
+              title={
+                !canEditActiveCharacter
+                  ? `Ficha de @${activeChar?.username || ''} protegida (Somente titular ou GM podem editar)`
+                  : isEditing
+                  ? 'Modo de Edição Ativo (Clique para Travar)'
+                  : 'Ficha Travada (Clique para Editar)'
+              }
             >
-              {isEditing ? <Pencil size={14} /> : <Lock size={14} />}
+              {!canEditActiveCharacter ? (
+                <Lock size={14} className="text-amber-400/80" />
+              ) : isEditing ? (
+                <Pencil size={14} />
+              ) : (
+                <Lock size={14} />
+              )}
             </button>
 
             {/* 4. Question mark (Ajuda & Guia ?) */}
@@ -1211,6 +1253,8 @@ export default function App() {
           characterAvatar={data.identity.avatarUrl}
           isGmView={isGmView}
           activeCharacterData={data}
+          loggedUsername={authSession?.username || (isGmView ? 'gamemaster' : undefined)}
+          currentRole={authSession?.role || (isGmView ? 'gamemaster' : 'player')}
           onSwitchToSheet={() => setActiveEnvironment('sheet')}
         />
       ) : (

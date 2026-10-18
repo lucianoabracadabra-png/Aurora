@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Identity as IdentityType } from '../types';
 import { Check, Globe2, X, Camera, ZoomIn, Upload, RotateCcw } from 'lucide-react';
-import defaultPortrait from '../assets/images/character_portrait_1789770891084.jpg';
+const defaultPortrait = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
 
 type Props = {
   data: IdentityType;
@@ -183,7 +183,6 @@ const LanguageSelector = ({
 export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, update, readonly = false, expanded = true }) => {
   const [showLightbox, setShowLightbox] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setImgError(false);
@@ -191,28 +190,8 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
 
   const imageSrc = !imgError && data.avatarUrl ? data.avatarUrl : defaultPortrait;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (typeof event.target?.result === 'string') {
-          update('avatarUrl', event.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
     <div className="relative transition-all duration-500 ease-in-out">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        accept="image/*" 
-        onChange={handleFileUpload} 
-        className="hidden" 
-      />
 
       <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 items-center sm:items-start transition-all duration-500 ease-in-out">
         {/* Retrato 16:9 Vertical com transição suave de escala */}
@@ -258,10 +237,11 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
             {/* Botão de edição sobre a imagem quando não readonly e expandido */}
             {!readonly && expanded && (
               <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover/portrait:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2"
+                className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover/portrait:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2 cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  fileInputRef.current?.click();
+                  const url = window.prompt("Digite a URL da imagem (16:9 vertical):", data.avatarUrl || '');
+                  if (url !== null && url.trim()) update('avatarUrl', url.trim());
                 }}
               >
                 <div className="p-2.5 rounded-full bg-violet-500/90 text-white shadow-[0_0_15px_rgba(139,92,246,0.6)]">
@@ -279,20 +259,6 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
             <div className={`grid transition-all duration-500 ease-in-out ${expanded ? 'grid-rows-[1fr] opacity-100 mt-2' : 'grid-rows-[0fr] opacity-0 pointer-events-none'}`}>
               <div className="overflow-hidden flex items-center gap-1.5 w-full justify-center">
                 <button
-                  id="btn-upload-portrait"
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  className="text-[10px] py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Carregar arquivo de imagem do dispositivo"
-                >
-                  <Upload size={11} />
-                  <span>Upload</span>
-                </button>
-                
-                <button
                   id="btn-url-portrait"
                   type="button"
                   onClick={(e) => {
@@ -300,10 +266,10 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
                     const url = window.prompt("Digite a URL da imagem (16:9 vertical):", data.avatarUrl || '');
                     if (url !== null && url.trim()) update('avatarUrl', url.trim());
                   }}
-                  className="text-[10px] py-1 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-[10px] py-1 px-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-colors flex items-center gap-1 cursor-pointer"
                   title="Colar link de imagem da web"
                 >
-                  <span>URL</span>
+                  <span>Alterar URL</span>
                 </button>
 
                 {data.avatarUrl && data.avatarUrl !== defaultPortrait && (

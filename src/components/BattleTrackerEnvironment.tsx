@@ -13,7 +13,8 @@ import {
   Undo2, 
   X,
   Crown,
-  Heart
+  Heart,
+  Lock
 } from 'lucide-react';
 import { BentoBox } from './BentoBox';
 import { CombatEntity, CombatEntityType, CombatStep, BodyHealth, DamageType } from '../types';
@@ -26,6 +27,9 @@ interface BattleTrackerEnvironmentProps {
   characterAvatar?: string;
   isGmView?: boolean;
   activeCharacterData?: any;
+  loggedUsername?: string;
+  currentRole?: 'gamemaster' | 'player' | 'guest';
+  onSwitchToSheet?: () => void;
 }
 
 const STORAGE_KEY = 'arcana_battle_tracker_state';
@@ -74,7 +78,9 @@ interface LocalBattleState {
 
 export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> = ({
   characterName = 'Personagem',
-  isGmView = false
+  isGmView = false,
+  loggedUsername,
+  currentRole
 }) => {
   // Load state from localStorage
   const [state, setState] = useState<LocalBattleState>(() => {
@@ -165,25 +171,94 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
   const lastSavedJsonRef = useRef<string>(JSON.stringify(state));
   const isSyncingFromServerRef = useRef<boolean>(false);
   const saveTimeoutRef = useRef<any>(null);
+  const lastModifiedLocalTimeRef = useRef<number>(0);
+
+  // Verifica se uma entidade pertence ao usuário logado (RLS check)
+  const isEntityOwnedByLoggedUser = (entity: CombatEntity | null): boolean => {
+    if (!entity) return false;
+    if (isGmView) return true; // Game Master tem controle total sobre todas as entidades
+    const activeUser = (loggedUsername || characterName || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+    if (!activeUser) return false;
+    const entityName = (entity.name || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+    const entityId = (entity.id || '').toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
+    return (
+      entityName === activeUser ||
+      entityId === `player${activeUser}` ||
+      entityId === `player-${activeUser}` ||
+      entityId === `char${activeUser}` ||
+      entityId === `char-${activeUser}`
+    );
+  };
+
+  // Merge inteligente para evitar race condition:
+  // Se o usuário estiver alterando o HP de uma entidade no modal, preserva o HP dessa entidade
+  // enquanto incorpora os avanços de tick e movimentações remotas dos outros jogadores.
+  const mergeIncomingBattle = (remoteBattle: any) => {
+    if (!remoteBattle || !Array.isArray(remoteBattle.entities)) return;
+    const remoteJson = JSON.stringify(remoteBattle);
+    if (remoteJson === lastSavedJsonRef.current) return;
+
+    setState((prev) => {
+      const activeEditingEntityId = (healthModalEntityId && Date.now() - lastModifiedLocalTimeRef.current < 2500)
+        ? healthModalEntityId
+        : null;
+
+      const mergedEntities = remoteBattle.entities.map((remoteEnt: any) => {
+        if (activeEditingEntityId && remoteEnt.id === activeEditingEntityId) {
+          const localCurrent = prev.entities.find((e) => e.id === activeEditingEntityId);
+          if (localCurrent && localCurrent.health) {
+            return {
+              ...remoteEnt,
+              health: localCurrent.health
+            };
+          }
+        }
+        return {
+          ...remoteEnt,
+          health: remoteEnt.health || DEFAULT_BODY_HEALTH
+        };
+      });
+
+      isSyncingFromServerRef.current = true;
+      lastSavedJsonRef.current = JSON.stringify({
+        ...remoteBattle,
+        entities: mergedEntities
+      });
+
+      setTimeout(() => {
+        isSyncingFromServerRef.current = false;
+      }, 200);
+
+      return {
+        currentTick: typeof remoteBattle.currentTick === 'number' ? remoteBattle.currentTick : prev.currentTick,
+        previousTick: typeof remoteBattle.previousTick === 'number' ? remoteBattle.previousTick : prev.previousTick,
+        minTimespan: Math.max(15, remoteBattle.minTimespan || prev.minTimespan || 15),
+        entities: mergedEntities
+      };
+    });
+  };
 
   useEffect(() => {
+    // 1. Escuta atualizações completas de Batalha (WebRTC + Supabase Broadcast)
     const unsubBattle = realtimeSync.onBattleUpdate((remoteBattle) => {
-      if (remoteBattle && Array.isArray(remoteBattle.entities)) {
-        const remoteJson = JSON.stringify(remoteBattle);
-        if (remoteJson !== lastSavedJsonRef.current) {
-          isSyncingFromServerRef.current = true;
-          lastSavedJsonRef.current = remoteJson;
-          setState({
-            currentTick: typeof remoteBattle.currentTick === 'number' ? remoteBattle.currentTick : 0,
-            previousTick: typeof remoteBattle.previousTick === 'number' ? remoteBattle.previousTick : 0,
-            minTimespan: Math.max(15, remoteBattle.minTimespan || 15),
-            entities: remoteBattle.entities
-          });
-          setTimeout(() => {
-            isSyncingFromServerRef.current = false;
-          }, 150);
-        }
+      mergeIncomingBattle(remoteBattle);
+    });
+
+    // 2. Escuta atualizações granulares de HP (evita sobreposições e conflitos de concorrência)
+    const unsubHealth = realtimeSync.onEntityHealthUpdate((msg) => {
+      if (!msg || !msg.entityId || !msg.health) return;
+      if (healthModalEntityId === msg.entityId && Date.now() - lastModifiedLocalTimeRef.current < 800) {
+        return;
       }
+      setState((prev) => ({
+        ...prev,
+        entities: prev.entities.map((e) => {
+          if (e.id === msg.entityId) {
+            return { ...e, health: msg.health };
+          }
+          return e;
+        })
+      }));
     });
 
     const unsubPeers = realtimeSync.onPeerCountChange((count) => {
@@ -192,28 +267,16 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
 
     return () => {
       unsubBattle();
+      unsubHealth();
       unsubPeers();
     };
-  }, []);
+  }, [healthModalEntityId]);
 
   const syncFromServer = async () => {
     try {
       const serverBattle = await StorageApi.getBattleState();
       if (serverBattle && Array.isArray(serverBattle.entities)) {
-        const serverJson = JSON.stringify(serverBattle);
-        if (serverJson !== lastSavedJsonRef.current) {
-          isSyncingFromServerRef.current = true;
-          lastSavedJsonRef.current = serverJson;
-          setState({
-            currentTick: typeof serverBattle.currentTick === 'number' ? serverBattle.currentTick : 0,
-            previousTick: typeof serverBattle.previousTick === 'number' ? serverBattle.previousTick : 0,
-            minTimespan: Math.max(15, serverBattle.minTimespan || 15),
-            entities: serverBattle.entities
-          });
-          setTimeout(() => {
-            isSyncingFromServerRef.current = false;
-          }, 200);
-        }
+        mergeIncomingBattle(serverBattle);
       }
     } catch (e) {
       console.warn('Battle sync warning:', e);
@@ -222,7 +285,7 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
 
   useEffect(() => {
     syncFromServer();
-    const interval = setInterval(syncFromServer, 3000);
+    const interval = setInterval(syncFromServer, 3500);
     const handleFocus = () => syncFromServer();
     window.addEventListener('focus', handleFocus);
 
@@ -243,17 +306,17 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await StorageApi.saveBattleState(state);
+        await StorageApi.saveBattleState(state, loggedUsername, isGmView);
         lastSavedJsonRef.current = currentJson;
       } catch (err) {
-        console.error('Failed to sync battle state to server:', err);
+        console.error('Failed to sync battle state to Supabase/server:', err);
       }
     }, 400);
 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [state]);
+  }, [state, loggedUsername, isGmView]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -389,22 +452,47 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
   };
 
   const updateCombatantHealth = (entityId: string, part: keyof BodyHealth, index: number, value: DamageType) => {
-    setState((prev) => ({
-      ...prev,
-      entities: prev.entities.map((e) => {
+    const target = state.entities.find((e) => e.id === entityId);
+    if (!target) return;
+
+    // RLS / Role check: GM can edit all; Player can only edit their own character
+    if (!isGmView && !isEntityOwnedByLoggedUser(target)) {
+      console.warn(`[BattleTracker:RLS] Bloqueado: Jogador não tem permissão para alterar HP de ${target.name}.`);
+      return;
+    }
+
+    lastModifiedLocalTimeRef.current = Date.now();
+
+    setState((prev) => {
+      let updatedTargetHealth: BodyHealth = DEFAULT_BODY_HEALTH;
+      const updatedEntities = prev.entities.map((e) => {
         if (e.id !== entityId) return e;
         const currentHealth = e.health || DEFAULT_BODY_HEALTH;
         const updatedPart = [...currentHealth[part]];
         updatedPart[index] = value;
+        updatedTargetHealth = {
+          ...currentHealth,
+          [part]: updatedPart
+        };
         return {
           ...e,
-          health: {
-            ...currentHealth,
-            [part]: updatedPart
-          }
+          health: updatedTargetHealth
         };
-      })
-    }));
+      });
+
+      // Broadcast granular health update to peers immediately
+      realtimeSync.broadcastEntityHealth({
+        entityId,
+        health: updatedTargetHealth,
+        updatedAt: new Date().toISOString(),
+        updater: loggedUsername || 'player'
+      });
+
+      return {
+        ...prev,
+        entities: updatedEntities
+      };
+    });
   };
 
   const stretchTimespan = (amount: number = 5) => {
@@ -759,11 +847,24 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
                       e.stopPropagation();
                       setHealthModalEntityId(entity.id);
                     }}
-                    className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-sm"
-                    title={`Ver Ficha de HP de ${entity.name}`}
+                    className={`px-2 py-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-sm ${
+                      isGmView || isEntityOwnedByLoggedUser(entity)
+                        ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30'
+                        : 'bg-white/5 hover:bg-white/10 text-white/50 border-white/10'
+                    }`}
+                    title={
+                      isGmView
+                        ? `Editar HP de ${entity.name} (Modo Mestre)`
+                        : isEntityOwnedByLoggedUser(entity)
+                        ? `Editar seu HP (${entity.name})`
+                        : `Ver HP de ${entity.name} (Protegido / Somente Leitura)`
+                    }
                   >
-                    <Heart size={12} className="text-rose-400 fill-rose-400/30" />
+                    <Heart size={12} className={isGmView || isEntityOwnedByLoggedUser(entity) ? "text-rose-400 fill-rose-400/30" : "text-white/40"} />
                     <span>HP</span>
+                    {!isGmView && !isEntityOwnedByLoggedUser(entity) && (
+                      <Lock size={10} className="text-amber-400/80" />
+                    )}
                   </button>
 
                   {isGmView && (
@@ -957,62 +1058,89 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
       )}
 
       {/* Modal para exibir a Ficha de HP Corporal do Combatente */}
-      {healthModalEntity && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setHealthModalEntityId(null)}
-        >
+      {healthModalEntity && (() => {
+        const canEditHealth = isEntityOwnedByLoggedUser(healthModalEntity);
+
+        return (
           <div 
-            className="bg-[#050508] border border-white/15 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.9)] flex flex-col gap-4 animate-in zoom-in-95 duration-200 relative max-h-[90vh] overflow-y-auto custom-scrollbar"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={() => setHealthModalEntityId(null)}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2.5">
-                <div 
-                  className="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center text-white text-xs font-bold shadow-md"
-                  style={{ backgroundColor: healthModalEntity.color }}
-                >
-                  {healthModalEntity.name.slice(0, 1).toUpperCase()}
+            <div 
+              className="bg-[#050508] border border-white/15 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.9)] flex flex-col gap-4 animate-in zoom-in-95 duration-200 relative max-h-[90vh] overflow-y-auto custom-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div 
+                    className="w-8 h-8 rounded-full border border-white/30 flex items-center justify-center text-white text-xs font-bold shadow-md"
+                    style={{ backgroundColor: healthModalEntity.color }}
+                  >
+                    {healthModalEntity.name.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                      <span>{healthModalEntity.name}</span>
+                      {isGmView ? (
+                        <span className="text-[9px] uppercase font-bold text-amber-300 bg-amber-500/20 border border-amber-400/40 px-2 py-0.5 rounded-full">
+                          👑 GM (Controle Total)
+                        </span>
+                      ) : canEditHealth ? (
+                        <span className="text-[9px] uppercase font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 rounded-full">
+                          Sua Ficha
+                        </span>
+                      ) : (
+                        <span className="text-[9px] uppercase font-bold text-amber-300/90 bg-amber-500/10 border border-amber-400/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Lock size={9} />
+                          Somente Leitura (RLS)
+                        </span>
+                      )}
+                    </h3>
+                    <span className="text-[10px] text-white/50 uppercase tracking-widest">
+                      Painel de Pontos de Vida (HP Corporal)
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white tracking-wide">
-                    {healthModalEntity.name}
-                  </h3>
-                  <span className="text-[10px] text-white/50 uppercase tracking-widest">
-                    Painel de Pontos de Vida (HP Corporal)
+                <button
+                  onClick={() => setHealthModalEntityId(null)}
+                  className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+
+              {!canEditHealth && (
+                <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl px-3.5 py-2.5 text-[11px] text-amber-200 flex items-center gap-2.5">
+                  <Lock size={15} className="text-amber-400 shrink-0" />
+                  <span>
+                    <strong>Proteção de Permissão (RLS):</strong> Você não pode alterar o HP de <em>{healthModalEntity.name}</em>. Apenas o Game Master ou o próprio jogador (@{healthModalEntity.name}) têm permissão para aplicar ferimentos ou curas.
                   </span>
                 </div>
+              )}
+
+              <div className="py-2">
+                <HealthTracker 
+                  data={healthModalEntity.health || DEFAULT_BODY_HEALTH}
+                  update={(part, index, value) => updateCombatantHealth(healthModalEntity.id, part, index, value)}
+                  readonly={!canEditHealth}
+                  isGmView={isGmView}
+                  isEditing={canEditHealth}
+                />
               </div>
-              <button
-                onClick={() => setHealthModalEntityId(null)}
-                className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X size={15} />
-              </button>
-            </div>
 
-            <div className="py-2">
-              <HealthTracker 
-                data={healthModalEntity.health || DEFAULT_BODY_HEALTH}
-                update={(part, index, value) => updateCombatantHealth(healthModalEntity.id, part, index, value)}
-                readonly={false}
-                isGmView={isGmView}
-                isEditing={isGmView}
-              />
-            </div>
-
-            <div className="pt-3 border-t border-white/10 flex items-center justify-end">
-              <button
-                type="button"
-                onClick={() => setHealthModalEntityId(null)}
-                className="px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                Fechar
-              </button>
+              <div className="pt-3 border-t border-white/10 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setHealthModalEntityId(null)}
+                  className="px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal for adding custom entity */}
       {isAddingEntity && (
