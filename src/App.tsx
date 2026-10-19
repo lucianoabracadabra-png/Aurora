@@ -37,6 +37,7 @@ function normalizeCharacterData(parsed: any): CharacterData {
     parsed.identity = {
       name: 'Novo Personagem',
       avatarUrl: '',
+      archetype: '',
       height: '',
       weight: '',
       hair: '',
@@ -48,6 +49,9 @@ function normalizeCharacterData(parsed: any): CharacterData {
       languages: [],
     };
   } else {
+    if (parsed.identity.archetype === undefined) {
+      parsed.identity.archetype = '';
+    }
     if (!Array.isArray(parsed.identity.languages)) {
       parsed.identity.languages = [];
     }
@@ -173,11 +177,32 @@ function normalizeCharacterData(parsed: any): CharacterData {
     };
   }
 
+  if (!parsed.focusConfig) {
+    parsed.focusConfig = {
+      distribution: 'padrao',
+      physical: 'F1',
+      mental: 'F2',
+      social: 'F3'
+    };
+  }
+
+  if (!parsed.expBudget) {
+    parsed.expBudget = {
+      initial: 300,
+      campaign: 0
+    };
+  }
+
   return parsed;
 }
 
 export default function App() {
   const [isEditing, setIsEditing] = useState(false);
+  const isEditingRef = useRef(isEditing);
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
+
   const [isAuroraOpen, setIsAuroraOpen] = useState(false);
   const [isGmView, setIsGmView] = useState<boolean>(() => {
     return localStorage.getItem('arcana_is_gm_view') === 'true';
@@ -300,43 +325,32 @@ export default function App() {
   const lastSavedJsonRef = useRef<string>('');
   const isInitialMountRef = useRef<boolean>(true);
 
-  // Function to load all characters directly from file-system
+  // O Fetch Inicial: 1 única chamada REST para carregar o estado das fichas
   const loadCharactersFromFileSystem = async (silent = false) => {
     try {
-      const list = await StorageApi.getCharactersList();
-      setAvailableCharacters(list);
-
-      if (list.length > 0) {
-        const fullCharacters = await Promise.all(
-          list.map(async (item) => {
-            try {
-              const res = await StorageApi.getCharacter(item.username);
-              return {
-                id: `char-${item.username}`,
-                username: item.username,
-                name: res.name || item.name,
-                avatarUrl: item.avatarUrl,
-                color: item.color,
-                data: normalizeCharacterData(res.character)
-              };
-            } catch {
-              return {
-                id: `char-${item.username}`,
-                username: item.username,
-                name: item.name,
-                avatarUrl: item.avatarUrl,
-                color: item.color,
-                data: createEmptyCharacterData(item.name, item.color)
-              };
-            }
-          })
-        );
+      const fullList = await StorageApi.getAllFullCharacters();
+      if (fullList.length > 0) {
+        const fullCharacters: CampaignCharacter[] = fullList.map((item) => ({
+          id: item.id || `char-${item.username}`,
+          username: item.username,
+          name: item.name,
+          avatarUrl: item.avatarUrl,
+          color: item.color,
+          data: normalizeCharacterData(item.data)
+        }));
 
         setCampaignCharacters(fullCharacters);
+        setAvailableCharacters(fullCharacters.map((c) => ({
+          id: c.id,
+          username: c.username,
+          name: c.name,
+          avatarUrl: c.avatarUrl,
+          color: c.color
+        })));
 
-        // Check if activeCharacterId still exists
+        // Sincroniza a ficha ativa na tela sem disparar novos fetches
         const currentActiveUsername = activeCharacterId.replace(/^char-/, '');
-        const currentExists = list.some((c) => c.username === currentActiveUsername);
+        const currentExists = fullCharacters.some((c) => c.username === currentActiveUsername);
         if (!currentExists && fullCharacters.length > 0) {
           const nextChar = fullCharacters[0];
           setActiveCharacterId(nextChar.id);
@@ -344,10 +358,10 @@ export default function App() {
           lastSavedJsonRef.current = JSON.stringify(nextChar.data);
           setData(nextChar.data);
         } else {
-          const currentMatch = fullCharacters.find((c) => c.id === activeCharacterId);
+          const currentMatch = fullCharacters.find((c) => c.id === activeCharacterId || c.username === currentActiveUsername);
           if (currentMatch) {
             const serverJson = JSON.stringify(currentMatch.data);
-            if (isInitialMountRef.current || (!isEditing && saveStatus !== 'saving')) {
+            if (isInitialMountRef.current || (!isEditingRef.current && saveStatus !== 'saving')) {
               if (serverJson !== lastSavedJsonRef.current) {
                 lastSavedJsonRef.current = serverJson;
                 setData(currentMatch.data);
@@ -358,7 +372,7 @@ export default function App() {
       }
     } catch (err) {
       if (!silent) {
-        console.warn('File-system fetch failed (server offline or starting), using local cache:', err);
+        console.warn('Initial single REST fetch error, using local cache:', err);
       }
     } finally {
       if (isInitialMountRef.current) {
@@ -440,24 +454,8 @@ export default function App() {
     }
   };
 
-  // Carrega a ficha inicial com base no usuário logado e inicializa WebRTC realtime sync
+  // O Fetch Inicial (1 chamada REST) e Canal Realtime (1 conexão WebSocket permanente)
   useEffect(() => {
-    let initialUser = 'jose';
-    const savedSession = localStorage.getItem('arcana_auth_session');
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession);
-        if (parsed?.role === 'player' && parsed.username) {
-          initialUser = parsed.username.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '');
-        } else {
-          initialUser = activeCharacterId.replace(/^char-/, '') || 'jose';
-        }
-      } catch (e) {}
-    } else {
-      initialUser = activeCharacterId.replace(/^char-/, '') || 'jose';
-    }
-
-    selectAndLoadCharacter(initialUser);
     loadCharactersFromFileSystem();
     realtimeSync.init();
 
@@ -465,6 +463,16 @@ export default function App() {
       try {
         localStorage.setItem(`arcana_char_data_${sheetMsg.username}`, JSON.stringify(sheetMsg.character));
       } catch {}
+
+      // Sincronização em Tempo Real (WebSocket):
+      // Qualquer alteração feita pelo Mestre ou outro cliente chega por esse canal
+      // e atualiza o estado local silenciosamente na tela, sem disparar novas requisições de fetch!
+      const currentActiveUser = loadedCharacterIdRef.current.replace(/^char-/, '');
+      if (sheetMsg.username === currentActiveUser && !isEditingRef.current) {
+        const freshNormalized = normalizeCharacterData(sheetMsg.character);
+        lastSavedJsonRef.current = JSON.stringify(freshNormalized);
+        setData(freshNormalized);
+      }
 
       setCampaignCharacters((prev) => {
         const charId = `char-${sheetMsg.username}`;
@@ -475,7 +483,7 @@ export default function App() {
           name: sheetMsg.name || sheetMsg.character.identity?.name || sheetMsg.username,
           avatarUrl: sheetMsg.character.identity?.avatarUrl,
           color: sheetMsg.color || '#a855f7',
-          data: sheetMsg.character,
+          data: normalizeCharacterData(sheetMsg.character),
         };
         if (existingIdx >= 0) {
           const next = [...prev];
@@ -514,29 +522,9 @@ export default function App() {
     return () => {
       unsubSheet();
       unsubDelete();
+      realtimeSync.cleanup();
     };
   }, []);
-
-  // Sincronização periódica & foco da janela (mantém players e GM sincronizados com o Supabase)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (saveStatus !== 'saving') {
-        loadCharactersFromFileSystem(true);
-      }
-    }, 12000);
-
-    const handleFocus = () => {
-      if (saveStatus !== 'saving') {
-        loadCharactersFromFileSystem(true);
-      }
-    };
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [activeCharacterId, isEditing, saveStatus]);
 
   // Permissão RLS: Game Master pode editar qualquer ficha. Jogador só pode editar a sua própria!
   const canEditActiveCharacter = Boolean(
@@ -606,7 +594,7 @@ export default function App() {
         console.error('Failed to save character to Supabase:', err);
         setSaveStatus('error');
       }
-    }, 700);
+    }, 500);
 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -842,6 +830,13 @@ export default function App() {
   const addAbility = (ability: Omit<Ability, 'id'>) => {
     const newAbility = { ...ability, id: Math.random().toString(36).substring(7) };
     setData((prev) => ({ ...prev, abilities: [...prev.abilities, newAbility] }));
+  };
+
+  const updateAbility = (updatedAbility: Ability) => {
+    setData((prev) => ({
+      ...prev,
+      abilities: prev.abilities.map((a) => (a.id === updatedAbility.id ? updatedAbility : a))
+    }));
   };
 
   const removeAbility = (id: string) => {
@@ -1138,7 +1133,7 @@ export default function App() {
             {/* Divisor sutil */}
             <div className="w-px h-5 bg-white/10 mx-0.5 hidden xs:block" />
 
-            {/* 3. Edit / Lock (Protegido por RLS / Permissões: Somente GM ou titular podem editar) */}
+            {/* 3. Edit / Lock (Apenas ícones: Lápis quando travada, Cadeado quando editando) */}
             <button 
               type="button"
               onClick={() => {
@@ -1148,7 +1143,7 @@ export default function App() {
                 }
                 setIsEditing(!isEditing);
               }}
-              className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+              className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0 ${
                 !canEditActiveCharacter
                   ? 'bg-amber-500/10 border-amber-400/30 text-amber-300/80 cursor-not-allowed shadow-none'
                   : isEditing 
@@ -1159,16 +1154,17 @@ export default function App() {
                 !canEditActiveCharacter
                   ? `Ficha de @${activeChar?.username || ''} protegida (Somente titular ou GM podem editar)`
                   : isEditing
-                  ? 'Modo de Edição Ativo (Clique para Travar)'
-                  : 'Ficha Travada (Clique para Editar)'
+                  ? 'Editando, clique para travar'
+                  : 'Travada, clique para editar'
               }
+              aria-label={isEditing ? 'Editando, clique para travar' : 'Travada, clique para editar'}
             >
               {!canEditActiveCharacter ? (
                 <Lock size={14} className="text-amber-400/80" />
               ) : isEditing ? (
-                <Pencil size={14} />
-              ) : (
                 <Lock size={14} />
+              ) : (
+                <Pencil size={14} />
               )}
             </button>
 
@@ -1602,9 +1598,12 @@ export default function App() {
               <Abilities 
                 data={data.abilities} 
                 add={addAbility} 
+                update={updateAbility}
                 remove={removeAbility} 
                 toggleSelect={toggleAbilitySelect}
                 readonly={!isEditing} 
+                characterData={data}
+                isGamemaster={authSession?.role === 'gamemaster' || isGmView}
               />
             </BentoBox>
           </AnimatedSection>

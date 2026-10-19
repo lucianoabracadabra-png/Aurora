@@ -135,6 +135,7 @@ function createBaseCharacter(name: string, role?: string, color?: string) {
     identity: {
       name: name || '',
       avatarUrl: '',
+      archetype: '',
       height: '',
       weight: '',
       hair: '',
@@ -854,9 +855,15 @@ Você tem acesso para ler e alterar ABSOLUTAMENTE TODOS os dados e campos da fic
 TODOS OS CAMPOS DA FICHA ESTÃO SOB SEU CONTROLE:
 0. CONSULTA GERAL OU POR SEÇÃO: Para ler dados específicos com precisão (como idiomas conhecidos, atributos, inventário, etc.), você pode responder diretamente com base no contexto OU chamar a ferramenta 'query_character_sheet'.
 1. IDIOMAS: Para ler idiomas, veja "IDIOMAS CONHECIDOS" no contexto da ficha ou consulte 'query_character_sheet'. Se o usuário perguntar quais idiomas ele fala, cite-os imediatamente. Para adicionar ou remover idiomas que o personagem aprendeu ou fala, chame 'manage_language' (ex: "aprendi élfico", "remova o idioma anão").
-2. IDENTIDADE: Campos de nome, idade, altura, peso, cabelos, olhos, pele, ideais, origem, avatarUrl são alterados via 'manage_identity'.
+2. IDENTIDADE: Campos de nome, arquétipo, idade, altura, peso, cabelos, olhos, pele, ideais, origem, avatarUrl são alterados via 'manage_identity'.
 3. VANTAGENS E DESVANTAGENS: Adicione ou remova traços via 'manage_trait' (especificando tipo "advantage" ou "disadvantage", pontos e descrição).
 4. HABILIDADES: Adicione, remova ou ative/desative habilidades especiais via 'manage_ability'.
+Quando o jogador ou o Mestre pedir pelo chat para criar, inventar, forjar ou adicionar uma nova habilidade (ex: "Aurora, crie uma habilidade de bola de fogo", "invente uma habilidade de golpe das sombras", "crie uma magia com o domínio de água"):
+Você DEVE chamar imediatamente a ferramenta 'manage_ability' com action='add', preenchendo TODOS os 4 campos nos parâmetros adequados com regras do Sistema Arcana:
+• 'name': Nome evocativo da habilidade.
+• 'cost': Custo formatado no padrão do Arcana (ex: '2 Mana Mental • 2 Ticks', '1 Mana Físico • 1 Tick', '2 Natureza de Fogo • 3 Ticks').
+• 'mechanic': Teste de Atributo + Perícia vs Esquiva/Defesa, rolagens de dano/efeito em dados d6 e alcance (ex: 'Teste Destreza + Luta vs Esquiva. Causa 2d6+2 de dano cortante. Alcance 5m').
+• 'description': Descrição narrativa e lore da manifestação mágica/marcial da habilidade.
 5. ATRIBUTOS E PERÍCIAS: Altere atributos via 'modify_attribute', perícias padrão via 'modify_skill', e perícias customizadas em Treinamentos/Ciências/Artes via 'manage_custom_skill'.
 6. MANA E NATUREZA: Gerencie mana via 'manage_mana' (física/vigor, mental/foco, social/graça) e natureza elemental gasta/recuperada via 'manage_natureza'.
 7. MOEDAS E ECONOMIA: O sistema Arcana aceita estritamente: Ouro (gold / PO), Prata (silver / PP) e Cobre (copper / PC). Use 'manage_currency'. NUNCA invente moedas que não existem (ex: diamantes, rubis ou platinas como moedas correntes não existem e devem ser recusados com aviso).
@@ -867,7 +874,7 @@ TODOS OS CAMPOS DA FICHA ESTÃO SOB SEU CONTROLE:
 
 DIRETRIZES DE DIÁLOGO:
 • Quando o usuário perguntar sobre o que ele tem na ficha (ex: "quais idiomas eu falo?", "quanto de ouro eu tenho?", "quais armas estão na minha mochila?"), responda com precisão imediata baseado no contexto detalhado fornecido ou chame 'query_character_sheet'.
-• Quando o usuário pedir qualquer alteração, CHAME A FERRAMENTA CORRESPONDENTE imediatamente.
+• Quando o usuário pedir qualquer alteração ou criação de habilidade/item, CHAME A FERRAMENTA CORRESPONDENTE imediatamente com todos os parâmetros preenchidos.
 • Você pode chamar múltiplas ferramentas na mesma resposta se o jogador pedir ações combinadas.
 • Responda em português com formatação markdown leve (negrito, itálico) e tom acolhedor e arcano.`;
 
@@ -1127,6 +1134,309 @@ DIRETRIZES DE DIÁLOGO:
     }
 
     return res.status(400).json({ success: false, error: 'Provedor desconhecido. Escolha "gemini" ou "groq".' });
+  });
+
+  // 12. Aurora AI Special Ability Forge (Arcana RPG System Grounded Generation)
+  app.post('/api/aurora/forge-ability', async (req, res) => {
+    const { 
+      prompt = '', 
+      action = 'create', 
+      characterContext = '', 
+      currentAbility,
+      categoryPreference = 'any',
+      costPreference = 'any',
+      powerLevel = 'equilibrado',
+      apiKey,
+      provider = 'gemini'
+    } = req.body;
+
+    const userPrompt = String(prompt || '').trim() || 'Habilidade arcana inovadora e tática';
+
+    // Procedural Fallback Builder (Garantia de funcionamento mesmo offline ou sem chaves)
+    const generateFallbackAbility = () => {
+      const themes = [
+        {
+          name: 'Lâmina de Éter Fulgurante',
+          cost: '2 Mana Mental • 2 Ticks',
+          category: 'Ofensiva',
+          powerLevel: 'Equilibrado',
+          mechanic: 'Teste de Inteligência + Ocultismo contra Esquiva do alvo. Causa 2d6+3 de dano cortante e perfurante etéreo que ignora 2 pontos de armadura física. Alcance: Curto (5m).',
+          description: 'O conjurador materializa uma lâmina translúcida de pura energia psíquica e luminescência fúcsia ao longo de seu antebraço, cortando o tecido da realidade ao desferir o golpe.',
+          synergy: 'Excelente sinergia com personagens de alta Inteligência e Ocultismo, permitindo dano confiável contra inimigos blindados no Battle Tracker.',
+          variants: [
+            {
+              name: 'Adaga Etérea Veloz',
+              cost: '1 Mana Mental • 1 Tick',
+              mechanic: 'Ação Rápida. Causa 1d6+2 de dano perfurante e concede +1 na iniciativa do próximo turno.',
+              description: 'Um golpe veloz e imperceptível desferido no intervalo entre respirações.'
+            },
+            {
+              name: 'Vórtice da Foice Espectral',
+              cost: '3 Mana Mental • 4 Ticks',
+              mechanic: 'Área de 4 metros. Causa 3d6+4 de dano a todos os inimigos adjacentes e empurra 2 metros para trás.',
+              description: 'A lâmina se expande em um leque circular avassalador que estilhaça a defesa adversária.'
+            }
+          ]
+        },
+        {
+          name: 'Manto de Neblina e Sombras',
+          cost: '1 Mana Mental + 1 Mana Físico • 1 Tick',
+          category: 'Defensiva',
+          powerLevel: 'Equilibrado',
+          mechanic: 'Teste de Destreza + Furtividade. Envolve o personagem em sombras vivas por 3 rodadas; ataques contra o usuário sofrem penalidade de -2 dados e ganha imunidade a ataques de oportunidade.',
+          description: 'A luz ao redor do conjurador é sugada por espirais escuras e nevoeiro gélido, transformando seus passos em sussurros indecifráveis.',
+          synergy: 'Ideal para combatentes ágeis e ladinos que operam no flanco ou precisam escapar de foco direto em combate.',
+          variants: [
+            {
+              name: 'Véu Fugaz',
+              cost: '1 Mana Mental • 1 Tick',
+              mechanic: 'Dura apenas 1 turno, mas permite reposicionar imediatamente 3 metros sem sofrer ataques.',
+              description: 'Uma fração de segundo de invisibilidade para reposicionamento tático.'
+            },
+            {
+              name: 'Garganta da Escuridão',
+              cost: '3 Mana Mental • 3 Ticks',
+              mechanic: 'Cria uma esfera de escuridão total de 6 metros. Inimigos dentro ficam Cegos (+3 ticks em qualquer ação).',
+              description: 'Uma cúpula de breu sufocante que desorienta o campo de batalha.'
+            }
+          ]
+        },
+        {
+          name: 'Impacto Sísmico Titânico',
+          cost: '2 Mana Físico • 3 Ticks',
+          category: 'Ofensiva',
+          powerLevel: 'Heroico',
+          mechanic: 'Teste de Força + Luta contra Constituição do alvo. Causa 3d6+Força de dano contundente em cone de 5 metros e impõe condição Caído (alvo precisa gastar 2 Ticks para se levantar).',
+          description: 'Canalizando vigor telúrico através do calcanhar ou punho, o conjurador golpeia o solo, provocando rachaduras incandescentes na rocha.',
+          synergy: 'Perfeita para combatentes de alta Força e Constituição, controlando a linha de frente do Battle Tracker.',
+          variants: [
+            {
+              name: 'Pisada de Choque',
+              cost: '1 Mana Físico • 1 Tick',
+              mechanic: 'Alcance 2m. Causa 1d6 de dano e interrompe a ação do alvo se ele estiver em canalização.',
+              description: 'Uma vibração curta que quebra a postura do inimigo.'
+            },
+            {
+              name: 'Ruptura Cataclísmica',
+              cost: '4 Mana Físico • 5 Ticks',
+              mechanic: 'Alcance 10m. Causa 4d6+6 de dano, racha o terreno tornando-o terreno difícil e causa 1 ferimento letal a quem falhar no teste.',
+              description: 'A terra se abre em cratera fumegante sob a força do impacto.'
+            }
+          ]
+        }
+      ];
+
+      const match = themes.find(t => userPrompt.toLowerCase().includes('sombra') || userPrompt.toLowerCase().includes('nevoa'))
+        || themes.find(t => userPrompt.toLowerCase().includes('terra') || userPrompt.toLowerCase().includes('sismico') || userPrompt.toLowerCase().includes('força'))
+        || themes[0];
+
+      return {
+        ...match,
+        name: userPrompt.length > 3 && !userPrompt.includes('Habilidade arcana') ? userPrompt : match.name
+      };
+    };
+
+    const effectiveKey = (apiKey && typeof apiKey === 'string' && apiKey.trim())
+      ? apiKey.trim()
+      : (process.env.GEMINI_API_KEY || '');
+
+    // Se temos chave Gemini, usa o modelo oficial gemini-3.8-flash com Structured JSON
+    if (provider === 'gemini' && effectiveKey) {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: effectiveKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        const systemPrompt = `Você é o Arquivista Arcano e Mestre Forjador de Habilidades Especiais do Sistema Arcana RPG.
+Seu papel é criar, aprimorar ou balancear Habilidades Especiais marcantes, imersivas e prontas para uso no sistema Arcana.
+
+REGRAS E CUSTOS DO SISTEMA ARCANA:
+1. Custos válidos:
+   - "X Mana Mental" (foco, magias cognitivas, arcanas ou espirituais)
+   - "X Mana Físico" (vigor muscular, sobrecarga atlética, manobras de combate)
+   - "X Mana Social" (presença, fascínio, intimidação mágica)
+   - "X Natureza de [Fogo/Água/Terra/Ar/Ânima]" (magia elemental)
+   - "Y Ticks" (tempo no Battle Tracker, ex: 1 Tick = rápido, 2-3 Ticks = padrão, 4-5 Ticks = maior)
+   - Formato padronizado recomendado: "X Mana [Tipo] • Y Ticks" ou "X Natureza [Elemento] • Y Ticks".
+
+2. Mecânicas válidas:
+   - Teste de Ativação: Atributo + Perícia (ex: Inteligência + Ocultismo, Destreza + Luta, Percepção + Alerta, etc.)
+   - Alcance: Pessoal, Toque, Curto (5m), Médio (15m), Longo (30m) ou Área (raio de X metros)
+   - Rolagens de dano/efeito em dados d6 (ex: "2d6 + 3 de dano cortante", "1d6 de dano de fogo e +2 ticks de atraso")
+   - Tipos de dano: contundente, cortante, perfurante, fogo, gelo, elétrico, corrosivo, psíquico, espiritual.
+
+3. Contexto do Personagem:
+${characterContext || 'Personagem aventureiro do Sistema Arcana'}
+
+${action === 'refine' && currentAbility ? `Habilidade Atual a ser Aprimorada/Balanceada:
+Nome: ${currentAbility.name}
+Custo atual: ${currentAbility.cost || 'Sem custo'}
+Mecânica atual: ${currentAbility.mechanic || 'Sem mecânica'}
+Descrição: ${currentAbility.description || 'Sem descrição'}` : ''}
+
+Preferencia de Categoria: ${categoryPreference}
+Preferencia de Custo: ${costPreference}
+Nível de Poder: ${powerLevel}
+
+Gere um JSON estrito com campos:
+- name: string
+- cost: string
+- mechanic: string
+- description: string
+- category: "Ofensiva" | "Defensiva" | "Suporte" | "Utilitária" | "Elemental" | "Espiritual"
+- powerLevel: "Iniciante" | "Equilibrado" | "Heroico"
+- synergy: string (1-2 frases destacando sinergia com a ficha)
+- variants: array com 2 objetos contendo name, cost, mechanic, description (uma versão rápida/econômica e uma potencializada/devastadora).
+
+Responda SOMENTE o JSON puro, sem blocos de código com crases triplas e sem texto fora do JSON.`;
+
+        const userMessage = action === 'refine'
+          ? `Aprimore e balanceie mecanicamente a habilidade com foco em: ${userPrompt}`
+          : `Forje uma habilidade especial de alta qualidade sobre: ${userPrompt}`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+          config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: 'application/json'
+          }
+        });
+
+        const replyText = response.text || '';
+        let cleanJsonStr = replyText.trim();
+        if (cleanJsonStr.startsWith('```json')) cleanJsonStr = cleanJsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+        if (cleanJsonStr.startsWith('```')) cleanJsonStr = cleanJsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+
+        const parsed = JSON.parse(cleanJsonStr);
+        return res.json({
+          success: true,
+          provider: 'gemini',
+          model: 'gemini-3.8-flash',
+          ability: parsed
+        });
+      } catch (err: any) {
+        console.warn('[ForgeAbility:Gemini Error, using fallback]', err?.message);
+      }
+    }
+
+    // Se falhar ou não tiver key, usa gerador procedural de alta qualidade
+    const fallbackAbility = generateFallbackAbility();
+    return res.json({
+      success: true,
+      provider: 'procedural',
+      ability: fallbackAbility
+    });
+  });
+
+  // 13. Sugerir com IA nos campos da habilidade (Preenche campos faltantes da habilidade)
+  app.post('/api/aurora/suggest-ability-fields', async (req, res) => {
+    const {
+      currentFields = {},
+      characterContext = '',
+      apiKey,
+      provider = 'gemini'
+    } = req.body;
+
+    const name = String(currentFields.name || '').trim();
+    const cost = String(currentFields.cost || '').trim();
+    const mechanic = String(currentFields.mechanic || '').trim();
+    const description = String(currentFields.description || '').trim();
+
+    const effectiveKey = (apiKey && typeof apiKey === 'string' && apiKey.trim())
+      ? apiKey.trim()
+      : (process.env.GEMINI_API_KEY || '');
+
+    // Procedural intelligent fallback when offline or no API key
+    const fallbackSuggest = () => {
+      const baseName = name || 'Manto Espectral';
+      const baseCost = cost || '2 Mana Mental • 2 Ticks';
+      const baseMechanic = mechanic || 'Teste de Inteligência + Ocultismo vs Esquiva. Causa 2d6+2 de dano etéreo em alcance de 10m.';
+      const baseDesc = description || `Uma manifestação mística que canaliza a essência arcana do personagem, moldando energia concentrada para impacto tático no campo de batalha.`;
+      return {
+        name: baseName,
+        cost: baseCost,
+        mechanic: baseMechanic,
+        description: baseDesc
+      };
+    };
+
+    if (effectiveKey && provider === 'gemini') {
+      try {
+        const ai = new GoogleGenAI({
+          apiKey: effectiveKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
+        const systemPrompt = `Você é o Arquivista Arcano e Mestre do Sistema Arcana RPG.
+O usuário está cadastrando ou editando uma Habilidade Especial e clicou em "Sugerir com IA".
+Sua tarefa é analisar os campos que o usuário JÁ PREENCHEU e COMPLETAR com precisão matemática e narrativa os campos que estiverem VAZIOS ou FALTANDO.
+
+REGRAS DE FORMATAÇÃO DO SISTEMA ARCANA:
+1. 'name': Nome evocativo e marcante em português. (Se o usuário já preencheu, mantenha ou aprimore ligeiramente se solicitado).
+2. 'cost': Formato padronizado: "X Mana [Mental/Físico/Social] • Y Ticks" ou "X Natureza de [Fogo/Água/Terra/Ar/Ânima] • Y Ticks".
+3. 'mechanic': Teste de Atributo + Perícia (ex: Destreza + Luta vs Esquiva), dados de dano/efeito em d6 (ex: 2d6+2) e alcance (Curto 5m, Médio 15m, etc.).
+4. 'description': 1 a 2 parágrafos imersivos sobre manifestação visual e sensorial.
+
+DADOS ATUAIS FORNECIDOS PELO USUÁRIO:
+• Nome: ${name || '[VAZIO - SUGIRA UM NOME]'}
+• Custo: ${cost || '[VAZIO - SUGIRA O CUSTO]'}
+• Mecânica: ${mechanic || '[VAZIO - SUGIRA A MECÂNICA]'}
+• Descrição: ${description || '[VAZIO - SUGIRA A DESCRIÇÃO]'}
+
+CONTEXTO DO PERSONAGEM:
+${characterContext || 'Personagem do Sistema Arcana'}
+
+Responda SOMENTE um JSON estrito com os 4 campos preenchidos:
+{
+  "name": "...",
+  "cost": "...",
+  "mechanic": "...",
+  "description": "..."
+}`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [{ role: 'user', parts: [{ text: 'Gere os campos faltantes mantendo o que já foi preenchido.' }] }],
+          config: {
+            systemInstruction: systemPrompt,
+            responseMimeType: 'application/json'
+          }
+        });
+
+        const replyText = response.text || '';
+        let cleanJsonStr = replyText.trim();
+        if (cleanJsonStr.startsWith('```json')) cleanJsonStr = cleanJsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+        if (cleanJsonStr.startsWith('```')) cleanJsonStr = cleanJsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+
+        const parsed = JSON.parse(cleanJsonStr);
+        return res.json({
+          success: true,
+          ability: {
+            name: name || parsed.name || 'Nova Habilidade',
+            cost: cost || parsed.cost || '2 Mana Mental • 2 Ticks',
+            mechanic: mechanic || parsed.mechanic || 'Teste de Atributo + Perícia vs Esquiva.',
+            description: description || parsed.description || 'Descrição da habilidade.'
+          }
+        });
+      } catch (err: any) {
+        console.warn('[SuggestAbilityFields:Gemini Error, using fallback]', err?.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      ability: fallbackSuggest()
+    });
   });
 
   // Mount Vite or serve static files

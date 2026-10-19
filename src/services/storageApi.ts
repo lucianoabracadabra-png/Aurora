@@ -310,6 +310,38 @@ export const StorageApi = {
     };
   },
 
+  async getAllFullCharacters(): Promise<Array<{ id: string; username: string; name: string; avatarUrl?: string; color: string; data: CharacterData }>> {
+    logStorage('info', 'getAllFullCharacters', 'Carregando todas as fichas do Supabase em chamada REST única...');
+    try {
+      const { data, error } = await supabase.from('characters').select('username, name, color, character, updated_at');
+      if (!error && data && data.length > 0) {
+        logStorage('success', 'getAllFullCharacters', `${data.length} fichas carregadas em uma única chamada.`);
+        return data.map((c: any) => ({
+          id: `char-${c.username}`,
+          username: c.username,
+          name: c.character?.identity?.name || c.name || c.username,
+          avatarUrl: c.character?.identity?.avatarUrl,
+          color: c.color || '#a855f7',
+          data: c.character
+        }));
+      }
+    } catch (e: any) {
+      logStorage('warn', 'getAllFullCharacters', `Supabase indisponível: ${e?.message}`);
+    }
+
+    // Fallback to local cache
+    const local = getLocalMasterData();
+    const charsObj = local.characters || {};
+    return Object.values(charsObj).map((c: any) => ({
+      id: `char-${c.username}`,
+      username: c.username,
+      name: c.character?.identity?.name || c.name || c.username,
+      avatarUrl: c.character?.identity?.avatarUrl,
+      color: c.color || '#a855f7',
+      data: c.character
+    }));
+  },
+
   async getCharactersList(_force = true): Promise<CharacterSummary[]> {
     logStorage('info', 'getCharactersList', 'Carregando lista de fichas do Supabase...');
     let list: CharacterSummary[] = [];

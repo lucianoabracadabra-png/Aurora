@@ -10,6 +10,8 @@ export interface StatIntersectionBoxProps {
   manaTotal: number;
   onManaChange: (v: number) => void;
   readonly: boolean;
+  focusLevel?: 'Fe' | 'F1' | 'F2' | 'F3';
+  onOpenFocusModal?: () => void;
 }
 
 export const StatIntersectionBox: React.FC<StatIntersectionBoxProps> = ({
@@ -19,6 +21,8 @@ export const StatIntersectionBox: React.FC<StatIntersectionBoxProps> = ({
   manaSpent,
   manaTotal,
   onManaChange,
+  focusLevel,
+  onOpenFocusModal,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -57,6 +61,23 @@ export const StatIntersectionBox: React.FC<StatIntersectionBoxProps> = ({
       ref={ref}
       title={title} 
       titleClassName={titleThemeColors[theme]}
+      rightContent={
+        focusLevel ? (
+          <button
+            type="button"
+            onClick={onOpenFocusModal}
+            className={`px-2.5 py-0.5 rounded-full border text-[10px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95 ${
+              focusLevel === 'Fe' ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]' :
+              focusLevel === 'F1' ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.25)]' :
+              focusLevel === 'F2' ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.25)]' :
+              'bg-slate-500/20 border-slate-400/40 text-slate-300'
+            }`}
+            title={`Foco deste grupo: ${focusLevel}. Clique para abrir o Painel de Focos e Calculadora de EXP`}
+          >
+            <span>Foco: {focusLevel}</span>
+          </button>
+        ) : undefined
+      }
     >
       {/* SEÇÃO DE MANA DO EIXO COM BARRA DE ENERGIA E CONTROLADORES */}
       <div className="flex flex-col gap-2.5 bg-white/[0.02] border border-white/5 rounded-2xl p-3 sm:p-3.5 mb-6 shadow-inner relative overflow-hidden">

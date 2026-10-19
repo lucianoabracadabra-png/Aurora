@@ -315,6 +315,35 @@ class RealtimeSyncService {
   getConnectedPeersCount(): number {
     return this.peers.size;
   }
+
+  cleanup() {
+    if (this.supabaseChannel) {
+      try {
+        supabase.removeChannel(this.supabaseChannel);
+      } catch (err) {
+        console.warn('[RealtimeSync] Error removing Supabase channel:', err);
+      }
+      this.supabaseChannel = null;
+    }
+    if (this.room) {
+      try {
+        this.room.leave();
+      } catch {}
+      this.room = null;
+    }
+    if (this.localChannel) {
+      try {
+        this.localChannel.close();
+      } catch {}
+      this.localChannel = null;
+    }
+    this.battleListeners.clear();
+    this.entityHealthListeners.clear();
+    this.sheetListeners.clear();
+    this.deleteSheetListeners.clear();
+    this.peerCountListeners.clear();
+    this.isInitialized = false;
+  }
 }
 
 export const realtimeSync = new RealtimeSyncService();

@@ -13,7 +13,18 @@ export const initialCharacterData: CharacterData = {
     age: '23',
     ideals: 'Dever, Comunidade, Cultura',
     origin: 'Coração do deserto de Igbalim',
+    archetype: 'Guardião do Deserto',
     languages: ['Ma\'isha', 'Igbalim', 'Tantumá'],
+  },
+  focusConfig: {
+    distribution: 'padrao',
+    physical: 'F1',
+    mental: 'F2',
+    social: 'F3',
+  },
+  expBudget: {
+    initial: 300,
+    campaign: 0,
   },
   alignment: {
     altruism: 100,
@@ -514,6 +525,7 @@ export const createEmptyCharacterData = (name: string = '', _color?: string): Ch
   identity: {
     name: name,
     avatarUrl: '',
+    archetype: '',
     height: '',
     weight: '',
     hair: '',
@@ -523,6 +535,16 @@ export const createEmptyCharacterData = (name: string = '', _color?: string): Ch
     ideals: '',
     origin: '',
     languages: [],
+  },
+  focusConfig: {
+    distribution: 'padrao',
+    physical: 'F1',
+    mental: 'F2',
+    social: 'F3',
+  },
+  expBudget: {
+    initial: 300,
+    campaign: 0,
   },
   alignment: {
     altruism: 1,

@@ -1,6 +1,7 @@
 export type Identity = {
   name: string;
   avatarUrl?: string;
+  archetype?: string;
   height: string;
   weight: string;
   hair: string;
@@ -302,6 +303,21 @@ export interface CampaignCharacter {
   data: CharacterData;
 }
 
+export type FocusLevel = 'Fe' | 'F1' | 'F2' | 'F3';
+export type FocusDistributionType = 'padrao' | 'especializada' | 'generalista'; // 'padrao' = [F1, F2, F3], 'especializada' = [Fe, F3, F3], 'generalista' = [F2, F2, F2]
+
+export type FocusConfig = {
+  distribution: FocusDistributionType;
+  physical: FocusLevel;
+  mental: FocusLevel;
+  social: FocusLevel;
+};
+
+export type ExpBudget = {
+  initial: number; // Banco de EXP Inicial / Criação
+  campaign: number; // Banco de EXP de Campanha / Adicional
+};
+
 export type CharacterData = {
   identity: Identity;
   alignment: Alignment;
@@ -317,4 +333,6 @@ export type CharacterData = {
   health: BodyHealth;
   inventory: Inventory;
   spiritus: SpiritusData;
+  focusConfig?: FocusConfig;
+  expBudget?: ExpBudget;
 };

@@ -172,6 +172,7 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
   const isSyncingFromServerRef = useRef<boolean>(false);
   const saveTimeoutRef = useRef<any>(null);
   const lastModifiedLocalTimeRef = useRef<number>(0);
+  const healthDebounceTimeoutRef = useRef<any>(null);
 
   // Verifica se uma entidade pertence ao usuário logado (RLS check)
   const isEntityOwnedByLoggedUser = (entity: CombatEntity | null): boolean => {
@@ -283,18 +284,15 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
     }
   };
 
+  // O Fetch Inicial (Apenas 1 chamada REST):
+  // Ao abrir o Battle Tracker, faz uma única requisição GET para carregar o estado inicial.
+  // Após isso, todas as alterações chegam silenciosamente pelo canal Realtime (WebSocket),
+  // eliminando polling e flood no painel Network.
   useEffect(() => {
     syncFromServer();
-    const interval = setInterval(syncFromServer, 3500);
-    const handleFocus = () => syncFromServer();
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
-    };
   }, []);
 
+  // Debounce consolidado para salvar estado de combate no Supabase (500ms)
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 
@@ -311,7 +309,7 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
       } catch (err) {
         console.error('Failed to sync battle state to Supabase/server:', err);
       }
-    }, 400);
+    }, 500);
 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -463,8 +461,9 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
 
     lastModifiedLocalTimeRef.current = Date.now();
 
+    // Optimistic UI: tela atualiza instantaneamente para manter fluidez do jogo
+    let updatedTargetHealth: BodyHealth = DEFAULT_BODY_HEALTH;
     setState((prev) => {
-      let updatedTargetHealth: BodyHealth = DEFAULT_BODY_HEALTH;
       const updatedEntities = prev.entities.map((e) => {
         if (e.id !== entityId) return e;
         const currentHealth = e.health || DEFAULT_BODY_HEALTH;
@@ -480,19 +479,26 @@ export const BattleTrackerEnvironment: React.FC<BattleTrackerEnvironmentProps> =
         };
       });
 
-      // Broadcast granular health update to peers immediately
+      return {
+        ...prev,
+        entities: updatedEntities
+      };
+    });
+
+    // Debounce em status voláteis (500ms):
+    // Se o jogador clica 5 vezes rapidamente nos botões de dano ou HP,
+    // a interface atualiza de imediato na tela e envia apenas 1 broadcast consolidado.
+    if (healthDebounceTimeoutRef.current) {
+      clearTimeout(healthDebounceTimeoutRef.current);
+    }
+    healthDebounceTimeoutRef.current = setTimeout(() => {
       realtimeSync.broadcastEntityHealth({
         entityId,
         health: updatedTargetHealth,
         updatedAt: new Date().toISOString(),
         updater: loggedUsername || 'player'
       });
-
-      return {
-        ...prev,
-        entities: updatedEntities
-      };
-    });
+    }, 500);
   };
 
   const stretchTimespan = (amount: number = 5) => {

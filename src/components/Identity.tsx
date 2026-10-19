@@ -20,20 +20,34 @@ const LANGUAGE_FAMILIES = [
   { root: 'Dongalin', dialects: ['Kahakaka', 'Ogoron'] }
 ];
 
-const InlineInput = ({ label, value, onChange, fullWidth = false, readonly = false }: { label: string; value: string; onChange: (v: string) => void, fullWidth?: boolean, readonly?: boolean }) => (
+const InlineInput = ({ 
+  label, 
+  value, 
+  onChange, 
+  fullWidth = false, 
+  readonly = false,
+  placeholder = "Vazio"
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  fullWidth?: boolean; 
+  readonly?: boolean;
+  placeholder?: string;
+}) => (
   <div className={`flex flex-col gap-1 ${fullWidth ? 'col-span-full' : ''} group`}>
     <span className="text-[10px] tracking-widest text-violet-400/60 uppercase font-medium group-focus-within:text-violet-400 transition-all drop-shadow-[0_0_8px_rgba(167,139,250,0)] group-focus-within:drop-shadow-[0_0_8px_rgba(167,139,250,0.5)]">
       {label}
     </span>
     {readonly ? (
       <div className="text-slate-200 text-sm py-1 border-b border-transparent min-w-0">
-        {value || <span className="text-white/30 italic">Vazio</span>}
+        {value || <span className="text-white/30 italic">{placeholder}</span>}
       </div>
     ) : (
       <input
         type="text"
         value={value}
-        placeholder="Vazio"
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="bg-transparent border-b border-white/10 focus:border-violet-400 outline-none text-slate-200 text-sm py-1 transition-all w-full focus:shadow-[0_1px_8px_-2px_rgba(167,139,250,0.5)] min-w-0 placeholder:text-white/25 placeholder:italic"
       />
@@ -294,9 +308,10 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
 
         {/* Campos de Identidade com transição suave */}
         <div className="flex-1 min-w-0 w-full flex flex-col gap-2.5 transition-all duration-500 ease-in-out">
-          {/* Linha principal: Sempre visível (Nome) */}
-          <div className="w-full">
-            <InlineInput fullWidth label="Nome" value={data.name} onChange={(v) => update('name', v)} readonly={readonly} />
+          {/* Linha principal: Sempre visível (Nome e Arquétipo) */}
+          <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InlineInput label="Nome" value={data.name} onChange={(v) => update('name', v)} readonly={readonly} placeholder="Nome" />
+            <InlineInput label="Arquétipo" value={data.archetype || ''} onChange={(v) => update('archetype', v)} readonly={readonly} placeholder="Arquétipo" />
           </div>
 
           {/* Campos intermediários expansíveis: Altura, Peso, Cabelo, Olhos, Pele, Idade */}
@@ -369,8 +384,13 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
                 <h4 className="text-sm uppercase font-bold tracking-widest text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
                   {data.name || 'Personagem'}
                 </h4>
+                {data.archetype && (
+                  <p className="text-[11px] text-fuchsia-300 tracking-wider font-semibold">
+                    {data.archetype}
+                  </p>
+                )}
                 {data.origin && (
-                  <p className="text-[11px] text-white/60 tracking-wider mt-0.5">
+                  <p className="text-[10px] text-white/60 tracking-wider mt-0.5">
                     {data.origin}
                   </p>
                 )}

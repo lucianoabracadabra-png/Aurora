@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { StorageApi, CharacterSummary, AuthSession } from '../services/storageApi';
 import { createEmptyCharacterData } from '../initialState';
+import { FocusDistributionType, FocusConfig } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -72,6 +73,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('123123123');
   const [regName, setRegName] = useState('');
+  const [regArchetype, setRegArchetype] = useState('');
+  const [regFocusDist, setRegFocusDist] = useState<FocusDistributionType>('padrao');
+  const [regFocusGroup, setRegFocusGroup] = useState<'physical' | 'mental' | 'social'>('physical');
   const [regColor, setRegColor] = useState('#a855f7');
 
   // Change password state
@@ -166,6 +170,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setError(null);
       const cleanName = regName.trim() || cleanUser;
       const emptyData = createEmptyCharacterData(cleanName, regColor);
+      emptyData.identity.archetype = regArchetype.trim();
+
+      // Configuração inicial dos Focos conforme as 3 opções
+      if (regFocusDist === 'padrao') {
+        if (regFocusGroup === 'physical') {
+          emptyData.focusConfig = { distribution: 'padrao', physical: 'F1', mental: 'F2', social: 'F3' };
+        } else if (regFocusGroup === 'mental') {
+          emptyData.focusConfig = { distribution: 'padrao', physical: 'F2', mental: 'F1', social: 'F3' };
+        } else {
+          emptyData.focusConfig = { distribution: 'padrao', physical: 'F2', mental: 'F3', social: 'F1' };
+        }
+      } else if (regFocusDist === 'especializada') {
+        if (regFocusGroup === 'physical') {
+          emptyData.focusConfig = { distribution: 'especializada', physical: 'Fe', mental: 'F3', social: 'F3' };
+        } else if (regFocusGroup === 'mental') {
+          emptyData.focusConfig = { distribution: 'especializada', physical: 'F3', mental: 'Fe', social: 'F3' };
+        } else {
+          emptyData.focusConfig = { distribution: 'especializada', physical: 'F3', mental: 'F3', social: 'Fe' };
+        }
+      } else {
+        emptyData.focusConfig = { distribution: 'generalista', physical: 'F2', mental: 'F2', social: 'F2' };
+      }
+
       const res = await StorageApi.register({
         username: cleanUser,
         password: regPassword,
@@ -621,18 +648,120 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-white/80 block mb-1">
-              Nome do Personagem
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-white/80 block mb-1">
+                Nome do Personagem
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="Ex: Elias Iyanu"
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-white/80 block mb-1">
+                Arquétipo <span className="text-white/40 text-[10px] font-normal">(Opcional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: Guardião, Caçador, Feiticeiro"
+                value={regArchetype}
+                onChange={(e) => setRegArchetype(e.target.value)}
+                className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Seleção dos 3 Tipos de Focos na Criação */}
+          <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-white/[0.02] border border-white/10">
+            <label className="text-xs font-bold text-white/90 uppercase tracking-wider block">
+              Distribuição de Focos dos Grupos
             </label>
-            <input
-              type="text"
-              required
-              placeholder="Vazio"
-              value={regName}
-              onChange={(e) => setRegName(e.target.value)}
-              className="w-full px-3 py-2 bg-black/50 border border-white/15 focus:border-cyan-400 rounded-xl text-white text-xs outline-none transition-colors"
-            />
+            <span className="text-[10px] text-white/50 mb-1 leading-relaxed">
+              Define o custo em EXP para evoluir atributos e perícias (Físico, Mental, Social).
+            </span>
+
+            <div className="grid grid-cols-1 gap-2">
+              {[
+                {
+                  id: 'padrao' as FocusDistributionType,
+                  title: 'O Natural (Aptidão Padrão)',
+                  pattern: '[ F1 + F2 + F3 ]',
+                  desc: '1 Primário (baixo custo), 1 Secundário (médio) e 1 Sem Foco (alto).'
+                },
+                {
+                  id: 'especializada' as FocusDistributionType,
+                  title: 'O Especialista (Gênio Focado)',
+                  pattern: '[ Fe + F3 + F3 ]',
+                  desc: '1 Foco Exclusivo (menor custo) e 2 Sem Foco (alto custo).'
+                },
+                {
+                  id: 'generalista' as FocusDistributionType,
+                  title: 'O Generalista ("Sem Foco" Específico)',
+                  pattern: '[ F2 + F2 + F2 ]',
+                  desc: 'Três Focos Secundários de custo médio equilibrado.'
+                }
+              ].map(opt => {
+                const isSelected = regFocusDist === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setRegFocusDist(opt.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+                      isSelected
+                        ? 'bg-cyan-500/15 border-cyan-400/70 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                        : 'bg-black/30 border-white/5 hover:border-white/15 text-white/60 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-white">
+                        {opt.title}
+                      </span>
+                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 text-cyan-300">
+                        {opt.pattern}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-white/55 leading-relaxed">
+                      {opt.desc}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Grupo com maior afinidade se padrão ou especializada */}
+            {regFocusDist !== 'generalista' && (
+              <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-white/70">
+                  {regFocusDist === 'padrao' ? 'Grupo Primário (F1):' : 'Grupo Exclusivo (Fe):'}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {[
+                    { id: 'physical' as const, label: 'Físico' },
+                    { id: 'mental' as const, label: 'Mental' },
+                    { id: 'social' as const, label: 'Social' }
+                  ].map(g => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setRegFocusGroup(g.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                        regFocusGroup === g.id
+                          ? 'bg-cyan-500/30 border-cyan-400 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

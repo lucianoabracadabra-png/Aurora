@@ -137,6 +137,7 @@ export function buildCharacterContext(data: CharacterData): string {
     return `FICHA COMPLETA DO PERSONAGEM (SISTEMA ARCANA):
 === IDENTIDADE ===
 • Nome: ${ident.name || 'Sem Nome'}
+• Arquétipo: ${ident.archetype || 'Não definido'}
 • Origem: ${ident.origin || 'Não definida'}
 • Ideais: ${ident.ideals || 'Não definidos'}
 • Idade: ${ident.age || '-'} | Altura: ${ident.height || '-'} | Peso: ${ident.weight || '-'}
@@ -259,13 +260,13 @@ export const AURORA_TOOL_DEFINITIONS = [
   // 2. IDENTIDADE
   {
     name: 'manage_identity',
-    description: 'Atualiza informações cadastrais do personagem: nome, idade, altura, peso, cabelos, olhos, pele, ideais, origem, avatarUrl.',
+    description: 'Atualiza informações cadastrais do personagem: nome, arquétipo, idade, altura, peso, cabelos, olhos, pele, ideais, origem, avatarUrl.',
     parameters: {
       type: 'object',
       properties: {
         field: {
           type: 'string',
-          enum: ['name', 'age', 'height', 'weight', 'hair', 'eyes', 'skin', 'ideals', 'origin', 'avatarUrl'],
+          enum: ['name', 'archetype', 'age', 'height', 'weight', 'hair', 'eyes', 'skin', 'ideals', 'origin', 'avatarUrl'],
           description: 'Campo da identidade a alterar.'
         },
         value: {
@@ -923,7 +924,7 @@ export function executeAuroraTool(
       // 2. MANAGE IDENTITY
       case 'manage_identity': {
         const { field, value } = args;
-        const validFields = ['name', 'age', 'height', 'weight', 'hair', 'eyes', 'skin', 'ideals', 'origin', 'avatarUrl'];
+        const validFields = ['name', 'archetype', 'age', 'height', 'weight', 'hair', 'eyes', 'skin', 'ideals', 'origin', 'avatarUrl'];
 
         if (validFields.includes(field)) {
           (updatedData.identity as any)[field] = String(value || '').trim();
