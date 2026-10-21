@@ -3,27 +3,66 @@
 
 import { FocusLevel, FocusDistributionType, FocusConfig, CharacterData } from '../types';
 
+export function normalizeFocusLevel(val: any): FocusLevel {
+  if (val === 'FE' || val === 'Fe') return 'FE';
+  if (val === 'F1') return 'F1';
+  if (val === 'F2') return 'F2';
+  return 'SF';
+}
+
+/**
+ * Atributos Valores (LVL 1 a 15)
+ * LVL, FE, F1, F2, SF
+ */
 export const ATRIBUTOS_COST_TABLE: Record<FocusLevel, number[]> = {
-  // LVL 1 to 15 (index 0 is LVL 1, index 14 is LVL 15)
-  Fe: [9, 11, 13, 16, 19, 24, 29, 35, 43, 53, 64, 79, 96, 117, 143],
+  // index 0 = LVL 1 ... index 14 = LVL 15
+  FE: [9, 11, 13, 16, 19, 24, 29, 35, 43, 53, 64, 79, 96, 117, 143],
   F1: [11, 13, 16, 20, 25, 31, 39, 48, 59, 74, 91, 113, 140, 174, 216],
   F2: [13, 16, 20, 25, 31, 39, 48, 60, 76, 95, 119, 149, 186, 233, 292],
-  F3: [15, 18, 23, 30, 38, 48, 61, 78, 99, 126, 160, 204, 259, 329, 418],
+  SF: [15, 19, 24, 30, 37, 47, 57, 72, 93, 116, 147, 185, 232, 292, 368],
 };
 
+/**
+ * Perícias Valores (LVL 1 a 7)
+ * LVL, FE, F1, F2, SF
+ */
 export const PERICIAS_COST_TABLE: Record<FocusLevel, number[]> = {
-  // LVL 1 to 7 (index 0 is LVL 1, index 6 is LVL 7)
-  Fe: [11, 15, 21, 30, 43, 61, 86],
+  // index 0 = LVL 1 ... index 6 = LVL 7
+  FE: [11, 15, 21, 30, 43, 61, 86],
   F1: [13, 19, 27, 39, 56, 80, 113],
   F2: [15, 21, 31, 46, 67, 98, 139],
-  F3: [17, 26, 38, 57, 85, 127, 184],
+  SF: [17, 23, 35, 53, 78, 116, 165],
 };
 
-export const FOCUS_LABELS: Record<FocusLevel, { label: string; desc: string; color: string; badgeBg: string }> = {
-  Fe: { label: 'Fe (Exclusivo)', desc: 'Custo mais barato', color: 'text-amber-300', badgeBg: 'bg-amber-500/20 border-amber-400/40 text-amber-300' },
-  F1: { label: 'F1 (Primário)', desc: 'Custo baixo', color: 'text-emerald-300', badgeBg: 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300' },
-  F2: { label: 'F2 (Secundário)', desc: 'Custo médio', color: 'text-cyan-300', badgeBg: 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300' },
-  F3: { label: 'F3 (Sem Foco)', desc: 'Custo mais alto', color: 'text-slate-300', badgeBg: 'bg-slate-500/20 border-slate-400/40 text-slate-300' },
+export const FOCUS_LABELS: Record<FocusLevel, { label: string; name: string; desc: string; color: string; badgeBg: string }> = {
+  FE: { 
+    label: 'FE', 
+    name: 'Foco Exclusivo', 
+    desc: 'Menor custo de evolução do jogo. Acelera drasticamente a maestria no eixo.', 
+    color: 'text-amber-300', 
+    badgeBg: 'bg-amber-500/20 border-amber-400/40 text-amber-300' 
+  },
+  F1: { 
+    label: 'F1', 
+    name: 'Foco Primário', 
+    desc: 'Custo baixo de evolução. Área de grande vocação e aptidão natural.', 
+    color: 'text-emerald-300', 
+    badgeBg: 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300' 
+  },
+  F2: { 
+    label: 'F2', 
+    name: 'Foco Secundário', 
+    desc: 'Custo médio padrão. Desenvolvimento sólido, consistente e equilibrado.', 
+    color: 'text-cyan-300', 
+    badgeBg: 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300' 
+  },
+  SF: { 
+    label: 'SF', 
+    name: 'Sem Foco', 
+    desc: 'Maior custo de evolução. Área fora do foco principal do personagem.', 
+    color: 'text-slate-300', 
+    badgeBg: 'bg-slate-500/20 border-slate-400/40 text-slate-300' 
+  },
 };
 
 export const FOCUS_PRESETS: {
@@ -38,27 +77,27 @@ export const FOCUS_PRESETS: {
     id: 'padrao',
     title: 'O Natural',
     subtitle: 'Aptidão Padrão',
-    pattern: '[ F1 + F2 + F3 ]',
+    pattern: '[ F1 + F2 + SF ]',
     description: 'Um Foco Primário, um Secundário e um Sem Foco. Distribuição equilibrada e orgânica.',
     validConfigurations: [
-      { physical: 'F1', mental: 'F2', social: 'F3' },
-      { physical: 'F1', mental: 'F3', social: 'F2' },
-      { physical: 'F2', mental: 'F1', social: 'F3' },
-      { physical: 'F2', mental: 'F3', social: 'F1' },
-      { physical: 'F3', mental: 'F1', social: 'F2' },
-      { physical: 'F3', mental: 'F2', social: 'F1' },
+      { physical: 'F1', mental: 'F2', social: 'SF' },
+      { physical: 'F1', mental: 'SF', social: 'F2' },
+      { physical: 'F2', mental: 'F1', social: 'SF' },
+      { physical: 'F2', mental: 'SF', social: 'F1' },
+      { physical: 'SF', mental: 'F1', social: 'F2' },
+      { physical: 'SF', mental: 'F2', social: 'F1' },
     ],
   },
   {
     id: 'especializada',
     title: 'O Especialista',
     subtitle: 'Gênio Focado',
-    pattern: '[ Fe + F3 + F3 ]',
-    description: 'Um Foco Exclusivo (Fe) de altíssimo talento em uma área, e duas áreas Sem Foco (F3).',
+    pattern: '[ FE + SF + SF ]',
+    description: 'Um Foco Exclusivo (FE) de altíssimo talento em uma área, e duas áreas Sem Foco (SF).',
     validConfigurations: [
-      { physical: 'Fe', mental: 'F3', social: 'F3' },
-      { physical: 'F3', mental: 'Fe', social: 'F3' },
-      { physical: 'F3', mental: 'F3', social: 'Fe' },
+      { physical: 'FE', mental: 'SF', social: 'SF' },
+      { physical: 'SF', mental: 'FE', social: 'SF' },
+      { physical: 'SF', mental: 'SF', social: 'FE' },
     ],
   },
   {
@@ -76,163 +115,417 @@ export const FOCUS_PRESETS: {
 /**
  * Retorna o custo de um Atributo (LVL 1 a 15) dado o seu Foco.
  */
-export function getAttributeCost(lvl: number, focus: FocusLevel): number {
+export function getAttributeCost(lvl: number, focus: FocusLevel | string): number {
   if (lvl <= 0) return 0;
   const clampedLvl = Math.min(15, Math.max(1, lvl));
-  const table = ATRIBUTOS_COST_TABLE[focus] || ATRIBUTOS_COST_TABLE.F2;
+  const normFocus = normalizeFocusLevel(focus);
+  const table = ATRIBUTOS_COST_TABLE[normFocus] || ATRIBUTOS_COST_TABLE.F2;
   return table[clampedLvl - 1] || 0;
 }
 
 /**
  * Retorna o custo de uma Perícia (LVL 1 a 7) dado o seu Foco.
  */
-export function getSkillCost(lvl: number, focus: FocusLevel): number {
+export function getSkillCost(lvl: number, focus: FocusLevel | string): number {
   if (lvl <= 0) return 0;
   const clampedLvl = Math.min(7, Math.max(1, lvl));
-  const table = PERICIAS_COST_TABLE[focus] || PERICIAS_COST_TABLE.F2;
+  const normFocus = normalizeFocusLevel(focus);
+  const table = PERICIAS_COST_TABLE[normFocus] || PERICIAS_COST_TABLE.F2;
   return table[clampedLvl - 1] || 0;
 }
 
-/**
- * Calcula o custo total gasto em Atributos, Perícias e Termos Fixos de uma Ficha.
- * Regras Especiais (Termos Fixos):
- * - Alma: Usa tabela de Atributos na coluna Fe.
- * - Domínio: Usa tabela de Perícias na coluna F1.
- * - Personalidade: Usa tabela de Perícias na coluna F2.
- * - Fluxo e Patrono: Considerados Atributos F1.
- */
-export function calculateSheetTotalExp(data: CharacterData): {
-  physicalExp: number;
-  mentalExp: number;
-  socialExp: number;
-  specialExp: number;
+export interface TreeItemLeaf {
+  id: string;
+  name: string;
+  level: number;
+  cost: number;
+  focus: FocusLevel;
+  type: 'attribute' | 'skill' | 'fixed';
+  ruleNote?: string;
+}
+
+export interface TreeSubgroupNode {
+  id: string;
+  title: string;
+  totalExp: number;
+  items: TreeItemLeaf[];
+}
+
+export interface TreeSectionNode {
+  id: string;
+  title: string;
+  theme: 'rose' | 'cyan' | 'emerald' | 'amber';
+  focus: FocusLevel;
+  totalExp: number;
+  subgroups: TreeSubgroupNode[];
+}
+
+export interface DetailedTreeExpBreakdown {
   totalSpent: number;
-  breakdown: {
-    physicalAttributes: number;
-    physicalSkills: number;
-    mentalAttributes: number;
-    mentalSkills: number;
-    socialAttributes: number;
-    socialSkills: number;
-    domainsExp: number;
-    spiritusExp: number;
-    personalityExp: number;
+  sections: TreeSectionNode[];
+  summary: {
+    physicalExp: number;
+    mentalExp: number;
+    socialExp: number;
+    specialExp: number;
   };
-} {
-  const focusConfig: FocusConfig = data.focusConfig || {
-    distribution: 'padrao',
-    physical: 'F1',
-    mental: 'F2',
-    social: 'F3',
+}
+
+const ATTRIBUTE_TRANSLATIONS: Record<string, string> = {
+  strength: 'Força',
+  dexterity: 'Destreza',
+  agility: 'Agilidade',
+  constitution: 'Constituição',
+  intelligence: 'Inteligência',
+  wits: 'Raciocínio',
+  perception: 'Percepção',
+  memory: 'Memória',
+  charisma: 'Carisma',
+  manipulation: 'Manipulação',
+  empathy: 'Empatia',
+  expression: 'Expressão',
+  resilience: 'Resiliência',
+};
+
+const SKILL_TRANSLATIONS: Record<string, string> = {
+  // Treinamentos (Físico)
+  athletics: 'Atletismo',
+  brawl: 'Luta',
+  stealth: 'Furtividade',
+  survival: 'Sobrevivência',
+  driving: 'Condução',
+  melee: 'Armas Brancas',
+  archery: 'Pontaria',
+  // Ciências (Mental)
+  alchemy: 'Alquimia',
+  medicine: 'Medicina',
+  occult: 'Ocultismo',
+  tactics: 'Tática',
+  investigation: 'Investigação',
+  technology: 'Tecnologia',
+  // Artes (Social)
+  diplomacy: 'Diplomacia',
+  subterfuge: 'Enganação',
+  intimidation: 'Intimidação',
+  performance: 'Performance',
+  persuasion: 'Persuasão',
+};
+
+const PERSONALITY_TRANSLATIONS: Record<string, string> = {
+  courage: 'Coragem',
+  conviction: 'Convicção',
+  serenity: 'Serenidade',
+};
+
+const DOMAIN_TRANSLATIONS: Record<string, string> = {
+  water: 'Domínio da Água',
+  air: 'Domínio do Ar',
+  anima: 'Domínio de Anima',
+  fire: 'Domínio do Fogo',
+  earth: 'Domínio da Terra',
+};
+
+/**
+ * Monta a estrutura detalhada e hierárquica em Tree-View para o modal de EXP.
+ */
+export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeExpBreakdown {
+  const focusConfig: FocusConfig = {
+    distribution: data.focusConfig?.distribution || 'padrao',
+    physical: normalizeFocusLevel(data.focusConfig?.physical || 'F1'),
+    mental: normalizeFocusLevel(data.focusConfig?.mental || 'F2'),
+    social: normalizeFocusLevel(data.focusConfig?.social || 'SF'),
   };
 
-  // 1. Físico
-  let physicalAttributes = 0;
-  if (data.attributes?.physical) {
-    Object.values(data.attributes.physical).forEach((val) => {
-      physicalAttributes += getAttributeCost(val, focusConfig.physical);
-    });
-  }
+  // 1. Eixo Físico
+  const physAttrItems: TreeItemLeaf[] = Object.entries(data.attributes?.physical || {}).map(([key, val]) => ({
+    id: `phys_attr_${key}`,
+    name: ATTRIBUTE_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getAttributeCost(val, focusConfig.physical),
+    focus: focusConfig.physical,
+    type: 'attribute',
+  }));
 
-  let physicalSkills = 0;
-  if (data.skills?.physical) {
-    Object.values(data.skills.physical).forEach((val) => {
-      physicalSkills += getSkillCost(val, focusConfig.physical);
-    });
-  }
+  const physSkillItems: TreeItemLeaf[] = Object.entries(data.skills?.physical || {}).map(([key, val]) => ({
+    id: `phys_skill_${key}`,
+    name: SKILL_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getSkillCost(val, focusConfig.physical),
+    focus: focusConfig.physical,
+    type: 'skill',
+  }));
+
   if (data.customSkills?.treinamentos) {
     data.customSkills.treinamentos.forEach((s) => {
-      physicalSkills += getSkillCost(s.value, focusConfig.physical);
+      physSkillItems.push({
+        id: `phys_custom_${s.id}`,
+        name: s.name,
+        level: s.value,
+        cost: getSkillCost(s.value, focusConfig.physical),
+        focus: focusConfig.physical,
+        type: 'skill',
+        ruleNote: 'Perícia Customizada',
+      });
     });
   }
 
-  // 2. Mental
-  let mentalAttributes = 0;
-  if (data.attributes?.mental) {
-    Object.values(data.attributes.mental).forEach((val) => {
-      mentalAttributes += getAttributeCost(val, focusConfig.mental);
-    });
-  }
+  const physAttrTotal = physAttrItems.reduce((acc, it) => acc + it.cost, 0);
+  const physSkillTotal = physSkillItems.reduce((acc, it) => acc + it.cost, 0);
+  const physSectionTotal = physAttrTotal + physSkillTotal;
 
-  let mentalSkills = 0;
-  if (data.skills?.mental) {
-    Object.values(data.skills.mental).forEach((val) => {
-      mentalSkills += getSkillCost(val, focusConfig.mental);
-    });
-  }
+  // 2. Eixo Mental
+  const mentAttrItems: TreeItemLeaf[] = Object.entries(data.attributes?.mental || {}).map(([key, val]) => ({
+    id: `ment_attr_${key}`,
+    name: ATTRIBUTE_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getAttributeCost(val, focusConfig.mental),
+    focus: focusConfig.mental,
+    type: 'attribute',
+  }));
+
+  const mentSkillItems: TreeItemLeaf[] = Object.entries(data.skills?.mental || {}).map(([key, val]) => ({
+    id: `ment_skill_${key}`,
+    name: SKILL_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getSkillCost(val, focusConfig.mental),
+    focus: focusConfig.mental,
+    type: 'skill',
+  }));
+
   if (data.customSkills?.ciencias) {
     data.customSkills.ciencias.forEach((s) => {
-      mentalSkills += getSkillCost(s.value, focusConfig.mental);
+      mentSkillItems.push({
+        id: `ment_custom_${s.id}`,
+        name: s.name,
+        level: s.value,
+        cost: getSkillCost(s.value, focusConfig.mental),
+        focus: focusConfig.mental,
+        type: 'skill',
+        ruleNote: 'Perícia Customizada',
+      });
     });
   }
 
-  // 3. Social
-  let socialAttributes = 0;
-  if (data.attributes?.social) {
-    Object.values(data.attributes.social).forEach((val) => {
-      socialAttributes += getAttributeCost(val, focusConfig.social);
-    });
-  }
+  const mentAttrTotal = mentAttrItems.reduce((acc, it) => acc + it.cost, 0);
+  const mentSkillTotal = mentSkillItems.reduce((acc, it) => acc + it.cost, 0);
+  const mentSectionTotal = mentAttrTotal + mentSkillTotal;
 
-  let socialSkills = 0;
-  if (data.skills?.social) {
-    Object.values(data.skills.social).forEach((val) => {
-      socialSkills += getSkillCost(val, focusConfig.social);
-    });
-  }
+  // 3. Eixo Social
+  const socAttrItems: TreeItemLeaf[] = Object.entries(data.attributes?.social || {}).map(([key, val]) => ({
+    id: `soc_attr_${key}`,
+    name: ATTRIBUTE_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getAttributeCost(val, focusConfig.social),
+    focus: focusConfig.social,
+    type: 'attribute',
+  }));
+
+  const socSkillItems: TreeItemLeaf[] = Object.entries(data.skills?.social || {}).map(([key, val]) => ({
+    id: `soc_skill_${key}`,
+    name: SKILL_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getSkillCost(val, focusConfig.social),
+    focus: focusConfig.social,
+    type: 'skill',
+  }));
+
   if (data.customSkills?.artes) {
     data.customSkills.artes.forEach((s) => {
-      socialSkills += getSkillCost(s.value, focusConfig.social);
+      socSkillItems.push({
+        id: `soc_custom_${s.id}`,
+        name: s.name,
+        level: s.value,
+        cost: getSkillCost(s.value, focusConfig.social),
+        focus: focusConfig.social,
+        type: 'skill',
+        ruleNote: 'Perícia Customizada',
+      });
     });
   }
 
-  // 4. Termos Fixos / Especiais
-  // - Domínio: Usa tabela de Perícias na coluna F1.
-  let domainsExp = 0;
-  if (data.domains) {
-    Object.values(data.domains).forEach((val) => {
-      domainsExp += getSkillCost(val, 'F1');
-    });
-  }
+  const socAttrTotal = socAttrItems.reduce((acc, it) => acc + it.cost, 0);
+  const socSkillTotal = socSkillItems.reduce((acc, it) => acc + it.cost, 0);
+  const socSectionTotal = socAttrTotal + socSkillTotal;
 
-  // - Fluxo e Patrono são considerados atributos F1.
-  let spiritusExp = 0;
-  if (data.spiritus) {
-    spiritusExp += getAttributeCost(data.spiritus.fluxo || 1, 'F1');
-    spiritusExp += getAttributeCost(data.spiritus.patrono || 1, 'F1');
-  }
+  // 4. Especial & Termos Fixos
+  // - Domínios: Tabela de Perícias em F1
+  const domainItems: TreeItemLeaf[] = Object.entries(data.domains || {}).map(([key, val]) => ({
+    id: `domain_${key}`,
+    name: DOMAIN_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getSkillCost(val, 'F1'),
+    focus: 'F1',
+    type: 'fixed',
+    ruleNote: 'Fixado em F1',
+  }));
+  const domainsTotal = domainItems.reduce((acc, it) => acc + it.cost, 0);
 
-  // - Personalidade: Usa tabela de Perícias na coluna F2.
-  let personalityExp = 0;
-  if (data.personality) {
-    Object.values(data.personality).forEach((val) => {
-      personalityExp += getSkillCost(val, 'F2');
-    });
-  }
+  // - Spiritus (Fluxo e Patrono): Tabela de Atributos em F1
+  const spiritusItems: TreeItemLeaf[] = [
+    {
+      id: 'spiritus_fluxo',
+      name: 'Fluxo Espiritual',
+      level: data.spiritus?.fluxo || 1,
+      cost: getAttributeCost(data.spiritus?.fluxo || 1, 'F1'),
+      focus: 'F1',
+      type: 'fixed',
+      ruleNote: 'Atributo Fixado em F1',
+    },
+    {
+      id: 'spiritus_patrono',
+      name: 'Patrono Místico',
+      level: data.spiritus?.patrono || 1,
+      cost: getAttributeCost(data.spiritus?.patrono || 1, 'F1'),
+      focus: 'F1',
+      type: 'fixed',
+      ruleNote: 'Atributo Fixado em F1',
+    },
+  ];
+  const spiritusTotal = spiritusItems.reduce((acc, it) => acc + it.cost, 0);
 
-  const physicalExp = physicalAttributes + physicalSkills;
-  const mentalExp = mentalAttributes + mentalSkills;
-  const socialExp = socialAttributes + socialSkills;
-  const specialExp = domainsExp + spiritusExp + personalityExp;
-  const totalSpent = physicalExp + mentalExp + socialExp + specialExp;
+  // - Personalidade: Tabela de Perícias em F2
+  const personalityItems: TreeItemLeaf[] = Object.entries(data.personality || {}).map(([key, val]) => ({
+    id: `personality_${key}`,
+    name: PERSONALITY_TRANSLATIONS[key] || key,
+    level: val,
+    cost: getSkillCost(val, 'F2'),
+    focus: 'F2',
+    type: 'fixed',
+    ruleNote: 'Fixado em F2',
+  }));
+  const personalityTotal = personalityItems.reduce((acc, it) => acc + it.cost, 0);
+
+  const specialSectionTotal = domainsTotal + spiritusTotal + personalityTotal;
+  const totalSpent = physSectionTotal + mentSectionTotal + socSectionTotal + specialSectionTotal;
+
+  const sections: TreeSectionNode[] = [
+    {
+      id: 'sec_physical',
+      title: 'Eixo Físico',
+      theme: 'rose',
+      focus: focusConfig.physical,
+      totalExp: physSectionTotal,
+      subgroups: [
+        {
+          id: 'sub_phys_attrs',
+          title: 'Atributos Físicos',
+          totalExp: physAttrTotal,
+          items: physAttrItems,
+        },
+        {
+          id: 'sub_phys_skills',
+          title: 'Perícias Físicas (Treinamentos)',
+          totalExp: physSkillTotal,
+          items: physSkillItems,
+        },
+      ],
+    },
+    {
+      id: 'sec_mental',
+      title: 'Eixo Mental',
+      theme: 'cyan',
+      focus: focusConfig.mental,
+      totalExp: mentSectionTotal,
+      subgroups: [
+        {
+          id: 'sub_ment_attrs',
+          title: 'Atributos Mentais',
+          totalExp: mentAttrTotal,
+          items: mentAttrItems,
+        },
+        {
+          id: 'sub_ment_skills',
+          title: 'Perícias Mentais (Ciências)',
+          totalExp: mentSkillTotal,
+          items: mentSkillItems,
+        },
+      ],
+    },
+    {
+      id: 'sec_social',
+      title: 'Eixo Social',
+      theme: 'emerald',
+      focus: focusConfig.social,
+      totalExp: socSectionTotal,
+      subgroups: [
+        {
+          id: 'sub_soc_attrs',
+          title: 'Atributos Sociais',
+          totalExp: socAttrTotal,
+          items: socAttrItems,
+        },
+        {
+          id: 'sub_soc_skills',
+          title: 'Perícias Sociais (Artes)',
+          totalExp: socSkillTotal,
+          items: socSkillItems,
+        },
+      ],
+    },
+    {
+      id: 'sec_special',
+      title: 'Especial & Termos Fixos',
+      theme: 'amber',
+      focus: 'F1',
+      totalExp: specialSectionTotal,
+      subgroups: [
+        {
+          id: 'sub_special_domains',
+          title: 'Domínios Elementais (Fixado F1)',
+          totalExp: domainsTotal,
+          items: domainItems,
+        },
+        {
+          id: 'sub_special_spiritus',
+          title: 'Spiritus: Fluxo & Patrono (Fixado F1)',
+          totalExp: spiritusTotal,
+          items: spiritusItems,
+        },
+        {
+          id: 'sub_special_personality',
+          title: 'Personalidade (Fixado F2)',
+          totalExp: personalityTotal,
+          items: personalityItems,
+        },
+      ],
+    },
+  ];
 
   return {
-    physicalExp,
-    mentalExp,
-    socialExp,
-    specialExp,
     totalSpent,
-    breakdown: {
-      physicalAttributes,
-      physicalSkills,
-      mentalAttributes,
-      mentalSkills,
-      socialAttributes,
-      socialSkills,
-      domainsExp,
-      spiritusExp,
-      personalityExp,
+    sections,
+    summary: {
+      physicalExp: physSectionTotal,
+      mentalExp: mentSectionTotal,
+      socialExp: socSectionTotal,
+      specialExp: specialSectionTotal,
     },
+  };
+}
+
+/**
+ * Calcula o custo total gasto (mantém compatibilidade direta com a assinatura anterior)
+ */
+export function calculateSheetTotalExp(data: CharacterData) {
+  const tree = getDetailedSheetExpBreakdown(data);
+  return {
+    physicalExp: tree.summary.physicalExp,
+    mentalExp: tree.summary.mentalExp,
+    socialExp: tree.summary.socialExp,
+    specialExp: tree.summary.specialExp,
+    totalSpent: tree.totalSpent,
+    breakdown: {
+      physicalAttributes: tree.sections[0].subgroups[0].totalExp,
+      physicalSkills: tree.sections[0].subgroups[1].totalExp,
+      mentalAttributes: tree.sections[1].subgroups[0].totalExp,
+      mentalSkills: tree.sections[1].subgroups[1].totalExp,
+      socialAttributes: tree.sections[2].subgroups[0].totalExp,
+      socialSkills: tree.sections[2].subgroups[1].totalExp,
+      domainsExp: tree.sections[3].subgroups[0].totalExp,
+      spiritusExp: tree.sections[3].subgroups[1].totalExp,
+      personalityExp: tree.sections[3].subgroups[2].totalExp,
+    },
+    tree,
   };
 }
 
@@ -243,29 +536,20 @@ export function calculateSheetTotalExp(data: CharacterData): {
  * - Margem Segura para Gasto de Magia = Domínio Usado + Fluxo
  */
 export function calculateDerivedMechanics(data: CharacterData) {
-  // Maior Domínio ou Média de Domínios
   const domainValues = data.domains ? Object.values(data.domains) : [0];
   const maxDomain = Math.max(...domainValues, 0);
   const sumDomains = domainValues.reduce((a, b) => a + b, 0);
 
-  // Personalidade (Soma ou maior atributo)
   const personalitySum = (data.personality?.courage || 0) + (data.personality?.conviction || 0) + (data.personality?.serenity || 0);
   const personalityAvg = Math.round(personalitySum / 3) || 1;
 
-  // Constituição
   const constitution = data.attributes?.physical?.constitution || 1;
 
-  // Fluxo e Patrono
   const fluxo = data.spiritus?.fluxo || 1;
   const patrono = data.spiritus?.patrono || 1;
 
-  // Regen de Mana = Domínio + Personalidade + Fluxo
   const manaRegen = maxDomain + personalityAvg + fluxo;
-
-  // Regen de HP = Patrono + Constituição + Personalidade
   const hpRegen = patrono + constitution + personalityAvg;
-
-  // Margem segura pra gasto de magia = Domínio usado + Fluxo
   const safeMagicMargin = maxDomain + fluxo;
 
   return {

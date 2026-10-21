@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Sword, 
   Shield, 
@@ -44,6 +45,7 @@ import {
   CurrencyTransaction,
   EquipmentSlot
 } from '../types';
+import { resolveItemRarity, ITEM_RARITIES, ITEM_RARITY_LIST, ItemRarityDefinition } from '../utils/itemRarities';
 
 type Props = {
   inventory: Inventory;
@@ -487,101 +489,31 @@ export function inferItemSlot(item: AnyItem): EquipmentSlot {
   return 'chest';
 }
 
-// Qualidade / Raridade visual ao estilo WoW
+// Qualidade / Raridade canônica de 1★ a 9★ do Sistema Aurora
 export function getItemRarity(item: AnyItem): {
   color: string;
   border: string;
   glow: string;
   bgGlow: string;
+  badgeBg: string;
   text: string;
   label: string;
+  stars: number;
+  starSymbol: string;
+  description: string;
 } {
-  const explicitRarity = ((item as any).rarity || '').toLowerCase();
-  const name = item.name.toLowerCase();
-  const extras = (('extras' in item ? item.extras : '') || '').toLowerCase();
-  const desc = (('description' in item ? item.description : '') || '').toLowerCase();
-  const allText = `${explicitRarity} ${name} ${extras} ${desc}`;
-
-  // Artefato (Dourado Claro: #e6cc80)
-  if (allText.includes('artefato') || allText.includes('artifact') || allText.includes('5*')) {
-    return {
-      color: '#e6cc80',
-      border: 'border-[#e6cc80]',
-      glow: 'shadow-[0_0_16px_rgba(230,204,128,0.5)]',
-      bgGlow: 'bg-[#e6cc80]/15',
-      text: 'text-[#e6cc80]',
-      label: 'Artefato'
-    };
-  }
-
-  // Lendário (Laranja WoW: #ff8000)
-  if (allText.includes('lendári') || allText.includes('legendary') || allText.includes('alabarda') || allText.includes('4*') || allText.includes('dragão') || allText.includes('antigo') || allText.includes('sagrado')) {
-    return {
-      color: '#ff8000',
-      border: 'border-[#ff8000]',
-      glow: 'shadow-[0_0_16px_rgba(255,128,0,0.5)]',
-      bgGlow: 'bg-[#ff8000]/15',
-      text: 'text-[#ff8000]',
-      label: 'Lendário'
-    };
-  }
-
-  // Épico (Roxo WoW: #a335ee)
-  if (allText.includes('épic') || allText.includes('epic') || allText.includes('iberi') || allText.includes('3*') || allText.includes('hauberk') || allText.includes('vitalidade') || allText.includes('mambele') || allText.includes('constelar')) {
-    return {
-      color: '#a335ee',
-      border: 'border-[#a335ee]',
-      glow: 'shadow-[0_0_14px_rgba(163,53,238,0.45)]',
-      bgGlow: 'bg-[#a335ee]/15',
-      text: 'text-[#a335ee]',
-      label: 'Épico'
-    };
-  }
-
-  // Raro (Azul WoW: #0070dd)
-  if (allText.includes('raro') || allText.includes('rare') || allText.includes('ferro') || allText.includes('couraça') || allText.includes('coifa') || allText.includes('kit') || allText.includes('água') || allText.includes('2*')) {
-    return {
-      color: '#0070dd',
-      border: 'border-[#0070dd]',
-      glow: 'shadow-[0_0_12px_rgba(0,112,221,0.4)]',
-      bgGlow: 'bg-[#0070dd]/15',
-      text: 'text-[#0070dd]',
-      label: 'Raro'
-    };
-  }
-
-  // Incomum (Verde mate apagado e sem brilho)
-  if (allText.includes('incomum') || allText.includes('uncommon') || allText.includes('couro') || allText.includes('adaga') || allText.includes('corda') || allText.includes('tambor') || allText.includes('1*')) {
-    return {
-      color: '#4ade80',
-      border: 'border-emerald-500/30',
-      glow: 'shadow-none',
-      bgGlow: 'bg-emerald-500/5',
-      text: 'text-emerald-300/80',
-      label: 'Incomum'
-    };
-  }
-
-  // Pobre (Cinza suave)
-  if (allText.includes('pobre') || allText.includes('poor') || allText.includes('lixo') || allText.includes('quebrado') || allText.includes('cinza')) {
-    return {
-      color: '#94a3b8',
-      border: 'border-slate-600/30',
-      glow: 'shadow-none',
-      bgGlow: 'bg-slate-500/5',
-      text: 'text-slate-400',
-      label: 'Pobre'
-    };
-  }
-
-  // Comum (Cinza claro apagado, neutro e sem brilho)
+  const r = resolveItemRarity(item);
   return {
-    color: '#94a3b8',
-    border: 'border-slate-500/30',
-    glow: 'shadow-none',
-    bgGlow: 'bg-white/[0.03]',
-    text: 'text-slate-300',
-    label: 'Comum'
+    color: r.color,
+    border: r.border,
+    glow: r.glow,
+    bgGlow: r.bgGlow,
+    badgeBg: r.badgeBg,
+    text: r.text,
+    label: `${r.starSymbol} ${r.name}`,
+    stars: r.stars,
+    starSymbol: r.starSymbol,
+    description: r.description
   };
 }
 
@@ -664,6 +596,7 @@ export const InventoryManager: React.FC<Props> = ({
   const [newItemQuantity, setNewItemQuantity] = useState(1);
   const [newItemExtras, setNewItemExtras] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
+  const [newItemStars, setNewItemStars] = useState<number>(1);
 
   // Estados específicos de arma / armadura / projétil
   const [weaponThrustDmg, setWeaponThrustDmg] = useState('1d8');
@@ -845,14 +778,7 @@ export const InventoryManager: React.FC<Props> = ({
     } else if (sortOption === 'weight') {
       list = [...list].sort((a, b) => (b.weight || 0) - (a.weight || 0));
     } else if (sortOption === 'rarity') {
-      const rarityRank = (it: AnyItem) => {
-        const r = getItemRarity(it).label;
-        if (r === 'Lendário') return 4;
-        if (r === 'Épico') return 3;
-        if (r === 'Raro') return 2;
-        if (r === 'Incomum') return 1;
-        return 0;
-      };
+      const rarityRank = (it: AnyItem) => getItemRarity(it).stars;
       list = [...list].sort((a, b) => rarityRank(b) - rarityRank(a));
     }
 
@@ -1239,7 +1165,9 @@ export const InventoryManager: React.FC<Props> = ({
         weight: Number(newItemWeight) || 0,
         location: newItemEquipped ? 'Em Mãos' : 'Mochila',
         extras: newItemExtras.trim(),
-        description: newItemDesc.trim() || undefined
+        description: newItemDesc.trim() || undefined,
+        stars: newItemStars,
+        rarity: ITEM_RARITIES[newItemStars].name
       };
       onUpdateInventory(prev => ({
         ...prev,
@@ -1267,7 +1195,9 @@ export const InventoryManager: React.FC<Props> = ({
         weight: Number(newItemWeight) || 0,
         location: newItemEquipped ? 'Equipado' : 'Mochila',
         extras: newItemExtras.trim(),
-        description: newItemDesc.trim() || undefined
+        description: newItemDesc.trim() || undefined,
+        stars: newItemStars,
+        rarity: ITEM_RARITIES[newItemStars].name
       };
       onUpdateInventory(prev => ({
         ...prev,
@@ -1293,7 +1223,9 @@ export const InventoryManager: React.FC<Props> = ({
         weight: Number(newItemWeight) || 0,
         location: newItemEquipped ? 'Coldre' : 'Mochila',
         extras: newItemExtras.trim(),
-        description: newItemDesc.trim() || undefined
+        description: newItemDesc.trim() || undefined,
+        stars: newItemStars,
+        rarity: ITEM_RARITIES[newItemStars].name
       };
       onUpdateInventory(prev => ({
         ...prev,
@@ -1315,7 +1247,9 @@ export const InventoryManager: React.FC<Props> = ({
         description: newItemDesc.trim() || undefined,
         size: newItemSize,
         weight: Number(newItemWeight) || 0,
-        location: newItemEquipped ? 'No Corpo' : 'Mochila'
+        location: newItemEquipped ? 'No Corpo' : 'Mochila',
+        stars: newItemStars,
+        rarity: ITEM_RARITIES[newItemStars].name
       };
       onUpdateInventory(prev => ({
         ...prev,
@@ -1336,7 +1270,9 @@ export const InventoryManager: React.FC<Props> = ({
         equipped: newItemEquipped,
         slot: newItemSlot,
         location: newItemEquipped ? 'Cinto' : 'Mochila',
-        description: newItemDesc.trim() || newItemExtras.trim()
+        description: newItemDesc.trim() || newItemExtras.trim(),
+        stars: newItemStars,
+        rarity: ITEM_RARITIES[newItemStars].name
       };
       onUpdateInventory(prev => ({
         ...prev,
@@ -1351,6 +1287,7 @@ export const InventoryManager: React.FC<Props> = ({
     setNewItemName('');
     setNewItemExtras('');
     setNewItemDesc('');
+    setNewItemStars(1);
     setIsAddModalOpen(false);
   };
 
@@ -2249,9 +2186,9 @@ export const InventoryManager: React.FC<Props> = ({
       {/* ========================================================================= */}
       {/* 3. MODAL DE INSPEÇÃO / DETALHES DO ITEM SELECIONADO                       */}
       {/* ========================================================================= */}
-      {selectedItem && (
+      {selectedItem && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
           onClick={() => setSelectedItem(null)}
         >
           <div 
@@ -2271,7 +2208,7 @@ export const InventoryManager: React.FC<Props> = ({
               </div>
               <button 
                 onClick={() => setSelectedItem(null)}
-                className="text-white/40 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                className="text-white/40 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -2279,13 +2216,14 @@ export const InventoryManager: React.FC<Props> = ({
 
             {renderItemDetailsCard(selectedItem, false)}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 4. HOVER-BASED TOOLTIP FLUTUANTE (BORDA SEGUE A COR DA RARIDADE DO ITEM) */}
       {/* ========================================================================= */}
-      {hoveredTooltip && !selectedItem && !slotPickerTarget && !editingItem && !isAddModalOpen && !isCurrencyModalOpen && !isHistoryModalOpen && (
+      {hoveredTooltip && !selectedItem && !slotPickerTarget && !editingItem && !isAddModalOpen && !isCurrencyModalOpen && !isHistoryModalOpen && typeof document !== 'undefined' && createPortal(
         <div 
           className="fixed z-50 pointer-events-none p-4 rounded-2xl bg-[#080512]/98 backdrop-blur-md w-80 animate-in fade-in duration-100 transition-all select-none"
           style={{
@@ -2330,28 +2268,35 @@ export const InventoryManager: React.FC<Props> = ({
               </div>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 5. MODAL: ESCOLHER ITEM PARA EQUIPAR NO SLOT                               */}
       {/* ========================================================================= */}
-      {slotPickerTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0c0818] border border-amber-500/40 rounded-3xl max-w-md w-full p-5 max-h-[85vh] flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+      {slotPickerTarget && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setSlotPickerTarget(null)}
+        >
+          <div 
+            className="bg-[#0c0818] border border-amber-500/40 rounded-3xl max-w-xl w-full h-[86vh] max-h-[760px] min-h-[460px] flex flex-col overflow-hidden shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 shrink-0 bg-white/[0.02]">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                 <ArrowRightLeft size={16} />
                 <span>
                   Equipar no Espaço: {EQUIPMENT_SLOTS.find(s => s.id === slotPickerTarget)?.label}
                 </span>
               </div>
-              <button onClick={() => setSlotPickerTarget(null)} className="text-white/40 hover:text-white cursor-pointer">
+              <button onClick={() => setSlotPickerTarget(null)} className="text-white/40 hover:text-white p-1 rounded-lg cursor-pointer">
                 <X size={18} />
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
+            <div className="p-4 sm:px-6 pt-4 pb-2 border-b border-white/5 flex items-center justify-between gap-2 shrink-0 bg-black/20">
               <p className="text-xs text-white/60">
                 Selecione um item da mochila para equipar:
               </p>
@@ -2377,7 +2322,7 @@ export const InventoryManager: React.FC<Props> = ({
               )}
             </div>
 
-            <div className="flex flex-col gap-2 overflow-y-auto max-h-80 pr-1">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col gap-2 custom-scrollbar">
               {allItems.map(it => {
                 const isEquippedHere = it.equipped && (inferItemSlot(it) === slotPickerTarget);
                 const rarity = getItemRarity(it);
@@ -2402,24 +2347,41 @@ export const InventoryManager: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <button className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    <button className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-pointer">
                       {isEquippedHere ? 'Equipado' : 'Equipar'}
                     </button>
                   </div>
                 );
               })}
             </div>
+            
+            <div className="flex items-center justify-end p-3 sm:p-4 border-t border-white/10 shrink-0 bg-black/40">
+              <button
+                type="button"
+                onClick={() => setSlotPickerTarget(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 6. MODAL: ADICIONAR NOVO EQUIPAMENTO / ITEM                                */}
       {/* ========================================================================= */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/30 rounded-3xl max-w-xl w-full p-5 sm:p-6 max-h-[92vh] overflow-y-auto shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+      {isAddModalOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div 
+            className="bg-[#0b0816] border border-amber-500/30 rounded-3xl max-w-xl w-full h-[86vh] max-h-[760px] min-h-[460px] shadow-2xl flex flex-col overflow-hidden text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 shrink-0 bg-white/[0.02]">
               <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                 <Plus size={18} className="stroke-[2.5]" />
                 <span className="uppercase tracking-wider">Novo Equipamento / Item</span>
@@ -2429,341 +2391,380 @@ export const InventoryManager: React.FC<Props> = ({
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewItem} className="flex flex-col gap-4">
-              {/* SELEÇÃO DE CATEGORIA DE EQUIPAMENTO (SISTEMA DE PARSING PRÉ-CONFIGURADO) */}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
-                    Categoria do Equipamento
-                  </label>
-                  <span className="text-[10px] text-white/40 font-mono">
-                    Limita slots e atributos automaticamente
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                  {EQUIPMENT_CATEGORIES.map(cat => {
-                    const isSelected = selectedEquipCategoryKey === cat.key;
-                    const CatIcon = cat.icon;
-                    return (
-                      <button
-                        key={cat.key}
-                        type="button"
-                        onClick={() => handleSelectEquipCategory(cat.key)}
-                        className={`p-2 rounded-xl border flex flex-col items-start gap-1 transition-all text-left cursor-pointer ${
-                          isSelected
-                            ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm'
-                            : 'bg-white/[0.03] border-white/10 text-white/60 hover:text-white hover:bg-white/[0.07]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 w-full">
-                          <CatIcon size={14} className={isSelected ? 'text-amber-400' : 'text-white/40'} />
-                          <span className="text-[11px] font-bold truncate leading-tight">{cat.label}</span>
-                        </div>
-                        <span className="text-[9px] text-white/40 leading-none truncate w-full">{cat.groupLabel}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* MODELOS PRÉ-CONFIGURADOS (PRESETS RÁPIDOS) */}
-              {(() => {
-                const currentCat = EQUIPMENT_CATEGORIES.find(c => c.key === selectedEquipCategoryKey);
-                if (!currentCat || currentCat.presetTemplates.length === 0) return null;
-                return (
-                  <div className="flex flex-col gap-1.5 bg-black/40 border border-white/5 rounded-2xl p-2.5">
-                    <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
-                      Modelos Pré-Configurados (Clique para preencher):
+            <form onSubmit={handleCreateNewItem} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 custom-scrollbar">
+                {/* SELEÇÃO DE CATEGORIA DE EQUIPAMENTO (SISTEMA DE PARSING PRÉ-CONFIGURADO) */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">
+                      Categoria do Equipamento
+                    </label>
+                    <span className="text-[10px] text-white/40 font-mono">
+                      Limita slots e atributos automaticamente
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {currentCat.presetTemplates.map((p, idx) => (
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                    {EQUIPMENT_CATEGORIES.map(cat => {
+                      const isSelected = selectedEquipCategoryKey === cat.key;
+                      const CatIcon = cat.icon;
+                      return (
                         <button
-                          key={idx}
+                          key={cat.key}
                           type="button"
-                          onClick={() => applyPresetTemplate(p)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium transition-all cursor-pointer"
+                          onClick={() => handleSelectEquipCategory(cat.key)}
+                          className={`p-2 rounded-xl border flex flex-col items-start gap-1 transition-all text-left cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-sm'
+                              : 'bg-white/[0.03] border-white/10 text-white/60 hover:text-white hover:bg-white/[0.07]'
+                          }`}
                         >
-                          {p.name}
+                          <div className="flex items-center gap-1.5 w-full">
+                            <CatIcon size={14} className={isSelected ? 'text-amber-400' : 'text-white/40'} />
+                            <span className="text-[11px] font-bold truncate leading-tight">{cat.label}</span>
+                          </div>
+                          <span className="text-[9px] text-white/40 leading-none truncate w-full">{cat.groupLabel}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* RARIDADE E FORÇA DO ITEM (1★ A 9★) */}
+                <div className="flex flex-col gap-2 bg-black/40 border border-white/10 rounded-2xl p-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-400" />
+                      <span>Raridade & Força: {ITEM_RARITIES[newItemStars].starSymbol} {ITEM_RARITIES[newItemStars].name}</span>
+                    </label>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${ITEM_RARITIES[newItemStars].badgeBg}`}>
+                      {ITEM_RARITIES[newItemStars].starSymbol}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                    {ITEM_RARITY_LIST.map((r) => {
+                      const isSelected = newItemStars === r.stars;
+                      return (
+                        <button
+                          key={r.stars}
+                          type="button"
+                          onClick={() => setNewItemStars(r.stars)}
+                          className={`p-1.5 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? `${r.bgGlow} ${r.border} ${r.text} shadow-sm ring-1 ring-white/20 scale-[1.02]`
+                              : 'bg-white/[0.02] border-white/5 text-white/40 hover:text-white hover:bg-white/5'
+                          }`}
+                          title={`${r.starSymbol} ${r.name}: ${r.description}`}
+                        >
+                          <span className="font-mono font-bold text-[10px]">{r.starSymbol}</span>
+                          <span className="text-[9px] font-semibold truncate max-w-full">{r.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-white/55 italic px-1 leading-relaxed">
+                    "{ITEM_RARITIES[newItemStars].description}"
+                  </p>
+                </div>
+
+                {/* MODELOS PRÉ-CONFIGURADOS (PRESETS RÁPIDOS) */}
+                {(() => {
+                  const currentCat = EQUIPMENT_CATEGORIES.find(c => c.key === selectedEquipCategoryKey);
+                  if (!currentCat || currentCat.presetTemplates.length === 0) return null;
+                  return (
+                    <div className="flex flex-col gap-1.5 bg-black/40 border border-white/5 rounded-2xl p-2.5">
+                      <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                        Modelos Pré-Configurados (Clique para preencher):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentCat.presetTemplates.map((p, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => applyPresetTemplate(p)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium transition-all cursor-pointer"
+                          >
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* NOME E PESO */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-white/60">Nome do Equipamento *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Vazio"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500/50"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-white/60">Peso (gramas)</label>
+                    <input
+                      type="number"
+                      value={newItemWeight}
+                      onChange={(e) => setNewItemWeight(Number(e.target.value))}
+                      className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 font-mono focus:outline-none"
+                    />
+                    <div className="flex gap-1 mt-1">
+                      {[500, 1500, 3000, 6000].map(w => (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => setNewItemWeight(w)}
+                          className="text-[9px] font-mono text-white/40 hover:text-amber-300 bg-white/5 px-1 py-0.5 rounded cursor-pointer"
+                        >
+                          {w >= 1000 ? `${w/1000}kg` : `${w}g`}
                         </button>
                       ))}
                     </div>
                   </div>
-                );
-              })()}
-
-              {/* NOME E PESO */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2 flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-white/60">Nome do Equipamento *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Vazio"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500/50"
-                  />
                 </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-white/60">Peso (gramas)</label>
-                  <input
-                    type="number"
-                    value={newItemWeight}
-                    onChange={(e) => setNewItemWeight(Number(e.target.value))}
-                    className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 font-mono focus:outline-none"
-                  />
-                  <div className="flex gap-1 mt-1">
-                    {[500, 1500, 3000, 6000].map(w => (
-                      <button
-                        key={w}
-                        type="button"
-                        onClick={() => setNewItemWeight(w)}
-                        className="text-[9px] font-mono text-white/40 hover:text-amber-300 bg-white/5 px-1 py-0.5 rounded cursor-pointer"
-                      >
-                        {w >= 1000 ? `${w/1000}kg` : `${w}g`}
-                      </button>
-                    ))}
+                {/* ESPAÇO NO CORPO (LIMITADO PELA CATEGORIA SELECIONADA) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-white/60">Espaço no Corpo (Restrito)</label>
+                    <select
+                      value={newItemSlot}
+                      onChange={(e) => setNewItemSlot(e.target.value as EquipmentSlot)}
+                      className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none cursor-pointer"
+                    >
+                      {(() => {
+                        const currentCat = EQUIPMENT_CATEGORIES.find(c => c.key === selectedEquipCategoryKey);
+                        const allowed = currentCat ? currentCat.allowedSlots : EQUIPMENT_SLOTS.map(s => s.id);
+                        return EQUIPMENT_SLOTS.filter(s => allowed.includes(s.id)).map(s => (
+                          <option key={s.id} value={s.id}>{s.label}</option>
+                        ));
+                      })()}
+                    </select>
                   </div>
-                </div>
-              </div>
 
-              {/* ESPAÇO NO CORPO (LIMITADO PELA CATEGORIA SELECIONADA) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-bold text-white/60">Espaço no Corpo (Restrito)</label>
-                  <select
-                    value={newItemSlot}
-                    onChange={(e) => setNewItemSlot(e.target.value as EquipmentSlot)}
-                    className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none cursor-pointer"
-                  >
-                    {(() => {
-                      const currentCat = EQUIPMENT_CATEGORIES.find(c => c.key === selectedEquipCategoryKey);
-                      const allowed = currentCat ? currentCat.allowedSlots : EQUIPMENT_SLOTS.map(s => s.id);
-                      return EQUIPMENT_SLOTS.filter(s => allowed.includes(s.id)).map(s => (
-                        <option key={s.id} value={s.id}>{s.label}</option>
-                      ));
-                    })()}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10 self-end">
-                  <input
-                    type="checkbox"
-                    id="equipCheck"
-                    checked={newItemEquipped}
-                    onChange={(e) => setNewItemEquipped(e.target.checked)}
-                    className="rounded text-amber-500 focus:ring-0 cursor-pointer"
-                  />
-                  <label htmlFor="equipCheck" className="text-xs text-slate-200 cursor-pointer select-none">
-                    Equipar no corpo imediatamente
-                  </label>
-                </div>
-              </div>
-
-              {/* ATRIBUTOS ESPECÍFICOS DE ACORDO COM A CATEGORIA */}
-              {(() => {
-                const currentCat = EQUIPMENT_CATEGORIES.find(c => c.key === selectedEquipCategoryKey);
-                const kind = currentCat ? currentCat.kind : newCategory;
-
-                if (kind === 'weapon') {
-                  return (
-                    <div className="flex flex-col gap-2.5 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl p-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
-                        Atributos de Combate da Arma
-                      </span>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1.5 bg-black/40 p-2.5 rounded-xl border border-white/5">
-                          <span className="text-[10px] font-bold text-white/70">Estocada / Perfuração</span>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div>
-                              <span className="text-[9px] text-white/40">Dano</span>
-                              <input
-                                type="text"
-                                value={weaponThrustDmg}
-                                onChange={(e) => setWeaponThrustDmg(e.target.value)}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-white/40">Tipo</span>
-                              <select
-                                value={weaponThrustType}
-                                onChange={(e) => setWeaponThrustType(e.target.value)}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-xs text-white/80 cursor-pointer"
-                              >
-                                <option value="per">Perfurante</option>
-                                <option value="cor">Cortante</option>
-                                <option value="esm">Esmagamento</option>
-                              </select>
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-white/40">Penetração (AP)</span>
-                              <input
-                                type="number"
-                                value={weaponThrustAP}
-                                onChange={(e) => setWeaponThrustAP(Number(e.target.value))}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-white/40">Precisão</span>
-                              <input
-                                type="number"
-                                value={weaponThrustPre}
-                                onChange={(e) => setWeaponThrustPre(Number(e.target.value))}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5 bg-black/40 p-2.5 rounded-xl border border-white/5">
-                          <span className="text-[10px] font-bold text-white/70">Balanço / Corte</span>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div>
-                              <span className="text-[9px] text-white/40">Dano</span>
-                              <input
-                                type="text"
-                                value={weaponSwingDmg}
-                                onChange={(e) => setWeaponSwingDmg(e.target.value)}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-white/40">Tipo</span>
-                              <select
-                                value={weaponSwingType}
-                                onChange={(e) => setWeaponSwingType(e.target.value)}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-xs text-white/80 cursor-pointer"
-                              >
-                                <option value="cor">Cortante</option>
-                                <option value="esm">Esmagamento</option>
-                                <option value="per">Perfurante</option>
-                              </select>
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-white/40">Penetração (AP)</span>
-                              <input
-                                type="number"
-                                value={weaponSwingAP}
-                                onChange={(e) => setWeaponSwingAP(Number(e.target.value))}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[9px] text-white/40">Precisão</span>
-                              <input
-                                type="number"
-                                value={weaponSwingPre}
-                                onChange={(e) => setWeaponSwingPre(Number(e.target.value))}
-                                className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (kind === 'armor') {
-                  return (
-                    <div className="flex flex-col gap-2.5 bg-cyan-500/[0.04] border border-cyan-500/20 rounded-2xl p-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
-                        Defesas e Proteções (Armadura / Escudo)
-                      </span>
-                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-white/40 uppercase">Corte</span>
-                          <input
-                            type="number"
-                            value={armorSlashing}
-                            onChange={(e) => setArmorSlashing(Number(e.target.value))}
-                            className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-white/40 uppercase">Esmag.</span>
-                          <input
-                            type="number"
-                            value={armorBludgeoning}
-                            onChange={(e) => setArmorBludgeoning(Number(e.target.value))}
-                            className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-white/40 uppercase">Perf.</span>
-                          <input
-                            type="number"
-                            value={armorPiercing}
-                            onChange={(e) => setArmorPiercing(Number(e.target.value))}
-                            className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-white/40 uppercase">Cob.</span>
-                          <input
-                            type="number"
-                            value={armorCoverage}
-                            onChange={(e) => setArmorCoverage(Number(e.target.value))}
-                            className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-white/40 uppercase">Res.</span>
-                          <input
-                            type="number"
-                            value={armorResistance}
-                            onChange={(e) => setArmorResistance(Number(e.target.value))}
-                            className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-white/40 uppercase">Durab.</span>
-                          <input
-                            type="number"
-                            value={armorDurability}
-                            onChange={(e) => setArmorDurability(Number(e.target.value))}
-                            className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-slate-300 text-xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="flex flex-col gap-1.5 bg-violet-500/[0.04] border border-violet-500/20 rounded-2xl p-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">
-                      Efeito Místico / Propriedade Arcana
-                    </span>
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white/5 border border-white/10 self-end">
                     <input
-                      type="text"
-                      value={newItemExtras}
-                      onChange={(e) => setNewItemExtras(e.target.value)}
-                      placeholder="Vazio"
-                      className="bg-black/60 border border-white/10 rounded-xl p-2 text-slate-200 focus:outline-none"
+                      type="checkbox"
+                      id="equipCheck"
+                      checked={newItemEquipped}
+                      onChange={(e) => setNewItemEquipped(e.target.checked)}
+                      className="rounded text-amber-500 focus:ring-0 cursor-pointer"
                     />
+                    <label htmlFor="equipCheck" className="text-xs text-slate-200 cursor-pointer select-none">
+                      Equipar no corpo imediatamente
+                    </label>
                   </div>
-                );
-              })()}
+                </div>
 
-              {/* DESCRIÇÃO / NOTAS EXTRAS */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-bold text-white/60">Descrição / Histórico</label>
-                <textarea
-                  rows={2}
-                  value={newItemDesc}
-                  onChange={(e) => setNewItemDesc(e.target.value)}
-                  placeholder="Vazio"
-                  className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none"
-                />
+                {/* ATRIBUTOS ESPECÍFICOS DE ACORDO COM A CATEGORIA */}
+                {(() => {
+                  const currentCat = EQUIPMENT_CATEGORIES.find(c => c.key === selectedEquipCategoryKey);
+                  const kind = currentCat ? currentCat.kind : newCategory;
+
+                  if (kind === 'weapon') {
+                    return (
+                      <div className="flex flex-col gap-2.5 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl p-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                          Atributos de Combate da Arma
+                        </span>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1.5 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                            <span className="text-[10px] font-bold text-white/70">Estocada / Perfuração</span>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div>
+                                <span className="text-[9px] text-white/40">Dano</span>
+                                <input
+                                  type="text"
+                                  value={weaponThrustDmg}
+                                  onChange={(e) => setWeaponThrustDmg(e.target.value)}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-white/40">Tipo</span>
+                                <select
+                                  value={weaponThrustType}
+                                  onChange={(e) => setWeaponThrustType(e.target.value)}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-xs text-white/80 cursor-pointer"
+                                >
+                                  <option value="per">Perfurante</option>
+                                  <option value="cor">Cortante</option>
+                                  <option value="esm">Esmagamento</option>
+                                </select>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-white/40">Penetração (AP)</span>
+                                <input
+                                  type="number"
+                                  value={weaponThrustAP}
+                                  onChange={(e) => setWeaponThrustAP(Number(e.target.value))}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-white/40">Precisão</span>
+                                <input
+                                  type="number"
+                                  value={weaponThrustPre}
+                                  onChange={(e) => setWeaponThrustPre(Number(e.target.value))}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5 bg-black/40 p-2.5 rounded-xl border border-white/5">
+                            <span className="text-[10px] font-bold text-white/70">Balanço / Corte</span>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div>
+                                <span className="text-[9px] text-white/40">Dano</span>
+                                <input
+                                  type="text"
+                                  value={weaponSwingDmg}
+                                  onChange={(e) => setWeaponSwingDmg(e.target.value)}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-white/40">Tipo</span>
+                                <select
+                                  value={weaponSwingType}
+                                  onChange={(e) => setWeaponSwingType(e.target.value)}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-xs text-white/80 cursor-pointer"
+                                >
+                                  <option value="cor">Cortante</option>
+                                  <option value="esm">Esmagamento</option>
+                                  <option value="per">Perfurante</option>
+                                </select>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-white/40">Penetração (AP)</span>
+                                <input
+                                  type="number"
+                                  value={weaponSwingAP}
+                                  onChange={(e) => setWeaponSwingAP(Number(e.target.value))}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-white/40">Precisão</span>
+                                <input
+                                  type="number"
+                                  value={weaponSwingPre}
+                                  onChange={(e) => setWeaponSwingPre(Number(e.target.value))}
+                                  className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (kind === 'armor') {
+                    return (
+                      <div className="flex flex-col gap-2.5 bg-cyan-500/[0.04] border border-cyan-500/20 rounded-2xl p-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+                          Defesas e Proteções (Armadura / Escudo)
+                        </span>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/40 uppercase">Corte</span>
+                            <input
+                              type="number"
+                              value={armorSlashing}
+                              onChange={(e) => setArmorSlashing(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/40 uppercase">Esmag.</span>
+                            <input
+                              type="number"
+                              value={armorBludgeoning}
+                              onChange={(e) => setArmorBludgeoning(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/40 uppercase">Perf.</span>
+                            <input
+                              type="number"
+                              value={armorPiercing}
+                              onChange={(e) => setArmorPiercing(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/40 uppercase">Cob.</span>
+                            <input
+                              type="number"
+                              value={armorCoverage}
+                              onChange={(e) => setArmorCoverage(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/40 uppercase">Res.</span>
+                            <input
+                              type="number"
+                              value={armorResistance}
+                              onChange={(e) => setArmorResistance(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/40 uppercase">Durab.</span>
+                            <input
+                              type="number"
+                              value={armorDurability}
+                              onChange={(e) => setArmorDurability(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-slate-300 text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="flex flex-col gap-1.5 bg-violet-500/[0.04] border border-violet-500/20 rounded-2xl p-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">
+                        Efeito Místico / Propriedade Arcana
+                      </span>
+                      <input
+                        type="text"
+                        value={newItemExtras}
+                        onChange={(e) => setNewItemExtras(e.target.value)}
+                        placeholder="Vazio"
+                        className="bg-black/60 border border-white/10 rounded-xl p-2 text-slate-200 focus:outline-none"
+                      />
+                    </div>
+                  );
+                })()}
+
+                {/* DESCRIÇÃO / NOTAS EXTRAS */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-white/60">Descrição / Histórico</label>
+                  <textarea
+                    rows={2}
+                    value={newItemDesc}
+                    onChange={(e) => setNewItemDesc(e.target.value)}
+                    placeholder="Vazio"
+                    className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none"
+                  />
+                </div>
               </div>
 
-              {/* BOTÕES DE AÇÃO */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+              {/* BOTÕES DE AÇÃO FIXADOS NO RODAPÉ */}
+              <div className="flex items-center justify-end gap-2 p-3 sm:p-4 border-t border-white/10 shrink-0 bg-black/40">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
@@ -2773,22 +2774,36 @@ export const InventoryManager: React.FC<Props> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] cursor-pointer flex items-center gap-1.5"
                 >
-                  Salvar Item
+                  <Check size={16} />
+                  <span>Salvar Item</span>
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 8. MODAL: MOVIMENTAÇÃO DE MOEDAS (BOLSA DE RIQUEZAS)                      */}
       {/* ========================================================================= */}
-      {isCurrencyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out">
+      {isCurrencyModalOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => {
+            setMoveGold('');
+            setMoveSilver('');
+            setMoveCopper('');
+            setMoveReason('');
+            setIsCurrencyModalOpen(false);
+          }}
+        >
+          <div 
+            className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                 <Coins size={18} />
@@ -2934,15 +2949,22 @@ export const InventoryManager: React.FC<Props> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 9. MODAL: HISTÓRICO DE TRANSAÇÕES DA BOLSA                                */}
       {/* ========================================================================= */}
-      {isHistoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out">
+      {isHistoryModalOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setIsHistoryModalOpen(false)}
+        >
+          <div 
+            className="bg-[#0b0816] border border-amber-500/35 rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl flex flex-col gap-4 text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                 <History size={18} />
@@ -2999,36 +3021,44 @@ export const InventoryManager: React.FC<Props> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ========================================================================= */}
       {/* 7. MODAL: EDITAR ITEM EXISTENTE                                           */}
       {/* ========================================================================= */}
-      {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#0b0816] border border-amber-500/40 rounded-3xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200 ease-out">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+      {editingItem && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setEditingItem(null)}
+        >
+          <div 
+            className="bg-[#0b0816] border border-amber-500/40 rounded-3xl max-w-xl w-full h-[86vh] max-h-[760px] min-h-[460px] shadow-2xl flex flex-col overflow-hidden text-xs animate-in fade-in zoom-in-95 duration-200 ease-out"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 shrink-0 bg-white/[0.02]">
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                 <Edit3 size={16} />
                 <span>Editar Propriedades do Item</span>
               </div>
-              <button onClick={() => setEditingItem(null)} className="text-white/40 hover:text-white cursor-pointer">
+              <button onClick={() => setEditingItem(null)} className="text-white/40 hover:text-white p-1 rounded-lg cursor-pointer">
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditedItem} className="flex flex-col gap-4 text-xs">
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-bold text-white/60">Nome do Item</label>
-                <input
-                  type="text"
-                  required
-                  value={editingItem.name}
-                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                  className="bg-black/40 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500/50"
-                />
-              </div>
+            <form onSubmit={handleSaveEditedItem} className="flex-1 min-h-0 flex flex-col overflow-hidden text-xs">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 custom-scrollbar">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-white/60">Nome do Item</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingItem.name}
+                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                    className="bg-black/40 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-amber-500/50"
+                  />
+                </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
@@ -3153,25 +3183,27 @@ export const InventoryManager: React.FC<Props> = ({
                   className="bg-black/40 border border-white/10 rounded-xl p-2.5 text-slate-200 focus:outline-none"
                 />
               </div>
+            </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold"
-                >
-                  Salvar Alterações
-                </button>
-              </div>
-            </form>
+            <div className="flex items-center justify-end gap-2 p-3 sm:p-4 border-t border-white/10 shrink-0 bg-black/40">
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold transition-all shadow-[0_0_15px_rgba(245,158,11,0.3)] cursor-pointer"
+              >
+                Salvar Alterações
+              </button>
+            </div>
+          </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

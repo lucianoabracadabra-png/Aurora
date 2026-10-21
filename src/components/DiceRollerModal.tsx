@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Dices, RotateCcw, CheckCircle2, XCircle, Zap, Plus, Calculator, Shield, Brain, Crown } from 'lucide-react';
-import { Attributes, SpiritusData } from '../types';
+import { Attributes, SpiritusData, FocusConfig, FocusLevel } from '../types';
 
 export type DiceRollRequest = 
   | {
@@ -32,6 +32,7 @@ type Props = {
   onClose: () => void;
   attributes?: Attributes;
   spiritus?: SpiritusData;
+  focusConfig?: FocusConfig;
 };
 
 type DieType = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20';
@@ -54,7 +55,7 @@ const DIE_LABELS: Record<DieType, string> = {
   d20: 'Extremo'
 };
 
-export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes, spiritus }) => {
+export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes, spiritus, focusConfig }) => {
   const [selectedDie, setSelectedDie] = useState<DieType>('d8');
   const [isRolling, setIsRolling] = useState(false);
   const [landedAnimationKey, setLandedAnimationKey] = useState<number>(0);
@@ -200,7 +201,8 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
   const attributeGroups = [
     {
       category: 'Físico',
-      focusName: 'Foco Físico',
+      focusName: 'Físico',
+      focusBadge: focusConfig?.physical || 'F1',
       tag: 'Vigor',
       theme: 'rose' as const,
       icon: Shield,
@@ -219,7 +221,8 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
     },
     {
       category: 'Mental',
-      focusName: 'Foco Mental',
+      focusName: 'Mental',
+      focusBadge: focusConfig?.mental || 'F2',
       tag: 'Foco',
       theme: 'cyan' as const,
       icon: Brain,
@@ -238,7 +241,8 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
     },
     {
       category: 'Social',
-      focusName: 'Foco Social',
+      focusName: 'Social',
+      focusBadge: focusConfig?.social || 'SF',
       tag: 'Graça',
       theme: 'emerald' as const,
       icon: Crown,
@@ -514,6 +518,11 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
                           <span className={`text-[11px] font-black uppercase tracking-wider ${group.titleColor}`}>
                             {group.focusName}
                           </span>
+                          {'focusBadge' in group && (
+                            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-white/80 border border-white/10">
+                              {(group as any).focusBadge}
+                            </span>
+                          )}
                         </div>
                         <span className={`text-[9px] uppercase tracking-widest font-mono px-2 py-0.5 rounded-full border ${group.tagStyle}`}>
                           {group.tag}

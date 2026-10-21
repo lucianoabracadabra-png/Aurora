@@ -20,7 +20,7 @@ export const initialCharacterData: CharacterData = {
     distribution: 'padrao',
     physical: 'F1',
     mental: 'F2',
-    social: 'F3',
+    social: 'SF',
   },
   expBudget: {
     initial: 300,
@@ -540,7 +540,7 @@ export const createEmptyCharacterData = (name: string = '', _color?: string): Ch
     distribution: 'padrao',
     physical: 'F1',
     mental: 'F2',
-    social: 'F3',
+    social: 'SF',
   },
   expBudget: {
     initial: 300,

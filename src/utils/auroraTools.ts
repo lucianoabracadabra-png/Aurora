@@ -1,6 +1,7 @@
 import { CharacterData, EquipmentSlot, DamageType, Ability, Trait } from '../types';
 import { Type } from '@google/genai';
 import { createEmptyCharacterData } from '../initialState';
+import { applyDamageWithEvolution } from './healthEvolution';
 
 export type ValidCoin = 'gold' | 'silver' | 'copper';
 export const VALID_COINS: readonly ValidCoin[] = ['gold', 'silver', 'copper'];
@@ -597,7 +598,7 @@ export const AURORA_TOOL_DEFINITIONS = [
   // 14. SAÚDE & FERIMENTOS
   {
     name: 'manage_health',
-    description: 'Aplica ferimentos ou cura partes do corpo (cabeça, torso, braço esquerdo, braço direito, perna esquerda, perna direita).',
+    description: 'Aplica ferimentos ou cura partes do corpo (head/cabeça, torso/peitoral, leftArm/braço esquerdo, rightArm/braço direito, leftLeg/perna esquerda, rightLeg/perna direita). O sistema de HP obedece à regra estrita de saturação e evolução de dano: cada caixa evolui de vazio (none) > simples (simple) > letal (lethal) > agravado (aggravated). Quando todas as caixas de uma região são preenchidas por um tipo de dano, sofrer mais dano evolui o tipo de dano mais leve para o próximo nível até chegar ao agravado final.',
     parameters: {
       type: 'object',
       properties: {
@@ -1533,15 +1534,9 @@ export function executeAuroraTool(
             damage_type === 'aggravated' || damage_type === 'agravado' ? 'aggravated' :
             damage_type === 'lethal' || damage_type === 'letal' ? 'lethal' : 'simple';
 
-          const partSlots = [...updatedData.health[validPart]];
-          let applied = 0;
-          for (let i = 0; i < partSlots.length && applied < count; i++) {
-            if (partSlots[i] === 'none') {
-              partSlots[i] = dmgType;
-              applied++;
-            }
-          }
-          updatedData.health[validPart] = partSlots;
+          const partSlots = [...(updatedData.health[validPart] || [])];
+          const evolutionResult = applyDamageWithEvolution(partSlots, dmgType, count);
+          updatedData.health[validPart] = evolutionResult.nextSlots;
 
           return {
             success: true,
@@ -1549,7 +1544,7 @@ export function executeAuroraTool(
             updatedData,
             undoData,
             description: `Dano ${dmgType} em ${validPart}`,
-            message: `🩸 **Dano Aplicado**: ${applied} caixa(s) de dano **${dmgType}** sofridas na região **${validPart}**.`
+            message: `🩸 **Dano Aplicado**: ${evolutionResult.historySummary} na região **${validPart}**${evolutionResult.isFullyAggravated ? ' ⚠️ (Região Crítica: Totalmente Agravada!)' : ''}.`
           };
         }
 

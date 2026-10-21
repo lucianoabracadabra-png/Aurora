@@ -12,7 +12,10 @@ import {
   Loader2, 
   AlertCircle,
   ShieldCheck,
-  LogOut
+  LogOut,
+  Flame,
+  Target,
+  Compass
 } from 'lucide-react';
 import { StorageApi, CharacterSummary, AuthSession } from '../services/storageApi';
 import { createEmptyCharacterData } from '../initialState';
@@ -175,19 +178,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       // Configuração inicial dos Focos conforme as 3 opções
       if (regFocusDist === 'padrao') {
         if (regFocusGroup === 'physical') {
-          emptyData.focusConfig = { distribution: 'padrao', physical: 'F1', mental: 'F2', social: 'F3' };
+          emptyData.focusConfig = { distribution: 'padrao', physical: 'F1', mental: 'F2', social: 'SF' };
         } else if (regFocusGroup === 'mental') {
-          emptyData.focusConfig = { distribution: 'padrao', physical: 'F2', mental: 'F1', social: 'F3' };
+          emptyData.focusConfig = { distribution: 'padrao', physical: 'F2', mental: 'F1', social: 'SF' };
         } else {
-          emptyData.focusConfig = { distribution: 'padrao', physical: 'F2', mental: 'F3', social: 'F1' };
+          emptyData.focusConfig = { distribution: 'padrao', physical: 'F2', mental: 'SF', social: 'F1' };
         }
       } else if (regFocusDist === 'especializada') {
         if (regFocusGroup === 'physical') {
-          emptyData.focusConfig = { distribution: 'especializada', physical: 'Fe', mental: 'F3', social: 'F3' };
+          emptyData.focusConfig = { distribution: 'especializada', physical: 'FE', mental: 'SF', social: 'SF' };
         } else if (regFocusGroup === 'mental') {
-          emptyData.focusConfig = { distribution: 'especializada', physical: 'F3', mental: 'Fe', social: 'F3' };
+          emptyData.focusConfig = { distribution: 'especializada', physical: 'SF', mental: 'FE', social: 'SF' };
         } else {
-          emptyData.focusConfig = { distribution: 'especializada', physical: 'F3', mental: 'F3', social: 'Fe' };
+          emptyData.focusConfig = { distribution: 'especializada', physical: 'SF', mental: 'SF', social: 'FE' };
         }
       } else {
         emptyData.focusConfig = { distribution: 'generalista', physical: 'F2', mental: 'F2', social: 'F2' };
@@ -287,8 +290,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <span>Autenticação & Persistência</span>
             </h3>
             <p className="text-[11px] text-violet-300/80 font-mono flex items-center gap-1.5">
-              <FileCode size={12} />
-              <span>Sistema File-System & Cache Local</span>
+              <Sparkles size={12} className="text-cyan-400" />
+              <span>Sincronização em Nuvem & Cache Local</span>
             </p>
           </div>
         </div>
@@ -690,13 +693,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {
                   id: 'padrao' as FocusDistributionType,
                   title: 'O Natural (Aptidão Padrão)',
-                  pattern: '[ F1 + F2 + F3 ]',
+                  pattern: '[ F1 + F2 + SF ]',
                   desc: '1 Primário (baixo custo), 1 Secundário (médio) e 1 Sem Foco (alto).'
                 },
                 {
                   id: 'especializada' as FocusDistributionType,
                   title: 'O Especialista (Gênio Focado)',
-                  pattern: '[ Fe + F3 + F3 ]',
+                  pattern: '[ FE + SF + SF ]',
                   desc: '1 Foco Exclusivo (menor custo) e 2 Sem Foco (alto custo).'
                 },
                 {
@@ -738,7 +741,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {regFocusDist !== 'generalista' && (
               <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
                 <span className="text-[11px] font-medium text-white/70">
-                  {regFocusDist === 'padrao' ? 'Grupo Primário (F1):' : 'Grupo Exclusivo (Fe):'}
+                  {regFocusDist === 'padrao' ? 'Grupo Primário (F1):' : 'Grupo Exclusivo (FE):'}
                 </span>
                 <div className="flex items-center gap-1.5">
                   {[
@@ -762,6 +765,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Legenda do Peso dos Focos (aparece junto da seleção na criação da ficha) */}
+            <div className="mt-2.5 pt-2 border-t border-white/5 flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">
+                Legenda do Peso dos Focos:
+              </span>
+              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200 flex items-start gap-1.5">
+                  <Flame size={12} className="text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-amber-300">FE (Exclusivo):</strong> Menor custo de evolução.
+                  </div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-200 flex items-start gap-1.5">
+                  <Target size={12} className="text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-emerald-300">F1 (Primário):</strong> Custo baixo de evolução.
+                  </div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-200 flex items-start gap-1.5">
+                  <Compass size={12} className="text-cyan-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-cyan-300">F2 (Secundário):</strong> Custo médio padrão.
+                  </div>
+                </div>
+                <div className="p-1.5 rounded-lg bg-white/[0.03] border border-white/10 text-slate-300 flex items-start gap-1.5">
+                  <span className="text-[10px] font-mono font-bold text-white/40 shrink-0 mt-0.5 px-1 rounded bg-white/5">SF</span>
+                  <div>
+                    <strong className="text-white/80">SF (Sem Foco):</strong> Maior custo de evolução.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>

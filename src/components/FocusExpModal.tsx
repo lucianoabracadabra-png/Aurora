@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Compass, 
   Sparkles, 
@@ -7,13 +7,17 @@ import {
   CheckCircle2, 
   Layers, 
   Coins, 
-  Heart, 
   Flame, 
-  Shield, 
-  Brain, 
-  Users, 
-  Activity,
-  Zap,
+  Target,
+  ChevronRight,
+  ChevronDown,
+  Folder,
+  FolderOpen,
+  Search,
+  Plus,
+  Minus,
+  Maximize2,
+  Minimize2,
   Info
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
@@ -24,8 +28,8 @@ import {
   FOCUS_PRESETS, 
   ATRIBUTOS_COST_TABLE, 
   PERICIAS_COST_TABLE,
-  calculateSheetTotalExp,
-  calculateDerivedMechanics
+  getDetailedSheetExpBreakdown,
+  normalizeFocusLevel
 } from '../utils/expCalculations';
 
 interface FocusExpModalProps {
@@ -45,13 +49,21 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
   onUpdateExpBudget,
   readonly = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'config' | 'calculator' | 'tables'>('config');
+  // Tab 1: Tree-View de EXP | Tab 2: Matriz de Custos & Focos
+  const [activeTab, setActiveTab] = useState<'treeView' | 'costMatrix'>('treeView');
+  
+  // Controle de colapso do Tree-View
+  const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
+  const [treeSearch, setTreeSearch] = useState('');
 
-  const currentFocus = characterData.focusConfig || {
-    distribution: 'padrao',
-    physical: 'F1',
-    mental: 'F2',
-    social: 'F3',
+  // Tabela selecionada na Matriz de Custos (Atributos ou Perícias)
+  const [costTableTab, setCostTableTab] = useState<'atributos' | 'pericias'>('atributos');
+
+  const currentFocus: FocusConfig = {
+    distribution: characterData.focusConfig?.distribution || 'padrao',
+    physical: normalizeFocusLevel(characterData.focusConfig?.physical || 'F1'),
+    mental: normalizeFocusLevel(characterData.focusConfig?.mental || 'F2'),
+    social: normalizeFocusLevel(characterData.focusConfig?.social || 'SF'),
   };
 
   const expBudget = characterData.expBudget || {
@@ -59,11 +71,35 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
     campaign: 0,
   };
 
-  const expStats = calculateSheetTotalExp(characterData);
-  const derived = calculateDerivedMechanics(characterData);
+  // Árvore hierárquica detalhada de EXP
+  const treeBreakdown = useMemo(() => {
+    return getDetailedSheetExpBreakdown(characterData);
+  }, [characterData]);
 
   const totalBudget = (expBudget.initial || 0) + (expBudget.campaign || 0);
-  const remainingExp = totalBudget - expStats.totalSpent;
+  const remainingExp = totalBudget - treeBreakdown.totalSpent;
+
+  const toggleNode = (nodeId: string) => {
+    setCollapsedNodes(prev => ({
+      ...prev,
+      [nodeId]: !prev[nodeId]
+    }));
+  };
+
+  const expandAll = () => {
+    setCollapsedNodes({});
+  };
+
+  const collapseAll = () => {
+    const next: Record<string, boolean> = {};
+    treeBreakdown.sections.forEach(sec => {
+      next[sec.id] = true;
+      sec.subgroups.forEach(sub => {
+        next[sub.id] = true;
+      });
+    });
+    setCollapsedNodes(next);
+  };
 
   // Handler para trocar distribuição pré-definida
   const handleSelectPreset = (dist: FocusDistributionType) => {
@@ -73,14 +109,14 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
         distribution: 'padrao',
         physical: 'F1',
         mental: 'F2',
-        social: 'F3',
+        social: 'SF',
       });
     } else if (dist === 'especializada') {
       onUpdateFocusConfig({
         distribution: 'especializada',
-        physical: 'Fe',
-        mental: 'F3',
-        social: 'F3',
+        physical: 'FE',
+        mental: 'SF',
+        social: 'SF',
       });
     } else if (dist === 'generalista') {
       onUpdateFocusConfig({
@@ -98,24 +134,23 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
     const current = { ...currentFocus };
 
     if (current.distribution === 'padrao') {
-      // Padrão exige exatamente F1, F2 e F3 distribuídos entre os 3 grupos
-      const allowed: FocusLevel[] = ['F1', 'F2', 'F3'];
+      // Padrão exige exatamente F1, F2 e SF distribuídos entre os 3 grupos
+      const allowed: FocusLevel[] = ['F1', 'F2', 'SF'];
       if (!allowed.includes(newFocus)) return;
 
       const otherGroups = (['physical', 'mental', 'social'] as const).filter(g => g !== group);
       const remainingPicks = allowed.filter(f => f !== newFocus);
 
-      // Troca inteligente
       current[group] = newFocus;
       current[otherGroups[0]] = remainingPicks[0];
       current[otherGroups[1]] = remainingPicks[1];
     } else if (current.distribution === 'especializada') {
-      // Especializada exige 1 Fe e 2 F3
-      if (newFocus === 'Fe') {
-        current.physical = 'F3';
-        current.mental = 'F3';
-        current.social = 'F3';
-        current[group] = 'Fe';
+      // Especializada exige 1 FE e 2 SF
+      if (newFocus === 'FE') {
+        current.physical = 'SF';
+        current.mental = 'SF';
+        current.social = 'SF';
+        current[group] = 'FE';
       }
     } else if (current.distribution === 'generalista') {
       // Generalista exige todos F2
@@ -127,23 +162,68 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
     onUpdateFocusConfig(current);
   };
 
+  // Helper de badge para cada Foco (com ícones para FE, F1, F2 e limpo sem ícone para SF)
+  const renderFocusBadge = (focus: FocusLevel, size: 'sm' | 'md' = 'sm') => {
+    if (focus === 'FE') {
+      return (
+        <span className={`inline-flex items-center gap-1 font-mono font-bold rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)] ${
+          size === 'sm' ? 'text-[9px] px-2 py-0.5' : 'text-[11px] px-2.5 py-1'
+        }`}>
+          <Flame size={size === 'sm' ? 10 : 12} className="text-amber-400 stroke-[2.5]" />
+          <span>FE</span>
+        </span>
+      );
+    }
+    if (focus === 'F1') {
+      return (
+        <span className={`inline-flex items-center gap-1 font-mono font-bold rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.25)] ${
+          size === 'sm' ? 'text-[9px] px-2 py-0.5' : 'text-[11px] px-2.5 py-1'
+        }`}>
+          <Target size={size === 'sm' ? 10 : 12} className="text-emerald-400 stroke-[2.5]" />
+          <span>F1</span>
+        </span>
+      );
+    }
+    if (focus === 'F2') {
+      return (
+        <span className={`inline-flex items-center gap-1 font-mono font-bold rounded-full bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.25)] ${
+          size === 'sm' ? 'text-[9px] px-2 py-0.5' : 'text-[11px] px-2.5 py-1'
+        }`}>
+          <Compass size={size === 'sm' ? 10 : 12} className="text-cyan-400 stroke-[2.5]" />
+          <span>F2</span>
+        </span>
+      );
+    }
+    if (focus === 'SF') {
+      return (
+        <span className={`inline-flex items-center font-mono font-bold rounded-full bg-white/5 border border-white/20 text-white/70 ${
+          size === 'sm' ? 'text-[9px] px-2 py-0.5' : 'text-[11px] px-2.5 py-1'
+        }`}>
+          <span>SF</span>
+        </span>
+      );
+    }
+    return null;
+  };
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Focos, Matrizes de Custo & EXP"
-      subtitle="Distribuição de aptidão dos grupos, calculadora de pontos e mecânicas vitais"
-      icon={<Compass size={20} />}
+      title="Calculadora de EXP & Matriz de Focos"
+      subtitle="Auditoria hierárquica em Tree-View, matrizes de custo oficiais e alocação de aptidão"
+      icon={<Calculator size={20} />}
       theme="violet"
-      maxWidth="3xl"
+      maxWidth="4xl"
+      className="h-[88vh] max-h-[880px] flex flex-col"
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-white/40">Total de EXP Gasto:</span>
-            <strong className="text-cyan-300 font-mono text-sm">{expStats.totalSpent} EXP</strong>
+            <strong className="text-cyan-300 font-mono text-sm">{treeBreakdown.totalSpent} EXP</strong>
             <span className="text-white/20">|</span>
-            <span className="text-white/40">Disponível:</span>
-            <strong className={`font-mono text-sm ${remainingExp < 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+            <span className="text-white/40">Saldo Restante:</span>
+            <strong className={`font-mono text-sm ${remainingExp < 0 ? 'text-rose-400 font-extrabold' : 'text-emerald-400'}`}>
               {remainingExp} EXP
             </strong>
           </div>
@@ -153,57 +233,311 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
         </div>
       }
     >
-      <div className="flex flex-col gap-4">
-        {/* Navigation Tabs */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-2">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('config')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'config'
-                  ? 'bg-violet-500/25 border border-violet-400/50 text-violet-200 shadow-sm'
-                  : 'bg-white/5 border border-transparent text-white/60 hover:text-white'
-              }`}
-            >
-              <Compass size={14} />
-              <span>1. Configuração de Focos</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('calculator')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'calculator'
-                  ? 'bg-violet-500/25 border border-violet-400/50 text-violet-200 shadow-sm'
-                  : 'bg-white/5 border border-transparent text-white/60 hover:text-white'
-              }`}
-            >
-              <Calculator size={14} />
-              <span>2. Orçamento & EXP</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('tables')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'tables'
-                  ? 'bg-violet-500/25 border border-violet-400/50 text-violet-200 shadow-sm'
-                  : 'bg-white/5 border border-transparent text-white/60 hover:text-white'
-              }`}
-            >
-              <Table size={14} />
-              <span>3. Matrizes de Custo</span>
-            </button>
-          </div>
+      <div className="flex flex-col h-full gap-3">
+        {/* Toggle das Duas Telas Principais */}
+        <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-black/50 border border-white/10">
+          <button
+            type="button"
+            onClick={() => setActiveTab('treeView')}
+            className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'treeView'
+                ? 'bg-violet-600 text-white shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Layers size={15} />
+            <span>1. Tree-View de EXP & Seções</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('costMatrix')}
+            className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'costMatrix'
+                ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(232,121,249,0.4)]'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Table size={15} />
+            <span>2. Matriz de Custos & Legenda de Focos</span>
+          </button>
         </div>
 
-        {/* TAB 1: CONFIGURAÇÃO DE FOCOS */}
-        {activeTab === 'config' && (
-          <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-            {/* 3 Opções de Distribuição */}
+        {/* ========================================================================= */}
+        {/* TELA 1: TREE-VIEW DE EXP POR SEÇÕES                                       */}
+        {/* ========================================================================= */}
+        {activeTab === 'treeView' && (
+          <div className="flex flex-col flex-1 min-h-0 gap-3.5 animate-in fade-in duration-200">
+            {/* Banner de Orçamento dos Bancos */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-black/40 border border-white/10 rounded-2xl p-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                  Banco Inicial (Criação)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-sm font-bold text-white">
+                    {expBudget.initial} EXP
+                  </span>
+                  {!readonly && (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => onUpdateExpBudget({ ...expBudget, initial: Math.max(0, expBudget.initial - 50) })}
+                        className="w-4 h-4 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center cursor-pointer text-[10px]"
+                        title="Diminuir 50 EXP"
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateExpBudget({ ...expBudget, initial: expBudget.initial + 50 })}
+                        className="w-4 h-4 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center cursor-pointer text-[10px]"
+                        title="Aumentar 50 EXP"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                  Banco de Campanha (Mestre)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-sm font-bold text-amber-300">
+                    +{expBudget.campaign} EXP
+                  </span>
+                  {!readonly && (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => onUpdateExpBudget({ ...expBudget, campaign: Math.max(0, expBudget.campaign - 10) })}
+                        className="w-4 h-4 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center cursor-pointer text-[10px]"
+                        title="Diminuir 10 EXP"
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateExpBudget({ ...expBudget, campaign: expBudget.campaign + 10 })}
+                        className="w-4 h-4 rounded bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center cursor-pointer text-[10px]"
+                        title="Aumentar 10 EXP"
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                  Total Gasto na Ficha
+                </span>
+                <span className="font-mono text-sm font-bold text-cyan-300">
+                  {treeBreakdown.totalSpent} EXP
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                  Saldo Restante
+                </span>
+                <span className={`font-mono text-sm font-extrabold ${remainingExp < 0 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
+                  {remainingExp >= 0 ? `+${remainingExp}` : remainingExp} EXP
+                </span>
+              </div>
+            </div>
+
+            {/* Barra de Ações & Filtro da Árvore */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                <input
+                  type="text"
+                  placeholder="Filtrar por atributo, perícia ou termo..."
+                  value={treeSearch}
+                  onChange={(e) => setTreeSearch(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={expandAll}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all"
+                  title="Expandir todos os ramos"
+                >
+                  <Maximize2 size={12} />
+                  <span>Expandir</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAll}
+                  className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-all"
+                  title="Recolher todos os ramos"
+                >
+                  <Minimize2 size={12} />
+                  <span>Recolher</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tree-View Hierárquico Interativo */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-2.5 custom-scrollbar">
+              {treeBreakdown.sections.map((section) => {
+                const isSectionCollapsed = !!collapsedNodes[section.id];
+                const sectionPercent = treeBreakdown.totalSpent > 0 
+                  ? Math.round((section.totalExp / treeBreakdown.totalSpent) * 100) 
+                  : 0;
+
+                // Filtro de busca
+                const filteredSubgroups = section.subgroups.map(sub => ({
+                  ...sub,
+                  items: sub.items.filter(it => 
+                    !treeSearch || 
+                    it.name.toLowerCase().includes(treeSearch.toLowerCase()) ||
+                    section.title.toLowerCase().includes(treeSearch.toLowerCase())
+                  )
+                })).filter(sub => sub.items.length > 0);
+
+                if (treeSearch && filteredSubgroups.length === 0) return null;
+
+                const themeColors = {
+                  rose: 'border-rose-500/30 bg-rose-950/20 text-rose-300',
+                  cyan: 'border-cyan-500/30 bg-cyan-950/20 text-cyan-300',
+                  emerald: 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300',
+                  amber: 'border-amber-500/30 bg-amber-950/20 text-amber-300',
+                };
+
+                return (
+                  <div 
+                    key={section.id}
+                    className="border border-white/10 rounded-2xl bg-black/40 overflow-hidden shadow-xs"
+                  >
+                    {/* Cabeçalho da Seção (Nível 1 da Árvore) */}
+                    <div 
+                      onClick={() => toggleNode(section.id)}
+                      className="p-3 flex items-center justify-between gap-2 bg-white/[0.02] hover:bg-white/[0.05] cursor-pointer select-none transition-colors border-b border-white/5"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button type="button" className="text-white/40 hover:text-white p-0.5">
+                          {isSectionCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                        <FolderOpen size={16} className={themeColors[section.theme].split(' ')[2]} />
+                        <span className="font-bold text-xs text-white uppercase tracking-wider truncate">
+                          {section.title}
+                        </span>
+                        {renderFocusBadge(section.focus)}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-white/40 font-mono hidden sm:inline">
+                          ({sectionPercent}% do total)
+                        </span>
+                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-cyan-300">
+                          {section.totalExp} EXP
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Conteúdo Expansível da Seção */}
+                    {!isSectionCollapsed && (
+                      <div className="p-2 sm:p-3 flex flex-col gap-2.5">
+                        {filteredSubgroups.map((subgroup) => {
+                          const isSubCollapsed = !!collapsedNodes[subgroup.id];
+
+                          return (
+                            <div 
+                              key={subgroup.id}
+                              className="border border-white/5 rounded-xl bg-black/30 overflow-hidden pl-2"
+                            >
+                              {/* Cabeçalho do Subgrupo (Nível 2 da Árvore) */}
+                              <div
+                                onClick={() => toggleNode(subgroup.id)}
+                                className="py-2 px-2.5 flex items-center justify-between gap-2 hover:bg-white/[0.03] cursor-pointer select-none transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <button type="button" className="text-white/30 hover:text-white p-0.5">
+                                    {isSubCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                                  </button>
+                                  <Folder size={14} className="text-white/40" />
+                                  <span className="text-[11px] font-semibold text-white/80">
+                                    {subgroup.title}
+                                  </span>
+                                  <span className="text-[10px] text-white/30 font-mono">
+                                    ({subgroup.items.length})
+                                  </span>
+                                </div>
+                                <span className="font-mono text-[11px] font-bold text-white/70">
+                                  {subgroup.totalExp} EXP
+                                </span>
+                              </div>
+
+                              {/* Folhas do Subgrupo (Nível 3 da Árvore - Itens individuais) */}
+                              {!isSubCollapsed && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-2 pt-1 border-t border-white/5 bg-black/20">
+                                  {subgroup.items.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="p-1.5 px-2.5 rounded-lg bg-white/[0.02] border border-white/5 hover:border-white/15 flex items-center justify-between gap-2 transition-all"
+                                    >
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-white/20 shrink-0" />
+                                        <span className="text-xs text-white/90 truncate font-medium">
+                                          {item.name}
+                                        </span>
+                                        {item.ruleNote && (
+                                          <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-white/5 text-amber-300/80">
+                                            {item.ruleNote}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5 shrink-0 font-mono">
+                                        <span className="text-[10px] text-white/40">
+                                          LVL {item.level}
+                                        </span>
+                                        <span className="text-white/20">➔</span>
+                                        <span className="text-[10px] font-bold text-cyan-300 px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/20">
+                                          {item.cost} EXP
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TELA 2: MATRIZ DE CUSTOS & LEGENDA DE PESOS DOS FOCOS                     */}
+        {/* ========================================================================= */}
+        {activeTab === 'costMatrix' && (
+          <div className="flex flex-col flex-1 min-h-0 gap-4 animate-in fade-in duration-200 overflow-y-auto pr-1 custom-scrollbar">
+            {/* 1. SELEÇÃO DAS 3 OPÇÕES DE MATRIZ DE FOCOS */}
             <div>
-              <label className="text-xs font-bold text-white/80 uppercase tracking-wider block mb-2">
-                Escolha a Distribuição dos Focos
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-white/90 uppercase tracking-wider">
+                  Matriz de Aptidão dos Focos (3 Opções Oficiais)
+                </label>
+                <span className="text-[10px] text-white/50 font-mono">
+                  {readonly ? 'Modo de visualização' : 'Clique para alterar a distribuição'}
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                 {FOCUS_PRESETS.map((preset) => {
                   const isSelected = currentFocus.distribution === preset.id;
@@ -213,7 +547,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                       type="button"
                       disabled={readonly}
                       onClick={() => handleSelectPreset(preset.id)}
-                      className={`text-left p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                      className={`text-left p-3 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                         isSelected
                           ? 'bg-violet-950/40 border-violet-400/80 shadow-[0_0_20px_rgba(168,85,247,0.3)] ring-1 ring-violet-400/50'
                           : 'bg-black/40 border-white/10 hover:border-white/25 hover:bg-white/[0.02]'
@@ -237,7 +571,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                       </div>
 
                       {isSelected && (
-                        <div className="mt-2.5 flex items-center gap-1 text-[10px] text-violet-300 font-bold uppercase tracking-wider">
+                        <div className="mt-2 flex items-center gap-1 text-[10px] text-violet-300 font-bold uppercase tracking-wider">
                           <CheckCircle2 size={12} className="text-violet-400" />
                           <span>Selecionado</span>
                         </div>
@@ -248,437 +582,247 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
               </div>
             </div>
 
-            {/* Atribuição por Grupo (Físico, Mental, Social) */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white/90 uppercase tracking-wider">
-                  Alocação de Focos nos Grupos
-                </span>
-                <span className="text-[11px] text-white/50">
-                  {readonly ? 'Modo de Leitura' : 'Clique para alternar o foco do grupo'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. FÍSICO */}
-                <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
-                      <Flame size={14} className="text-rose-400" />
-                      Físico
-                    </span>
-                    <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${FOCUS_LABELS[currentFocus.physical].badgeBg}`}>
-                      {currentFocus.physical}
-                    </span>
+            {/* 2. LEGENDA DO PESO DOS FOCOS (aparece só junto da seleção de opções de focos) */}
+            <div className="p-3.5 rounded-2xl bg-black/60 border border-white/10 flex flex-col gap-2">
+              <span className="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles size={13} className="text-amber-400" />
+                <span>Legenda do Peso dos Focos (Tabela de Custos):</span>
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                    <Flame size={13} className="text-amber-400" />
+                    <span>FE (Foco Exclusivo)</span>
                   </div>
-
-                  {!readonly && currentFocus.distribution === 'padrao' ? (
-                    <div className="flex items-center gap-1 pt-1">
-                      {(['F1', 'F2', 'F3'] as FocusLevel[]).map(f => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => handleChangeGroupFocus('physical', f)}
-                          className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                            currentFocus.physical === f
-                              ? 'bg-rose-500/30 border-rose-400 text-rose-200'
-                              : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  ) : !readonly && currentFocus.distribution === 'especializada' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleChangeGroupFocus('physical', 'Fe')}
-                      className={`w-full py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                        currentFocus.physical === 'Fe'
-                          ? 'bg-amber-500/30 border-amber-400 text-amber-200'
-                          : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-                      }`}
-                    >
-                      {currentFocus.physical === 'Fe' ? 'Foco Exclusivo (Fe)' : 'Tornar Exclusivo (Fe)'}
-                    </button>
-                  ) : (
-                    <p className="text-[10px] text-white/50">
-                      {FOCUS_LABELS[currentFocus.physical].desc}
-                    </p>
-                  )}
+                  <p className="text-[10px] text-white/70 leading-relaxed">
+                    {FOCUS_LABELS.FE.desc}
+                  </p>
                 </div>
 
-                {/* 2. MENTAL */}
-                <div className="bg-sky-950/20 border border-sky-500/30 rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                      <Brain size={14} className="text-sky-400" />
-                      Mental
-                    </span>
-                    <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${FOCUS_LABELS[currentFocus.mental].badgeBg}`}>
-                      {currentFocus.mental}
-                    </span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-emerald-300 font-bold text-xs">
+                    <Target size={13} className="text-emerald-400" />
+                    <span>F1 (Foco Primário)</span>
                   </div>
-
-                  {!readonly && currentFocus.distribution === 'padrao' ? (
-                    <div className="flex items-center gap-1 pt-1">
-                      {(['F1', 'F2', 'F3'] as FocusLevel[]).map(f => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => handleChangeGroupFocus('mental', f)}
-                          className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                            currentFocus.mental === f
-                              ? 'bg-sky-500/30 border-sky-400 text-sky-200'
-                              : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  ) : !readonly && currentFocus.distribution === 'especializada' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleChangeGroupFocus('mental', 'Fe')}
-                      className={`w-full py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                        currentFocus.mental === 'Fe'
-                          ? 'bg-amber-500/30 border-amber-400 text-amber-200'
-                          : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-                      }`}
-                    >
-                      {currentFocus.mental === 'Fe' ? 'Foco Exclusivo (Fe)' : 'Tornar Exclusivo (Fe)'}
-                    </button>
-                  ) : (
-                    <p className="text-[10px] text-white/50">
-                      {FOCUS_LABELS[currentFocus.mental].desc}
-                    </p>
-                  )}
+                  <p className="text-[10px] text-white/70 leading-relaxed">
+                    {FOCUS_LABELS.F1.desc}
+                  </p>
                 </div>
 
-                {/* 3. SOCIAL */}
-                <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                      <Users size={14} className="text-emerald-400" />
-                      Social
-                    </span>
-                    <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${FOCUS_LABELS[currentFocus.social].badgeBg}`}>
-                      {currentFocus.social}
-                    </span>
+                <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-cyan-300 font-bold text-xs">
+                    <Compass size={13} className="text-cyan-400" />
+                    <span>F2 (Foco Secundário)</span>
                   </div>
+                  <p className="text-[10px] text-white/70 leading-relaxed">
+                    {FOCUS_LABELS.F2.desc}
+                  </p>
+                </div>
 
-                  {!readonly && currentFocus.distribution === 'padrao' ? (
-                    <div className="flex items-center gap-1 pt-1">
-                      {(['F1', 'F2', 'F3'] as FocusLevel[]).map(f => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => handleChangeGroupFocus('social', f)}
-                          className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                            currentFocus.social === f
-                              ? 'bg-emerald-500/30 border-emerald-400 text-emerald-200'
-                              : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  ) : !readonly && currentFocus.distribution === 'especializada' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleChangeGroupFocus('social', 'Fe')}
-                      className={`w-full py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
-                        currentFocus.social === 'Fe'
-                          ? 'bg-amber-500/30 border-amber-400 text-amber-200'
-                          : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-                      }`}
-                    >
-                      {currentFocus.social === 'Fe' ? 'Foco Exclusivo (Fe)' : 'Tornar Exclusivo (Fe)'}
-                    </button>
-                  ) : (
-                    <p className="text-[10px] text-white/50">
-                      {FOCUS_LABELS[currentFocus.social].desc}
-                    </p>
-                  )}
+                <div className="p-2 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-slate-300 font-bold text-xs">
+                    <span className="text-[10px] font-mono px-1 rounded bg-white/10 text-white/70">SF</span>
+                    <span>SF (Sem Foco)</span>
+                  </div>
+                  <p className="text-[10px] text-white/60 leading-relaxed">
+                    {FOCUS_LABELS.SF.desc}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Legenda de Peso dos Focos */}
-            <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col gap-2">
-              <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
-                Legenda de Peso dos Focos
+            {/* 3. ALOCAÇÃO DE FOCOS POR EIXO */}
+            <div className="bg-black/40 border border-white/10 rounded-2xl p-3.5 flex flex-col gap-2.5">
+              <span className="text-xs font-bold text-white/90 uppercase tracking-wider">
+                Alocação nos 3 Eixos (Físico, Mental, Social)
               </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {(['Fe', 'F1', 'F2', 'F3'] as FocusLevel[]).map(k => (
-                  <div key={k} className="p-2 rounded-xl bg-black/30 border border-white/5 flex flex-col">
-                    <span className={`font-mono font-bold text-xs ${FOCUS_LABELS[k].color}`}>
-                      {k}
-                    </span>
-                    <span className="text-[11px] font-medium text-white/90">
-                      {FOCUS_LABELS[k].label.split('(')[1]?.replace(')', '') || ''}
-                    </span>
-                    <span className="text-[10px] text-white/50 mt-0.5">
-                      {FOCUS_LABELS[k].desc}
-                    </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {[
+                  { key: 'physical' as const, label: 'Eixo Físico', current: currentFocus.physical, theme: 'rose' },
+                  { key: 'mental' as const, label: 'Eixo Mental', current: currentFocus.mental, theme: 'cyan' },
+                  { key: 'social' as const, label: 'Eixo Social', current: currentFocus.social, theme: 'emerald' },
+                ].map(group => (
+                  <div 
+                    key={group.key}
+                    className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col gap-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-white">
+                        {group.label}
+                      </span>
+                      {renderFocusBadge(group.current, 'md')}
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['FE', 'F1', 'F2', 'SF'] as FocusLevel[]).map(f => {
+                        const isSelected = group.current === f;
+                        return (
+                          <button
+                            key={f}
+                            type="button"
+                            disabled={readonly}
+                            onClick={() => handleChangeGroupFocus(group.key, f)}
+                            className={`py-1 rounded-lg font-mono text-[10px] font-bold border transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                              isSelected
+                                ? f === 'FE'
+                                  ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                                  : f === 'F1'
+                                  ? 'bg-emerald-500/30 border-emerald-400 text-emerald-200'
+                                  : f === 'F2'
+                                  ? 'bg-cyan-500/30 border-cyan-400 text-cyan-200'
+                                  : 'bg-white/15 border-white/30 text-white'
+                                : 'bg-white/5 border-white/5 text-white/40 hover:text-white hover:bg-white/10'
+                            } ${readonly ? 'cursor-default opacity-80' : ''}`}
+                            title={`Definir foco ${f} para ${group.label}`}
+                          >
+                            {f === 'FE' && <Flame size={10} className="text-amber-400" />}
+                            {f === 'F1' && <Target size={10} className="text-emerald-400" />}
+                            {f === 'F2' && <Compass size={10} className="text-cyan-400" />}
+                            <span>{f}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB 2: CALCULADORA & ORÇAMENTOS DE EXP */}
-        {activeTab === 'calculator' && (
-          <div className="flex flex-col gap-4 animate-in fade-in duration-200">
-            {/* Os 2 Bancos de EXP */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-gradient-to-br from-violet-950/30 to-black/40 border border-violet-500/30 rounded-2xl p-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Coins size={14} className="text-violet-400" />
-                    Banco de EXP Inicial (Criação)
-                  </span>
-                  <span className="text-xs font-mono font-bold text-white">
-                    {expBudget.initial} EXP
+            {/* 4. TABELAS DE CUSTO OFICIAIS (LOOK-UP TABLES) */}
+            <div className="border border-white/10 rounded-2xl bg-black/40 overflow-hidden">
+              <div className="p-3 border-b border-white/10 flex items-center justify-between gap-2 bg-white/[0.02]">
+                <div className="flex items-center gap-2">
+                  <Table size={15} className="text-violet-400" />
+                  <span className="font-bold text-xs text-white uppercase tracking-wider">
+                    Matriz Oficial de Custo de EXP
                   </span>
                 </div>
-                {!readonly && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
-                      value={expBudget.initial}
-                      onChange={(e) => onUpdateExpBudget({ ...expBudget, initial: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-violet-400"
-                      placeholder="300"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => onUpdateExpBudget({ ...expBudget, initial: 300 })}
-                      className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-bold uppercase transition-colors shrink-0"
-                    >
-                      Padrão 300
-                    </button>
-                  </div>
-                )}
-                <p className="text-[10px] text-white/50">
-                  Orçamento concedido na criação inicial da ficha.
-                </p>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCostTableTab('atributos')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      costTableTab === 'atributos'
+                        ? 'bg-violet-600 border-violet-400 text-white shadow-sm'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Atributos (LVL 1-15)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCostTableTab('pericias')}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      costTableTab === 'pericias'
+                        ? 'bg-fuchsia-600 border-fuchsia-400 text-white shadow-sm'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    Perícias (LVL 1-7)
+                  </button>
+                </div>
               </div>
 
-              <div className="bg-gradient-to-br from-cyan-950/30 to-black/40 border border-cyan-500/30 rounded-2xl p-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-cyan-400" />
-                    Banco de EXP de Campanha
-                  </span>
-                  <span className="text-xs font-mono font-bold text-white">
-                    {expBudget.campaign} EXP
-                  </span>
-                </div>
-                {!readonly && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
-                      value={expBudget.campaign}
-                      onChange={(e) => onUpdateExpBudget({ ...expBudget, campaign: Math.max(0, parseInt(e.target.value) || 0) })}
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
-                      placeholder="0"
-                    />
-                    <div className="flex items-center gap-1 shrink-0">
-                      {[10, 25, 50].map(add => (
-                        <button
-                          key={add}
-                          type="button"
-                          onClick={() => onUpdateExpBudget({ ...expBudget, campaign: (expBudget.campaign || 0) + add })}
-                          className="px-2 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[10px] font-mono font-bold transition-all"
-                        >
-                          +{add}
-                        </button>
+              <div className="overflow-x-auto max-h-56 p-2 custom-scrollbar">
+                {costTableTab === 'atributos' ? (
+                  <table className="w-full text-center text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-white/10 text-[10px] text-white/60">
+                        <th className="py-2 px-3 text-left">Nível</th>
+                        <th className="py-2 px-3 text-amber-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <Flame size={11} className="text-amber-400" />
+                            <span>FE (Exclusivo)</span>
+                          </div>
+                        </th>
+                        <th className="py-2 px-3 text-emerald-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <Target size={11} className="text-emerald-400" />
+                            <span>F1 (Primário)</span>
+                          </div>
+                        </th>
+                        <th className="py-2 px-3 text-cyan-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <Compass size={11} className="text-cyan-400" />
+                            <span>F2 (Secundário)</span>
+                          </div>
+                        </th>
+                        <th className="py-2 px-3 text-slate-300">SF (Sem Foco)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {Array.from({ length: 15 }, (_, i) => i + 1).map((lvl) => (
+                        <tr key={lvl} className="hover:bg-white/[0.03] transition-colors">
+                          <td className="py-1.5 px-3 text-left font-bold text-white/80">
+                            Nível {lvl}
+                          </td>
+                          <td className="py-1.5 px-3 text-amber-300/90 font-medium bg-amber-500/[0.02]">
+                            {ATRIBUTOS_COST_TABLE.FE[lvl - 1]} EXP
+                          </td>
+                          <td className="py-1.5 px-3 text-emerald-300/90 font-medium bg-emerald-500/[0.02]">
+                            {ATRIBUTOS_COST_TABLE.F1[lvl - 1]} EXP
+                          </td>
+                          <td className="py-1.5 px-3 text-cyan-300/90 font-medium bg-cyan-500/[0.02]">
+                            {ATRIBUTOS_COST_TABLE.F2[lvl - 1]} EXP
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-300/80 font-medium bg-white/[0.01]">
+                            {ATRIBUTOS_COST_TABLE.SF[lvl - 1]} EXP
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-                  </div>
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full text-center text-xs font-mono">
+                    <thead>
+                      <tr className="border-b border-white/10 text-[10px] text-white/60">
+                        <th className="py-2 px-3 text-left">Nível</th>
+                        <th className="py-2 px-3 text-amber-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <Flame size={11} className="text-amber-400" />
+                            <span>FE (Exclusivo)</span>
+                          </div>
+                        </th>
+                        <th className="py-2 px-3 text-emerald-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <Target size={11} className="text-emerald-400" />
+                            <span>F1 (Primário)</span>
+                          </div>
+                        </th>
+                        <th className="py-2 px-3 text-cyan-300">
+                          <div className="flex items-center justify-center gap-1">
+                            <Compass size={11} className="text-cyan-400" />
+                            <span>F2 (Secundário)</span>
+                          </div>
+                        </th>
+                        <th className="py-2 px-3 text-slate-300">SF (Sem Foco)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {Array.from({ length: 7 }, (_, i) => i + 1).map((lvl) => (
+                        <tr key={lvl} className="hover:bg-white/[0.03] transition-colors">
+                          <td className="py-1.5 px-3 text-left font-bold text-white/80">
+                            Nível {lvl}
+                          </td>
+                          <td className="py-1.5 px-3 text-amber-300/90 font-medium bg-amber-500/[0.02]">
+                            {PERICIAS_COST_TABLE.FE[lvl - 1]} EXP
+                          </td>
+                          <td className="py-1.5 px-3 text-emerald-300/90 font-medium bg-emerald-500/[0.02]">
+                            {PERICIAS_COST_TABLE.F1[lvl - 1]} EXP
+                          </td>
+                          <td className="py-1.5 px-3 text-cyan-300/90 font-medium bg-cyan-500/[0.02]">
+                            {PERICIAS_COST_TABLE.F2[lvl - 1]} EXP
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-300/80 font-medium bg-white/[0.01]">
+                            {PERICIAS_COST_TABLE.SF[lvl - 1]} EXP
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
-                <p className="text-[10px] text-white/50">
-                  Pontos adicionais de evolução concedidos pelo Mestre durante a campanha.
-                </p>
-              </div>
-            </div>
-
-            {/* Resumo Consolidado de Gastos */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
-              <span className="text-xs font-bold text-white/90 uppercase tracking-wider">
-                Detalhamento dos Gastos de EXP da Ficha
-              </span>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/20 flex flex-col">
-                  <span className="text-[10px] font-bold uppercase text-rose-300">Esfera Física ({currentFocus.physical})</span>
-                  <strong className="text-sm font-mono text-white mt-1">{expStats.physicalExp} EXP</strong>
-                  <span className="text-[10px] text-white/40 mt-0.5">
-                    Atributos: {expStats.breakdown.physicalAttributes} | Perícias: {expStats.breakdown.physicalSkills}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-sky-950/20 border border-sky-500/20 flex flex-col">
-                  <span className="text-[10px] font-bold uppercase text-sky-300">Esfera Mental ({currentFocus.mental})</span>
-                  <strong className="text-sm font-mono text-white mt-1">{expStats.mentalExp} EXP</strong>
-                  <span className="text-[10px] text-white/40 mt-0.5">
-                    Atributos: {expStats.breakdown.mentalAttributes} | Perícias: {expStats.breakdown.mentalSkills}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/20 flex flex-col">
-                  <span className="text-[10px] font-bold uppercase text-emerald-300">Esfera Social ({currentFocus.social})</span>
-                  <strong className="text-sm font-mono text-white mt-1">{expStats.socialExp} EXP</strong>
-                  <span className="text-[10px] text-white/40 mt-0.5">
-                    Atributos: {expStats.breakdown.socialAttributes} | Perícias: {expStats.breakdown.socialSkills}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 flex flex-col">
-                  <span className="text-[10px] font-bold uppercase text-amber-300">Termos Fixos & Especiais</span>
-                  <strong className="text-sm font-mono text-white mt-1">{expStats.specialExp} EXP</strong>
-                  <span className="text-[10px] text-white/40 mt-0.5">
-                    Domínios: {expStats.breakdown.domainsExp} | Spiritus: {expStats.breakdown.spiritusExp} | Personalidade: {expStats.breakdown.personalityExp}
-                  </span>
-                </div>
-              </div>
-
-              {/* Regras Nominais / Termos Fixos */}
-              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-white/70 leading-relaxed flex flex-col gap-1">
-                <span className="font-bold text-white text-xs flex items-center gap-1.5">
-                  <Info size={13} className="text-violet-400" />
-                  Regras Nominais Especiais (Custos Fixos Independentes do Grupo):
-                </span>
-                <p>• <strong>Alma:</strong> Usa a tabela de Atributos na coluna <strong>Fe (Exclusivo)</strong>.</p>
-                <p>• <strong>Domínio:</strong> Usa a tabela de Perícias na coluna <strong>F1 (Primário)</strong>.</p>
-                <p>• <strong>Personalidade:</strong> Usa a tabela de Perícias na coluna <strong>F2 (Secundário)</strong>.</p>
-                <p>• <strong>Fluxo e Patrono:</strong> São considerados atributos <strong>F1 (Primário)</strong>.</p>
-              </div>
-            </div>
-
-            {/* Mecânicas Vitais Derivadas Calculadas */}
-            <div className="bg-gradient-to-r from-violet-950/30 via-black/40 to-fuchsia-950/30 border border-violet-500/30 rounded-2xl p-4 flex flex-col gap-3">
-              <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                <Activity size={14} className="text-fuchsia-400" />
-                Mecânicas Vitais Calculadas Automaticamente
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold text-cyan-300">Regeneração de Mana</span>
-                  <div className="flex items-baseline gap-2">
-                    <strong className="text-lg font-mono text-white">+{derived.manaRegen}</strong>
-                    <span className="text-[10px] text-white/50">por descanso</span>
-                  </div>
-                  <span className="text-[10px] text-white/40 font-mono">
-                    Domínio ({derived.maxDomain}) + Pers. ({derived.personalityAvg}) + Fluxo ({derived.fluxo})
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold text-rose-300">Regeneração de HP</span>
-                  <div className="flex items-baseline gap-2">
-                    <strong className="text-lg font-mono text-white">+{derived.hpRegen}</strong>
-                    <span className="text-[10px] text-white/50">por descanso</span>
-                  </div>
-                  <span className="text-[10px] text-white/40 font-mono">
-                    Patrono ({derived.patrono}) + Const. ({derived.constitution}) + Pers. ({derived.personalityAvg})
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col gap-1">
-                  <span className="text-[10px] uppercase font-bold text-amber-300">Margem Segura de Magia</span>
-                  <div className="flex items-baseline gap-2">
-                    <strong className="text-lg font-mono text-white">{derived.safeMagicMargin}</strong>
-                    <span className="text-[10px] text-white/50">pontos seguros</span>
-                  </div>
-                  <span className="text-[10px] text-white/40 font-mono">
-                    Domínio Usado ({derived.maxDomain}) + Fluxo ({derived.fluxo})
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: MATRIZES DE CUSTO (LOOK-UP TABLES) */}
-        {activeTab === 'tables' && (
-          <div className="flex flex-col gap-5 animate-in fade-in duration-200">
-            {/* Tabela de Atributos */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Matriz de Custo: Atributos (Níveis 1 ao 15)
-                </h4>
-                <span className="text-[11px] text-white/40 font-mono">Look-up Table Atributos</span>
-              </div>
-
-              <div className="overflow-x-auto max-h-56 custom-scrollbar">
-                <table className="w-full text-xs text-left border-collapse font-mono">
-                  <thead>
-                    <tr className="border-b border-white/10 text-white/60 text-[10px] uppercase">
-                      <th className="py-2 px-3">LVL</th>
-                      <th className="py-2 px-3 text-amber-300">Fe (Exclusivo)</th>
-                      <th className="py-2 px-3 text-emerald-300">F1 (Primário)</th>
-                      <th className="py-2 px-3 text-cyan-300">F2 (Secundário)</th>
-                      <th className="py-2 px-3 text-slate-300">F3 (Sem Foco)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: 15 }, (_, i) => i + 1).map((lvl) => (
-                      <tr key={lvl} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                        <td className="py-1.5 px-3 font-bold text-white/90">Nível {lvl}</td>
-                        <td className="py-1.5 px-3 text-amber-300 font-bold">{ATRIBUTOS_COST_TABLE.Fe[lvl - 1]} EXP</td>
-                        <td className="py-1.5 px-3 text-emerald-300">{ATRIBUTOS_COST_TABLE.F1[lvl - 1]} EXP</td>
-                        <td className="py-1.5 px-3 text-cyan-300">{ATRIBUTOS_COST_TABLE.F2[lvl - 1]} EXP</td>
-                        <td className="py-1.5 px-3 text-slate-400">{ATRIBUTOS_COST_TABLE.F3[lvl - 1]} EXP</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Tabela de Perícias */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-4 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Matriz de Custo: Perícias (Níveis 1 ao 7)
-                </h4>
-                <span className="text-[11px] text-white/40 font-mono">Look-up Table Perícias</span>
-              </div>
-
-              <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-xs text-left border-collapse font-mono">
-                  <thead>
-                    <tr className="border-b border-white/10 text-white/60 text-[10px] uppercase">
-                      <th className="py-2 px-3">LVL</th>
-                      <th className="py-2 px-3 text-amber-300">Fe (Exclusivo)</th>
-                      <th className="py-2 px-3 text-emerald-300">F1 (Primário)</th>
-                      <th className="py-2 px-3 text-cyan-300">F2 (Secundário)</th>
-                      <th className="py-2 px-3 text-slate-300">F3 (Sem Foco)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: 7 }, (_, i) => i + 1).map((lvl) => (
-                      <tr key={lvl} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                        <td className="py-1.5 px-3 font-bold text-white/90">Nível {lvl}</td>
-                        <td className="py-1.5 px-3 text-amber-300 font-bold">{PERICIAS_COST_TABLE.Fe[lvl - 1]} EXP</td>
-                        <td className="py-1.5 px-3 text-emerald-300">{PERICIAS_COST_TABLE.F1[lvl - 1]} EXP</td>
-                        <td className="py-1.5 px-3 text-cyan-300">{PERICIAS_COST_TABLE.F2[lvl - 1]} EXP</td>
-                        <td className="py-1.5 px-3 text-slate-400">{PERICIAS_COST_TABLE.F3[lvl - 1]} EXP</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>

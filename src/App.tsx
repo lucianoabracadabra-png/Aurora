@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData, createEmptyCharacterData } from './initialState';
 import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, Pencil, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText } from 'lucide-react';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, Pencil, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText, Calculator, Compass } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { AnimatedSection } from './components/AnimatedSection';
@@ -18,6 +18,7 @@ import { DiceRollerModal, DiceRollRequest } from './components/DiceRollerModal';
 import { InventoryManager } from './components/InventoryManager';
 import { GalaxyAuroraBackground } from './components/GalaxyAuroraBackground';
 import { UserGuideModal } from './components/UserGuideModal';
+import { FocusExpModal } from './components/FocusExpModal';
 import { Spiritus } from './components/Spiritus';
 import { AttributeInput } from './components/AttributeInput';
 import { CustomSkillsSection } from './components/CustomSkillsSection';
@@ -182,8 +183,15 @@ function normalizeCharacterData(parsed: any): CharacterData {
       distribution: 'padrao',
       physical: 'F1',
       mental: 'F2',
-      social: 'F3'
+      social: 'SF'
     };
+  } else {
+    if ((parsed.focusConfig.physical as any) === 'Fe') parsed.focusConfig.physical = 'FE';
+    if ((parsed.focusConfig.physical as any) === 'F3') parsed.focusConfig.physical = 'SF';
+    if ((parsed.focusConfig.mental as any) === 'Fe') parsed.focusConfig.mental = 'FE';
+    if ((parsed.focusConfig.mental as any) === 'F3') parsed.focusConfig.mental = 'SF';
+    if ((parsed.focusConfig.social as any) === 'Fe') parsed.focusConfig.social = 'FE';
+    if ((parsed.focusConfig.social as any) === 'F3') parsed.focusConfig.social = 'SF';
   }
 
   if (!parsed.expBudget) {
@@ -227,6 +235,7 @@ export default function App() {
   const [characterToDelete, setCharacterToDelete] = useState<CampaignCharacter | null>(null);
   const [availableCharacters, setAvailableCharacters] = useState<CharacterSummary[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('saved');
+  const [syncStatus, setSyncStatus] = useState<'conectado' | 'carregando' | 'salvando' | 'atualizando' | 'erro'>('conectado');
 
   const [campaignCharacters, setCampaignCharacters] = useState<CampaignCharacter[]>(() => {
     const saved = localStorage.getItem('arcana_campaign_characters');
@@ -328,6 +337,7 @@ export default function App() {
   // O Fetch Inicial: 1 única chamada REST para carregar o estado das fichas
   const loadCharactersFromFileSystem = async (silent = false) => {
     try {
+      setSyncStatus('carregando');
       const fullList = await StorageApi.getAllFullCharacters();
       if (fullList.length > 0) {
         const fullCharacters: CampaignCharacter[] = fullList.map((item) => ({
@@ -370,14 +380,17 @@ export default function App() {
           }
         }
       }
+      setSyncStatus('conectado');
     } catch (err) {
       if (!silent) {
         console.warn('Initial single REST fetch error, using local cache:', err);
       }
+      setSyncStatus('erro');
     } finally {
       if (isInitialMountRef.current) {
         isInitialMountRef.current = false;
       }
+      setSyncStatus((prev) => (prev === 'erro' ? 'erro' : 'conectado'));
     }
   };
 
@@ -412,9 +425,10 @@ export default function App() {
       }
     }
 
-    // SEMPRE puxa a versão autoritativa e fresca do Supabase para o username selecionado
+    // SEMPRE puxa a versão autoritativa e fresca do servidor para o username selecionado
     try {
       setSaveStatus('idle');
+      setSyncStatus('carregando');
       const res = await StorageApi.getCharacter(cleanUser, true);
       if (res && res.character) {
         const freshNormalized = normalizeCharacterData(res.character);
@@ -447,10 +461,12 @@ export default function App() {
           return nextList;
         });
 
-        console.log(`[App:selectAndLoadCharacter] Ficha do usuário "${cleanUser}" carregada com sucesso do Supabase.`);
+        console.log(`[App:selectAndLoadCharacter] Ficha do usuário "${cleanUser}" carregada com sucesso.`);
+        setSyncStatus('conectado');
       }
     } catch (err) {
-      console.error(`[App:selectAndLoadCharacter:ERROR] Falha ao puxar ficha do Supabase para "${cleanUser}":`, err);
+      console.error(`[App:selectAndLoadCharacter:ERROR] Falha ao puxar ficha para "${cleanUser}":`, err);
+      setSyncStatus('erro');
     }
   };
 
@@ -460,6 +476,11 @@ export default function App() {
     realtimeSync.init();
 
     const unsubSheet = realtimeSync.onSheetUpdate((sheetMsg) => {
+      setSyncStatus('atualizando');
+      setTimeout(() => {
+        setSyncStatus('conectado');
+      }, 1500);
+
       try {
         localStorage.setItem(`arcana_char_data_${sheetMsg.username}`, JSON.stringify(sheetMsg.character));
       } catch {}
@@ -575,8 +596,9 @@ export default function App() {
     });
     localStorage.setItem('arcana_character_data', currentJson);
 
-    // Supabase & File-System save
+    // Auto-save to cloud storage & local database
     setSaveStatus('saving');
+    setSyncStatus('salvando');
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
       try {
@@ -590,9 +612,11 @@ export default function App() {
         );
         lastSavedJsonRef.current = currentJson;
         setSaveStatus('saved');
+        setSyncStatus('conectado');
       } catch (err) {
-        console.error('Failed to save character to Supabase:', err);
+        console.error('Failed to save character:', err);
         setSaveStatus('error');
+        setSyncStatus('erro');
       }
     }, 500);
 
@@ -717,6 +741,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'profile' | 'stats' | 'inventory' | 'magic'>('profile');
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isFocusExpModalOpen, setIsFocusExpModalOpen] = useState(false);
   const [activeEnvironment, setActiveEnvironment] = useState<'sheet' | 'battleTracker'>('sheet');
 
   const rollAttribute = (name: string, value: number, theme: 'rose' | 'cyan' | 'emerald' | 'amber') => {
@@ -1031,7 +1056,7 @@ export default function App() {
               Aurora
             </h1>
 
-            {/* Status de Salvamento no Supabase */}
+            {/* Status de Sincronização */}
             <button
               type="button"
               onClick={() => {
@@ -1039,24 +1064,36 @@ export default function App() {
               }}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs shadow-inner min-w-0 transition-colors cursor-pointer"
               title={
-                saveStatus === 'saving'
-                  ? 'Salvando alterações no Supabase...'
-                  : saveStatus === 'error'
-                  ? 'Erro ao salvar no Supabase (clique para sincronizar)'
-                  : `Supabase sincronizado (clique para recarregar)`
+                syncStatus === 'carregando'
+                  ? 'Carregando dados...'
+                  : syncStatus === 'salvando'
+                  ? 'Salvando alterações...'
+                  : syncStatus === 'atualizando'
+                  ? 'Atualizando dados em tempo real...'
+                  : syncStatus === 'erro'
+                  ? 'Erro na sincronização (clique para sincronizar)'
+                  : 'Conectado (clique para sincronizar)'
               }
             >
               <span
                 className={`w-2 h-2 rounded-full transition-all shrink-0 ${
-                  saveStatus === 'saving'
+                  syncStatus === 'carregando'
+                    ? 'bg-sky-400 animate-pulse'
+                    : syncStatus === 'salvando'
                     ? 'bg-amber-400 animate-ping'
-                    : saveStatus === 'error'
+                    : syncStatus === 'atualizando'
+                    ? 'bg-fuchsia-400 animate-pulse shadow-[0_0_8px_#e879f9]'
+                    : syncStatus === 'erro'
                     ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'
                     : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
                 }`}
               />
               <span className="text-[11px] font-semibold text-white/90">
-                {saveStatus === 'saving' ? 'Salvando...' : saveStatus === 'error' ? 'Não salvo' : 'Supabase Conectado'}
+                {syncStatus === 'carregando' && 'Carregando...'}
+                {syncStatus === 'salvando' && 'Salvando...'}
+                {syncStatus === 'atualizando' && 'Atualizando...'}
+                {syncStatus === 'conectado' && 'Conectado'}
+                {syncStatus === 'erro' && 'Não salvo'}
               </span>
             </button>
           </div>
@@ -1168,7 +1205,17 @@ export default function App() {
               )}
             </button>
 
-            {/* 4. Question mark (Ajuda & Guia ?) */}
+            {/* 4. Focos & Calculadora de EXP */}
+            <button
+              type="button"
+              onClick={() => setIsFocusExpModalOpen(true)}
+              className="w-8 h-8 rounded-full bg-white/[0.03] hover:bg-violet-500/20 active:scale-95 border border-violet-400/30 hover:border-violet-400/60 flex items-center justify-center text-violet-300 transition-all shadow-[0_0_15px_rgba(167,139,250,0.2)] cursor-pointer"
+              title="Focos, Matrizes de Custo & Calculadora de EXP"
+            >
+              <Calculator size={15} className="text-violet-400 drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]" />
+            </button>
+
+            {/* 5. Question mark (Ajuda & Guia ?) */}
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
@@ -1373,6 +1420,8 @@ export default function App() {
               manaSpent={data.manaSpent.physical}
               onManaChange={(v: number) => setData(prev => ({ ...prev, manaSpent: { ...prev.manaSpent, physical: v } }))}
               readonly={!isEditing}
+              focusLevel={data.focusConfig?.physical}
+              onOpenFocusModal={() => setIsFocusExpModalOpen(true)}
             >
               <div className="flex flex-col gap-6" tabIndex={0}>
                 <div className="flex flex-col gap-3">
@@ -1426,6 +1475,8 @@ export default function App() {
               manaSpent={data.manaSpent.mental}
               onManaChange={(v: number) => setData(prev => ({ ...prev, manaSpent: { ...prev.manaSpent, mental: v } }))}
               readonly={!isEditing}
+              focusLevel={data.focusConfig?.mental}
+              onOpenFocusModal={() => setIsFocusExpModalOpen(true)}
             >
               <div className="flex flex-col gap-6" tabIndex={0}>
                 <div className="flex flex-col gap-3">
@@ -1479,6 +1530,8 @@ export default function App() {
               manaSpent={data.manaSpent.social}
               onManaChange={(v: number) => setData(prev => ({ ...prev, manaSpent: { ...prev.manaSpent, social: v } }))}
               readonly={!isEditing}
+              focusLevel={data.focusConfig?.social}
+              onOpenFocusModal={() => setIsFocusExpModalOpen(true)}
             >
               <div className="flex flex-col gap-6" tabIndex={0}>
                 <div className="flex flex-col gap-3">
@@ -1660,12 +1713,34 @@ export default function App() {
         onClose={() => setDiceRollRequest(null)} 
         attributes={data.attributes}
         spiritus={data.spiritus}
+        focusConfig={data.focusConfig}
       />
 
       {/* Guia de Ferramentas & Usabilidade (?) */}
       <UserGuideModal
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+        characterData={data}
+      />
+
+      {/* Focos & Calculadora de EXP */}
+      <FocusExpModal
+        isOpen={isFocusExpModalOpen}
+        onClose={() => setIsFocusExpModalOpen(false)}
+        characterData={data}
+        onUpdateFocusConfig={(newConfig) => {
+          setData((prev) => ({
+            ...prev,
+            focusConfig: newConfig
+          }));
+        }}
+        onUpdateExpBudget={(newBudget) => {
+          setData((prev) => ({
+            ...prev,
+            expBudget: newBudget
+          }));
+        }}
+        readonly={!isEditing}
       />
 
       {/* Autenticação & Troca de Conta / Ficha File-System */}

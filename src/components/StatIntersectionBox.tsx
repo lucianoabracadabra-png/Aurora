@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
+import React, { useRef } from 'react';
+import { RotateCcw, Flame, Target, Compass } from 'lucide-react';
 import { Card } from './ui/Card';
+import { FocusLevel } from '../types';
 
 export interface StatIntersectionBoxProps {
   title: string;
@@ -10,7 +11,7 @@ export interface StatIntersectionBoxProps {
   manaTotal: number;
   onManaChange: (v: number) => void;
   readonly: boolean;
-  focusLevel?: 'Fe' | 'F1' | 'F2' | 'F3';
+  focusLevel?: FocusLevel | 'Fe' | 'F3';
   onOpenFocusModal?: () => void;
 }
 
@@ -25,6 +26,13 @@ export const StatIntersectionBox: React.FC<StatIntersectionBoxProps> = ({
   onOpenFocusModal,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
+
+  // Normalização de Foco
+  const normalizedFocus: FocusLevel | null = 
+    focusLevel === 'FE' || focusLevel === 'Fe' ? 'FE' :
+    focusLevel === 'F1' ? 'F1' :
+    focusLevel === 'F2' ? 'F2' :
+    focusLevel === 'SF' || focusLevel === 'F3' ? 'SF' : null;
 
   const titleThemeColors = {
     rose: 'text-rose-400',
@@ -62,19 +70,25 @@ export const StatIntersectionBox: React.FC<StatIntersectionBoxProps> = ({
       title={title} 
       titleClassName={titleThemeColors[theme]}
       rightContent={
-        focusLevel ? (
+        normalizedFocus ? (
           <button
             type="button"
             onClick={onOpenFocusModal}
-            className={`px-2.5 py-0.5 rounded-full border text-[10px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95 ${
-              focusLevel === 'Fe' ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]' :
-              focusLevel === 'F1' ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.25)]' :
-              focusLevel === 'F2' ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.25)]' :
-              'bg-slate-500/20 border-slate-400/40 text-slate-300'
+            className={`px-2.5 py-0.5 rounded-full border text-[10px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1.5 hover:scale-105 active:scale-95 ${
+              normalizedFocus === 'FE' 
+                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]' 
+                : normalizedFocus === 'F1' 
+                ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.3)]' 
+                : normalizedFocus === 'F2'
+                ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                : 'bg-white/5 border-white/20 text-white/70 hover:text-white hover:border-white/40 shadow-xs'
             }`}
-            title={`Foco deste grupo: ${focusLevel}. Clique para abrir o Painel de Focos e Calculadora de EXP`}
+            title={`Eixo ${title}: ${normalizedFocus}. Clique para abrir a Calculadora de EXP`}
           >
-            <span>Foco: {focusLevel}</span>
+            {normalizedFocus === 'FE' && <Flame size={12} className="text-amber-400 stroke-[2.5]" />}
+            {normalizedFocus === 'F1' && <Target size={12} className="text-emerald-400 stroke-[2.5]" />}
+            {normalizedFocus === 'F2' && <Compass size={12} className="text-cyan-400 stroke-[2.5]" />}
+            <span>{normalizedFocus}</span>
           </button>
         ) : undefined
       }

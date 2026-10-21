@@ -1,6 +1,7 @@
-import { CharacterData } from '../types';
+import { CharacterData, DamageType } from '../types';
 import { safeJsonParse, normalizeCoinType } from './auroraTools';
 import { createEmptyCharacterData } from '../initialState';
+import { applyDamageWithEvolution } from './healthEvolution';
 
 export interface AuroraActionResult {
   success: boolean;
@@ -650,6 +651,53 @@ export function parseAndExecuteAurora(
         };
       }
     }
+  }
+
+  // --- DANO NO CORPO COM EVOLUÇÃO (Vazio > Simples > Letal > Agravado) ---
+  if (norm.includes('dano') || norm.includes('ferimento') || norm.includes('tomou') || norm.includes('tomei') || norm.includes('sofreu')) {
+    const updated = safeJsonParse<CharacterData>(JSON.stringify(currentData), currentData);
+    const partMap: Record<string, keyof typeof updated.health> = {
+      'cabeca': 'head',
+      'cabeça': 'head',
+      'torso': 'torso',
+      'peitoral': 'torso',
+      'peito': 'torso',
+      'braco esquerdo': 'leftArm',
+      'braço esquerdo': 'leftArm',
+      'braco direito': 'rightArm',
+      'braço direito': 'rightArm',
+      'perna esquerda': 'leftLeg',
+      'perna direita': 'rightLeg',
+    };
+
+    let targetPart: keyof typeof updated.health = 'torso';
+    let targetName = 'torso';
+    for (const [pName, pKey] of Object.entries(partMap)) {
+      if (norm.includes(pName)) {
+        targetPart = pKey;
+        targetName = pName;
+        break;
+      }
+    }
+
+    const numMatch = norm.match(/\b(\d+)\b/);
+    const amount = numMatch ? Math.max(1, parseInt(numMatch[1], 10)) : 1;
+    let dmgType: DamageType = 'simple';
+    if (norm.includes('agravado')) dmgType = 'aggravated';
+    else if (norm.includes('letal')) dmgType = 'lethal';
+
+    const partSlots = [...(updated.health[targetPart] || [])];
+    const evoResult = applyDamageWithEvolution(partSlots, dmgType, amount);
+    updated.health[targetPart] = evoResult.nextSlots;
+
+    return {
+      success: true,
+      category: 'health',
+      updatedData: updated,
+      undoData: currentData,
+      message: `🩸 **Dano Aplicado**: ${evoResult.historySummary} na região **${targetName}**${evoResult.isFullyAggravated ? ' ⚠️ (Região Crítica: Totalmente Agravada!)' : ''}.`,
+      description: `Aplicar ${amount} dano em ${targetName}`
+    };
   }
 
   // --- 11. RESET / FICHA LIMPA ---

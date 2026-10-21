@@ -30,18 +30,22 @@ const DamageBox: React.FC<{ value: DamageType; onChange: (v: DamageType) => void
     <button
       type="button"
       disabled={readonly}
+      data-damage-box="true"
       aria-label={`Damage box: ${value}`}
-      className={`relative w-full aspect-square border rounded-md sm:rounded-lg flex items-center justify-center transition-all duration-150 select-none ${colors[value]} ${
+      className={`damage-box relative w-full aspect-square border rounded-md sm:rounded-lg flex items-center justify-center transition-all duration-150 select-none ${colors[value]} ${
         readonly ? 'opacity-80 cursor-default' : 'cursor-pointer active:scale-90 hover:scale-[1.03]'
       }`}
-      onClick={() => {
+      onClick={(e) => {
+        e.stopPropagation();
         if (!readonly) onChange(nextState[value]);
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (!readonly) onChange('none');
+        e.preventDefault();
       }}
-      title={!readonly ? "Clique para alternar dano • Clique duplo para limpar" : undefined}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
+      title={!readonly ? "Clique para alternar dano (Vazio > Simples > Letal > Agravado)" : undefined}
     />
   );
 };
@@ -69,10 +73,20 @@ const BodyPart = ({
 }) => {
   return (
     <div 
-      onDoubleClick={() => {
+      onDoubleClick={(e) => {
+        // Double click na ficha de HP não deve ser ativado se ao clicar acertar uma caixinha, só clicando na moldura externa
+        const target = e.target as HTMLElement;
+        if (
+          target.closest('button') || 
+          target.closest('[data-damage-box="true"]') || 
+          target.closest('.damage-box') || 
+          target.closest('.damage-box-grid')
+        ) {
+          return;
+        }
         if (!readonly && onReset) onReset();
       }}
-      title={!readonly ? `${label} (Clique duplo para limpar esta caixa)` : undefined}
+      title={!readonly ? `${label} (Clique duplo na moldura externa para limpar todos os ferimentos)` : undefined}
       className="flex flex-col justify-between bg-[#050508]/40 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-2xl p-2.5 sm:p-3 relative overflow-hidden h-full shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-300 cursor-pointer"
     >
       <div className="absolute inset-0 bg-gradient-to-b from-rose-500/[0.03] to-transparent pointer-events-none" />
@@ -116,7 +130,9 @@ const BodyPart = ({
       </div>
 
       <div 
-        className="grid gap-1.5 sm:gap-2 mt-auto w-full relative z-10"
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className="damage-box-grid grid gap-1.5 sm:gap-2 mt-auto w-full relative z-10 cursor-default"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {boxes.map((val, idx) => (

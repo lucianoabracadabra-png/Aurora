@@ -148,6 +148,8 @@ export type WeaponItem = {
   location: string; // ex: 'Em Mãos', 'Cinto', 'Mochila'
   extras?: string;
   description?: string;
+  stars?: number; // 1 a 9
+  rarity?: string;
 };
 
 export type ArmorItem = {
@@ -168,6 +170,8 @@ export type ArmorItem = {
   location: string;
   extras?: string;
   description?: string;
+  stars?: number; // 1 a 9
+  rarity?: string;
 };
 
 export type ProjectileItem = {
@@ -186,6 +190,8 @@ export type ProjectileItem = {
   location: string;
   extras?: string;
   description?: string;
+  stars?: number; // 1 a 9
+  rarity?: string;
 };
 
 export type AccessoryItem = {
@@ -200,6 +206,8 @@ export type AccessoryItem = {
   size?: string;
   weight: number; // em gramas
   location: string;
+  stars?: number; // 1 a 9
+  rarity?: string;
 };
 
 export type GeneralItem = {
@@ -213,6 +221,8 @@ export type GeneralItem = {
   slot?: EquipmentSlot;
   location: string;
   description?: string;
+  stars?: number; // 1 a 9
+  rarity?: string;
 };
 
 export type CurrencyTransaction = {
@@ -303,8 +313,8 @@ export interface CampaignCharacter {
   data: CharacterData;
 }
 
-export type FocusLevel = 'Fe' | 'F1' | 'F2' | 'F3';
-export type FocusDistributionType = 'padrao' | 'especializada' | 'generalista'; // 'padrao' = [F1, F2, F3], 'especializada' = [Fe, F3, F3], 'generalista' = [F2, F2, F2]
+export type FocusLevel = 'FE' | 'F1' | 'F2' | 'SF';
+export type FocusDistributionType = 'padrao' | 'especializada' | 'generalista'; // 'padrao' = [F1, F2, SF], 'especializada' = [FE, SF, SF], 'generalista' = [F2, F2, F2]
 
 export type FocusConfig = {
   distribution: FocusDistributionType;
