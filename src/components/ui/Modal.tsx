@@ -101,7 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
       onClick={onClose}
     >
       <div
-        className={`bg-[#06040f] border ${style.border} rounded-2xl sm:rounded-[2rem] w-full ${widthClasses[maxWidth]} max-h-[92dvh] max-h-[92vh] ${style.glow} flex flex-col relative overflow-hidden transition-all animate-in zoom-in-95 duration-200 ${className}`}
+        className={`bg-[#06040f] border ${style.border} rounded-2xl sm:rounded-[2rem] w-full ${widthClasses[maxWidth]} h-[96dvh] h-[96vh] ${style.glow} flex flex-col relative transition-all animate-in zoom-in-95 duration-200 ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}

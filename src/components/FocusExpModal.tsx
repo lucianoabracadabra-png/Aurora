@@ -52,6 +52,9 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
   // Tab 1: Tree-View de EXP | Tab 2: Matriz de Custos & Focos
   const [activeTab, setActiveTab] = useState<'treeView' | 'costMatrix'>('treeView');
   
+  // Modo de visualização da árvore: Por Categoria (Atributos, Perícias, Fixos) ou Por Eixo
+  const [treeGrouping, setTreeGrouping] = useState<'byCategory' | 'byAxis'>('byCategory');
+
   // Controle de colapso do Tree-View
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
   const [treeSearch, setTreeSearch] = useState('');
@@ -76,6 +79,12 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
     return getDetailedSheetExpBreakdown(characterData);
   }, [characterData]);
 
+  const activeSections = useMemo(() => {
+    return treeGrouping === 'byCategory' 
+      ? treeBreakdown.sectionsByCategory 
+      : treeBreakdown.sectionsByAxis;
+  }, [treeGrouping, treeBreakdown]);
+
   const totalBudget = (expBudget.initial || 0) + (expBudget.campaign || 0);
   const remainingExp = totalBudget - treeBreakdown.totalSpent;
 
@@ -92,7 +101,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
 
   const collapseAll = () => {
     const next: Record<string, boolean> = {};
-    treeBreakdown.sections.forEach(sec => {
+    activeSections.forEach(sec => {
       next[sec.id] = true;
       sec.subgroups.forEach(sub => {
         next[sub.id] = true;
@@ -215,7 +224,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
       icon={<Calculator size={20} />}
       theme="violet"
       maxWidth="4xl"
-      className="h-[88vh] max-h-[880px] flex flex-col"
+      className="h-[92vh] max-h-[920px] flex flex-col"
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 text-xs">
@@ -233,7 +242,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
         </div>
       }
     >
-      <div className="flex flex-col h-full gap-3">
+      <div className="flex flex-col gap-3 min-h-[500px]">
         {/* Toggle das Duas Telas Principais */}
         <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-black/50 border border-white/10">
           <button
@@ -352,19 +361,48 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
             </div>
 
             {/* Barra de Ações & Filtro da Árvore */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-                <input
-                  type="text"
-                  placeholder="Filtrar por atributo, perícia ou termo..."
-                  value={treeSearch}
-                  onChange={(e) => setTreeSearch(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 transition-colors"
-                />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar por atributo, perícia ou termo..."
+                    value={treeSearch}
+                    onChange={(e) => setTreeSearch(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-violet-500/50 transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center rounded-xl bg-black/50 border border-white/10 p-0.5 text-[11px] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setTreeGrouping('byCategory')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-medium ${
+                      treeGrouping === 'byCategory'
+                        ? 'bg-violet-600 text-white font-bold shadow-xs'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                    title="Agrupar por Atributos, Perícias e Especial & Fixos"
+                  >
+                    Por Categoria
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTreeGrouping('byAxis')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer font-medium ${
+                      treeGrouping === 'byAxis'
+                        ? 'bg-violet-600 text-white font-bold shadow-xs'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                    title="Agrupar por Eixo Físico, Mental e Social"
+                  >
+                    Por Eixo
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                 <button
                   type="button"
                   onClick={expandAll}
@@ -388,7 +426,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
 
             {/* Tree-View Hierárquico Interativo */}
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-2.5 custom-scrollbar">
-              {treeBreakdown.sections.map((section) => {
+              {activeSections.map((section) => {
                 const isSectionCollapsed = !!collapsedNodes[section.id];
                 const sectionPercent = treeBreakdown.totalSpent > 0 
                   ? Math.round((section.totalExp / treeBreakdown.totalSpent) * 100) 
@@ -400,7 +438,8 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                   items: sub.items.filter(it => 
                     !treeSearch || 
                     it.name.toLowerCase().includes(treeSearch.toLowerCase()) ||
-                    section.title.toLowerCase().includes(treeSearch.toLowerCase())
+                    section.title.toLowerCase().includes(treeSearch.toLowerCase()) ||
+                    sub.title.toLowerCase().includes(treeSearch.toLowerCase())
                   )
                 })).filter(sub => sub.items.length > 0);
 
@@ -411,6 +450,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                   cyan: 'border-cyan-500/30 bg-cyan-950/20 text-cyan-300',
                   emerald: 'border-emerald-500/30 bg-emerald-950/20 text-emerald-300',
                   amber: 'border-amber-500/30 bg-amber-950/20 text-amber-300',
+                  violet: 'border-violet-500/30 bg-violet-950/20 text-violet-300',
                 };
 
                 return (
@@ -431,7 +471,10 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                         <span className="font-bold text-xs text-white uppercase tracking-wider truncate">
                           {section.title}
                         </span>
-                        {renderFocusBadge(section.focus)}
+                        {section.focus && renderFocusBadge(section.focus)}
+                        <span className="text-[10px] text-white/40 font-mono hidden sm:inline">
+                          ({section.itemCount} itens)
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -449,6 +492,9 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                       <div className="p-2 sm:p-3 flex flex-col gap-2.5">
                         {filteredSubgroups.map((subgroup) => {
                           const isSubCollapsed = !!collapsedNodes[subgroup.id];
+                          const subThemeClass = subgroup.theme 
+                            ? themeColors[subgroup.theme].split(' ')[2] 
+                            : 'text-white/40';
 
                           return (
                             <div 
@@ -460,19 +506,20 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                                 onClick={() => toggleNode(subgroup.id)}
                                 className="py-2 px-2.5 flex items-center justify-between gap-2 hover:bg-white/[0.03] cursor-pointer select-none transition-colors"
                               >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                   <button type="button" className="text-white/30 hover:text-white p-0.5">
                                     {isSubCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                                   </button>
-                                  <Folder size={14} className="text-white/40" />
-                                  <span className="text-[11px] font-semibold text-white/80">
+                                  <Folder size={14} className={subThemeClass} />
+                                  <span className="text-[11px] font-semibold text-white/90 truncate">
                                     {subgroup.title}
                                   </span>
+                                  {subgroup.focus && renderFocusBadge(subgroup.focus)}
                                   <span className="text-[10px] text-white/30 font-mono">
                                     ({subgroup.items.length})
                                   </span>
                                 </div>
-                                <span className="font-mono text-[11px] font-bold text-white/70">
+                                <span className="font-mono text-[11px] font-bold text-white/70 shrink-0">
                                   {subgroup.totalExp} EXP
                                 </span>
                               </div>
@@ -491,7 +538,7 @@ export const FocusExpModal: React.FC<FocusExpModalProps> = ({
                                           {item.name}
                                         </span>
                                         {item.ruleNote && (
-                                          <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-white/5 text-amber-300/80">
+                                          <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-white/5 text-amber-300/80 shrink-0">
                                             {item.ruleNote}
                                           </span>
                                         )}

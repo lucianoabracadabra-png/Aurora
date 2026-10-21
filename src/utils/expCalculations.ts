@@ -147,6 +147,9 @@ export interface TreeItemLeaf {
 export interface TreeSubgroupNode {
   id: string;
   title: string;
+  axisName?: string;
+  focus?: FocusLevel;
+  theme?: 'rose' | 'cyan' | 'emerald' | 'amber' | 'violet';
   totalExp: number;
   items: TreeItemLeaf[];
 }
@@ -154,79 +157,95 @@ export interface TreeSubgroupNode {
 export interface TreeSectionNode {
   id: string;
   title: string;
-  theme: 'rose' | 'cyan' | 'emerald' | 'amber';
-  focus: FocusLevel;
+  category: 'attributes' | 'skills' | 'fixed' | 'axis';
+  theme: 'rose' | 'cyan' | 'emerald' | 'amber' | 'violet';
+  focus?: FocusLevel;
   totalExp: number;
+  itemCount: number;
   subgroups: TreeSubgroupNode[];
 }
 
 export interface DetailedTreeExpBreakdown {
   totalSpent: number;
   sections: TreeSectionNode[];
+  sectionsByCategory: TreeSectionNode[];
+  sectionsByAxis: TreeSectionNode[];
   summary: {
+    attributesExp: number;
+    skillsExp: number;
+    specialExp: number;
     physicalExp: number;
     mentalExp: number;
     socialExp: number;
-    specialExp: number;
   };
 }
 
-const ATTRIBUTE_TRANSLATIONS: Record<string, string> = {
+export const ATTRIBUTE_TRANSLATIONS: Record<string, string> = {
+  // Físico
   strength: 'Força',
   dexterity: 'Destreza',
   agility: 'Agilidade',
   constitution: 'Constituição',
+  // Mental
   intelligence: 'Inteligência',
-  wits: 'Raciocínio',
   perception: 'Percepção',
-  memory: 'Memória',
-  charisma: 'Carisma',
-  manipulation: 'Manipulação',
+  reasoning: 'Raciocínio',
+  wisdom: 'Sabedoria',
+  // Social
   empathy: 'Empatia',
+  manipulation: 'Manipulação',
   expression: 'Expressão',
   resilience: 'Resiliência',
 };
 
-const SKILL_TRANSLATIONS: Record<string, string> = {
+export const SKILL_TRANSLATIONS: Record<string, string> = {
   // Treinamentos (Físico)
-  athletics: 'Atletismo',
-  brawl: 'Luta',
-  stealth: 'Furtividade',
-  survival: 'Sobrevivência',
-  driving: 'Condução',
   melee: 'Armas Brancas',
-  archery: 'Pontaria',
+  firearms: 'Armas de Fogo',
+  archery: 'Arquearia',
+  throwing: 'Arremesso',
+  brawl: 'Briga',
+  combat: 'Combate',
+  stealth: 'Furtividade',
+  alertness: 'Prontidão',
   // Ciências (Mental)
-  alchemy: 'Alquimia',
-  medicine: 'Medicina',
-  occult: 'Ocultismo',
-  tactics: 'Tática',
+  academics: 'Acadêmicos',
+  traps: 'Armadilhas',
+  intuition: 'Intuição',
   investigation: 'Investigação',
-  technology: 'Tecnologia',
+  medicine: 'Medicina',
+  occultism: 'Ocultismo',
+  security: 'Segurança',
+  survival: 'Sobrevivência',
   // Artes (Social)
-  diplomacy: 'Diplomacia',
-  subterfuge: 'Enganação',
+  bargain: 'Barganha',
+  taming: 'Adestramento',
+  etiquette: 'Etiqueta',
   intimidation: 'Intimidação',
-  performance: 'Performance',
-  persuasion: 'Persuasão',
+  smoothTalk: 'Lábia',
+  leadership: 'Liderança',
+  riding: 'Montaria',
+  seduction: 'Sedução',
 };
 
-const PERSONALITY_TRANSLATIONS: Record<string, string> = {
+export const PERSONALITY_TRANSLATIONS: Record<string, string> = {
   courage: 'Coragem',
   conviction: 'Convicção',
   serenity: 'Serenidade',
 };
 
-const DOMAIN_TRANSLATIONS: Record<string, string> = {
-  water: 'Domínio da Água',
-  air: 'Domínio do Ar',
-  anima: 'Domínio de Anima',
-  fire: 'Domínio do Fogo',
-  earth: 'Domínio da Terra',
+export const DOMAIN_TRANSLATIONS: Record<string, string> = {
+  water: 'Água',
+  air: 'Ar',
+  anima: 'Anima',
+  fire: 'Fogo',
+  earth: 'Terra',
 };
 
 /**
  * Monta a estrutura detalhada e hierárquica em Tree-View para o modal de EXP.
+ * Separa por Categoria Principal (Atributos, Perícias, Especial & Termos Fixos)
+ * e também fornece a visão alternativa por Eixo.
  */
 export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeExpBreakdown {
   const focusConfig: FocusConfig = {
@@ -236,7 +255,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
     social: normalizeFocusLevel(data.focusConfig?.social || 'SF'),
   };
 
-  // 1. Eixo Físico
+  // 1. Folhas de Atributos Físicos
   const physAttrItems: TreeItemLeaf[] = Object.entries(data.attributes?.physical || {}).map(([key, val]) => ({
     id: `phys_attr_${key}`,
     name: ATTRIBUTE_TRANSLATIONS[key] || key,
@@ -246,6 +265,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
     type: 'attribute',
   }));
 
+  // Folhas de Perícias Físicas (Treinamentos)
   const physSkillItems: TreeItemLeaf[] = Object.entries(data.skills?.physical || {}).map(([key, val]) => ({
     id: `phys_skill_${key}`,
     name: SKILL_TRANSLATIONS[key] || key,
@@ -273,7 +293,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
   const physSkillTotal = physSkillItems.reduce((acc, it) => acc + it.cost, 0);
   const physSectionTotal = physAttrTotal + physSkillTotal;
 
-  // 2. Eixo Mental
+  // 2. Folhas de Atributos Mentais
   const mentAttrItems: TreeItemLeaf[] = Object.entries(data.attributes?.mental || {}).map(([key, val]) => ({
     id: `ment_attr_${key}`,
     name: ATTRIBUTE_TRANSLATIONS[key] || key,
@@ -283,6 +303,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
     type: 'attribute',
   }));
 
+  // Folhas de Perícias Mentais (Ciências)
   const mentSkillItems: TreeItemLeaf[] = Object.entries(data.skills?.mental || {}).map(([key, val]) => ({
     id: `ment_skill_${key}`,
     name: SKILL_TRANSLATIONS[key] || key,
@@ -310,7 +331,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
   const mentSkillTotal = mentSkillItems.reduce((acc, it) => acc + it.cost, 0);
   const mentSectionTotal = mentAttrTotal + mentSkillTotal;
 
-  // 3. Eixo Social
+  // 3. Folhas de Atributos Sociais
   const socAttrItems: TreeItemLeaf[] = Object.entries(data.attributes?.social || {}).map(([key, val]) => ({
     id: `soc_attr_${key}`,
     name: ATTRIBUTE_TRANSLATIONS[key] || key,
@@ -320,6 +341,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
     type: 'attribute',
   }));
 
+  // Folhas de Perícias Sociais (Artes)
   const socSkillItems: TreeItemLeaf[] = Object.entries(data.skills?.social || {}).map(([key, val]) => ({
     id: `soc_skill_${key}`,
     name: SKILL_TRANSLATIONS[key] || key,
@@ -351,7 +373,7 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
   // - Domínios: Tabela de Perícias em F1
   const domainItems: TreeItemLeaf[] = Object.entries(data.domains || {}).map(([key, val]) => ({
     id: `domain_${key}`,
-    name: DOMAIN_TRANSLATIONS[key] || key,
+    name: DOMAIN_TRANSLATIONS[key] ? `Domínio de ${DOMAIN_TRANSLATIONS[key]}` : key,
     level: val,
     cost: getSkillCost(val, 'F1'),
     focus: 'F1',
@@ -396,94 +418,247 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
   const personalityTotal = personalityItems.reduce((acc, it) => acc + it.cost, 0);
 
   const specialSectionTotal = domainsTotal + spiritusTotal + personalityTotal;
-  const totalSpent = physSectionTotal + mentSectionTotal + socSectionTotal + specialSectionTotal;
+  const totalAttributesExp = physAttrTotal + mentAttrTotal + socAttrTotal;
+  const totalSkillsExp = physSkillTotal + mentSkillTotal + socSkillTotal;
+  const totalSpent = totalAttributesExp + totalSkillsExp + specialSectionTotal;
 
-  const sections: TreeSectionNode[] = [
+  // =========================================================================
+  // ESTRUTURA 1: SEÇÕES POR CATEGORIA (ATRIBUTOS, PERÍCIAS, ESPECIAL & FIXOS)
+  // O usuário solicitou esta organização como visualização primária
+  // =========================================================================
+  const sectionsByCategory: TreeSectionNode[] = [
     {
-      id: 'sec_physical',
-      title: 'Eixo Físico',
-      theme: 'rose',
-      focus: focusConfig.physical,
-      totalExp: physSectionTotal,
+      id: 'sec_cat_attributes',
+      title: 'Atributos',
+      category: 'attributes',
+      theme: 'violet',
+      totalExp: totalAttributesExp,
+      itemCount: physAttrItems.length + mentAttrItems.length + socAttrItems.length,
       subgroups: [
         {
-          id: 'sub_phys_attrs',
-          title: 'Atributos Físicos',
+          id: 'sub_attr_physical',
+          title: 'Eixo Físico',
+          axisName: 'Físico',
+          focus: focusConfig.physical,
+          theme: 'rose',
           totalExp: physAttrTotal,
           items: physAttrItems,
         },
         {
-          id: 'sub_phys_skills',
-          title: 'Perícias Físicas (Treinamentos)',
-          totalExp: physSkillTotal,
-          items: physSkillItems,
-        },
-      ],
-    },
-    {
-      id: 'sec_mental',
-      title: 'Eixo Mental',
-      theme: 'cyan',
-      focus: focusConfig.mental,
-      totalExp: mentSectionTotal,
-      subgroups: [
-        {
-          id: 'sub_ment_attrs',
-          title: 'Atributos Mentais',
+          id: 'sub_attr_mental',
+          title: 'Eixo Mental',
+          axisName: 'Mental',
+          focus: focusConfig.mental,
+          theme: 'cyan',
           totalExp: mentAttrTotal,
           items: mentAttrItems,
         },
         {
-          id: 'sub_ment_skills',
-          title: 'Perícias Mentais (Ciências)',
-          totalExp: mentSkillTotal,
-          items: mentSkillItems,
+          id: 'sub_attr_social',
+          title: 'Eixo Social',
+          axisName: 'Social',
+          focus: focusConfig.social,
+          theme: 'emerald',
+          totalExp: socAttrTotal,
+          items: socAttrItems,
         },
       ],
     },
     {
-      id: 'sec_social',
-      title: 'Eixo Social',
-      theme: 'emerald',
-      focus: focusConfig.social,
-      totalExp: socSectionTotal,
+      id: 'sec_cat_skills',
+      title: 'Perícias',
+      category: 'skills',
+      theme: 'cyan',
+      totalExp: totalSkillsExp,
+      itemCount: physSkillItems.length + mentSkillItems.length + socSkillItems.length,
       subgroups: [
         {
-          id: 'sub_soc_attrs',
-          title: 'Atributos Sociais',
-          totalExp: socAttrTotal,
-          items: socAttrItems,
+          id: 'sub_skill_physical',
+          title: 'Eixo Físico: Treinamentos',
+          axisName: 'Físico',
+          focus: focusConfig.physical,
+          theme: 'rose',
+          totalExp: physSkillTotal,
+          items: physSkillItems,
         },
         {
-          id: 'sub_soc_skills',
-          title: 'Perícias Sociais (Artes)',
+          id: 'sub_skill_mental',
+          title: 'Eixo Mental: Ciências',
+          axisName: 'Mental',
+          focus: focusConfig.mental,
+          theme: 'cyan',
+          totalExp: mentSkillTotal,
+          items: mentSkillItems,
+        },
+        {
+          id: 'sub_skill_social',
+          title: 'Eixo Social: Artes',
+          axisName: 'Social',
+          focus: focusConfig.social,
+          theme: 'emerald',
           totalExp: socSkillTotal,
           items: socSkillItems,
         },
       ],
     },
     {
-      id: 'sec_special',
+      id: 'sec_cat_special',
       title: 'Especial & Termos Fixos',
+      category: 'fixed',
       theme: 'amber',
-      focus: 'F1',
       totalExp: specialSectionTotal,
+      itemCount: domainItems.length + spiritusItems.length + personalityItems.length,
       subgroups: [
         {
           id: 'sub_special_domains',
-          title: 'Domínios Elementais (Fixado F1)',
+          title: 'Domínios Elementais',
+          theme: 'amber',
+          focus: 'F1',
           totalExp: domainsTotal,
           items: domainItems,
         },
         {
           id: 'sub_special_spiritus',
-          title: 'Spiritus: Fluxo & Patrono (Fixado F1)',
+          title: 'Spiritus (Fluxo & Patrono)',
+          theme: 'amber',
+          focus: 'F1',
           totalExp: spiritusTotal,
           items: spiritusItems,
         },
         {
           id: 'sub_special_personality',
-          title: 'Personalidade (Fixado F2)',
+          title: 'Personalidade',
+          theme: 'violet',
+          focus: 'F2',
+          totalExp: personalityTotal,
+          items: personalityItems,
+        },
+      ],
+    },
+  ];
+
+  // =========================================================================
+  // ESTRUTURA 2: SEÇÕES POR EIXO (FÍSICO, MENTAL, SOCIAL, ESPECIAL)
+  // Mantida para visão alternativa caso o usuário deseje
+  // =========================================================================
+  const sectionsByAxis: TreeSectionNode[] = [
+    {
+      id: 'sec_axis_physical',
+      title: 'Eixo Físico',
+      category: 'axis',
+      theme: 'rose',
+      focus: focusConfig.physical,
+      totalExp: physSectionTotal,
+      itemCount: physAttrItems.length + physSkillItems.length,
+      subgroups: [
+        {
+          id: 'sub_phys_attrs',
+          title: 'Atributos Físicos',
+          axisName: 'Físico',
+          focus: focusConfig.physical,
+          theme: 'rose',
+          totalExp: physAttrTotal,
+          items: physAttrItems,
+        },
+        {
+          id: 'sub_phys_skills',
+          title: 'Perícias Físicas (Treinamentos)',
+          axisName: 'Físico',
+          focus: focusConfig.physical,
+          theme: 'rose',
+          totalExp: physSkillTotal,
+          items: physSkillItems,
+        },
+      ],
+    },
+    {
+      id: 'sec_axis_mental',
+      title: 'Eixo Mental',
+      category: 'axis',
+      theme: 'cyan',
+      focus: focusConfig.mental,
+      totalExp: mentSectionTotal,
+      itemCount: mentAttrItems.length + mentSkillItems.length,
+      subgroups: [
+        {
+          id: 'sub_ment_attrs',
+          title: 'Atributos Mentais',
+          axisName: 'Mental',
+          focus: focusConfig.mental,
+          theme: 'cyan',
+          totalExp: mentAttrTotal,
+          items: mentAttrItems,
+        },
+        {
+          id: 'sub_ment_skills',
+          title: 'Perícias Mentais (Ciências)',
+          axisName: 'Mental',
+          focus: focusConfig.mental,
+          theme: 'cyan',
+          totalExp: mentSkillTotal,
+          items: mentSkillItems,
+        },
+      ],
+    },
+    {
+      id: 'sec_axis_social',
+      title: 'Eixo Social',
+      category: 'axis',
+      theme: 'emerald',
+      focus: focusConfig.social,
+      totalExp: socSectionTotal,
+      itemCount: socAttrItems.length + socSkillItems.length,
+      subgroups: [
+        {
+          id: 'sub_soc_attrs',
+          title: 'Atributos Sociais',
+          axisName: 'Social',
+          focus: focusConfig.social,
+          theme: 'emerald',
+          totalExp: socAttrTotal,
+          items: socAttrItems,
+        },
+        {
+          id: 'sub_soc_skills',
+          title: 'Perícias Sociais (Artes)',
+          axisName: 'Social',
+          focus: focusConfig.social,
+          theme: 'emerald',
+          totalExp: socSkillTotal,
+          items: socSkillItems,
+        },
+      ],
+    },
+    {
+      id: 'sec_axis_special',
+      title: 'Especial & Termos Fixos',
+      category: 'axis',
+      theme: 'amber',
+      focus: 'F1',
+      totalExp: specialSectionTotal,
+      itemCount: domainItems.length + spiritusItems.length + personalityItems.length,
+      subgroups: [
+        {
+          id: 'sub_axis_special_domains',
+          title: 'Domínios Elementais',
+          theme: 'amber',
+          focus: 'F1',
+          totalExp: domainsTotal,
+          items: domainItems,
+        },
+        {
+          id: 'sub_axis_special_spiritus',
+          title: 'Spiritus: Fluxo & Patrono',
+          theme: 'amber',
+          focus: 'F1',
+          totalExp: spiritusTotal,
+          items: spiritusItems,
+        },
+        {
+          id: 'sub_axis_special_personality',
+          title: 'Personalidade',
+          theme: 'violet',
+          focus: 'F2',
           totalExp: personalityTotal,
           items: personalityItems,
         },
@@ -493,12 +668,16 @@ export function getDetailedSheetExpBreakdown(data: CharacterData): DetailedTreeE
 
   return {
     totalSpent,
-    sections,
+    sections: sectionsByCategory, // Primária: Atributos, Perícias, Especial & Fixos
+    sectionsByCategory,
+    sectionsByAxis,
     summary: {
+      attributesExp: totalAttributesExp,
+      skillsExp: totalSkillsExp,
+      specialExp: specialSectionTotal,
       physicalExp: physSectionTotal,
       mentalExp: mentSectionTotal,
       socialExp: socSectionTotal,
-      specialExp: specialSectionTotal,
     },
   };
 }
@@ -515,15 +694,18 @@ export function calculateSheetTotalExp(data: CharacterData) {
     specialExp: tree.summary.specialExp,
     totalSpent: tree.totalSpent,
     breakdown: {
-      physicalAttributes: tree.sections[0].subgroups[0].totalExp,
-      physicalSkills: tree.sections[0].subgroups[1].totalExp,
-      mentalAttributes: tree.sections[1].subgroups[0].totalExp,
-      mentalSkills: tree.sections[1].subgroups[1].totalExp,
-      socialAttributes: tree.sections[2].subgroups[0].totalExp,
-      socialSkills: tree.sections[2].subgroups[1].totalExp,
-      domainsExp: tree.sections[3].subgroups[0].totalExp,
-      spiritusExp: tree.sections[3].subgroups[1].totalExp,
-      personalityExp: tree.sections[3].subgroups[2].totalExp,
+      attributesExp: tree.summary.attributesExp,
+      skillsExp: tree.summary.skillsExp,
+      specialExp: tree.summary.specialExp,
+      physicalAttributes: tree.sectionsByAxis[0].subgroups[0].totalExp,
+      physicalSkills: tree.sectionsByAxis[0].subgroups[1].totalExp,
+      mentalAttributes: tree.sectionsByAxis[1].subgroups[0].totalExp,
+      mentalSkills: tree.sectionsByAxis[1].subgroups[1].totalExp,
+      socialAttributes: tree.sectionsByAxis[2].subgroups[0].totalExp,
+      socialSkills: tree.sectionsByAxis[2].subgroups[1].totalExp,
+      domainsExp: tree.sectionsByAxis[3].subgroups[0].totalExp,
+      spiritusExp: tree.sectionsByAxis[3].subgroups[1].totalExp,
+      personalityExp: tree.sectionsByAxis[3].subgroups[2].totalExp,
     },
     tree,
   };
