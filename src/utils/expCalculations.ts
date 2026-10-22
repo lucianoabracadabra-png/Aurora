@@ -113,25 +113,37 @@ export const FOCUS_PRESETS: {
 ];
 
 /**
- * Retorna o custo de um Atributo (LVL 1 a 15) dado o seu Foco.
+ * Retorna o custo acumulado de um Atributo (LVL 1 até lvl) dado o seu Foco.
+ * Para atingir o nível N, paga-se a soma dos custos de cada nível de 1 até N.
  */
 export function getAttributeCost(lvl: number, focus: FocusLevel | string): number {
   if (lvl <= 0) return 0;
   const clampedLvl = Math.min(15, Math.max(1, lvl));
   const normFocus = normalizeFocusLevel(focus);
   const table = ATRIBUTOS_COST_TABLE[normFocus] || ATRIBUTOS_COST_TABLE.F2;
-  return table[clampedLvl - 1] || 0;
+  
+  let total = 0;
+  for (let i = 0; i < clampedLvl; i++) {
+    total += table[i] || 0;
+  }
+  return total;
 }
 
 /**
- * Retorna o custo de uma Perícia (LVL 1 a 7) dado o seu Foco.
+ * Retorna o custo acumulado de uma Perícia (LVL 1 até lvl) dado o seu Foco.
+ * Para atingir o nível N, paga-se a soma dos custos de cada nível de 1 até N.
  */
 export function getSkillCost(lvl: number, focus: FocusLevel | string): number {
   if (lvl <= 0) return 0;
   const clampedLvl = Math.min(7, Math.max(1, lvl));
   const normFocus = normalizeFocusLevel(focus);
   const table = PERICIAS_COST_TABLE[normFocus] || PERICIAS_COST_TABLE.F2;
-  return table[clampedLvl - 1] || 0;
+  
+  let total = 0;
+  for (let i = 0; i < clampedLvl; i++) {
+    total += table[i] || 0;
+  }
+  return total;
 }
 
 export interface TreeItemLeaf {
