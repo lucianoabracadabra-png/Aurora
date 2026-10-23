@@ -49,12 +49,15 @@ export const CustomSkillsSection: React.FC<CustomSkillsSectionProps> = ({
               <button 
                 type="button"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   remove(s.id);
                 }} 
-                className="absolute -right-1.5 -top-1.5 w-5 h-5 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/30 z-10 cursor-pointer"
+                className="absolute -right-2 -top-2 w-6 h-6 bg-red-600/90 hover:bg-red-500 text-white rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(239,68,68,0.6)] z-20 cursor-pointer transition-all hover:scale-110 active:scale-90 border border-white/20"
+                title={`Excluir perícia ${s.name}`}
+                aria-label={`Excluir perícia ${s.name}`}
               >
-                <X size={10} />
+                <X size={12} className="stroke-[3]" />
               </button>
             )}
           </div>

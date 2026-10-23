@@ -11,6 +11,7 @@ export type Identity = {
   ideals: string;
   origin: string;
   languages: string[];
+  background?: string;
 };
 
 export type Alignment = {
@@ -146,6 +147,12 @@ export type WeaponItem = {
   size: string; // ex: 'g', 'gg'
   weight: number; // em gramas, ex: 3000
   location: string; // ex: 'Em Mãos', 'Cinto', 'Mochila'
+  stored?: boolean; // Se true, o item está no armazém e não pesa no personagem
+  storageLocation?: string; // Onde o item está guardado (ex: 'Carroça', 'Estalagem', 'Cofre')
+  reach?: string; // Alcance da arma: ex: 'Curto', '1m', '2m', 'Médio'
+  resistance?: number; // Resistência da arma
+  durabilityMax?: number; // Durabilidade máxima da arma
+  durabilityCurrent?: number; // Durabilidade atual da arma
   extras?: string;
   description?: string;
   stars?: number; // 1 a 9
@@ -158,16 +165,18 @@ export type ArmorItem = {
   category: 'armor';
   equipped: boolean;
   slot?: EquipmentSlot;
-  slashing: number; // Cortante (Cor.)
-  bludgeoning: number; // Esmagamento (Esm.)
-  piercing: number; // Perfurante (Per.)
-  coverage: number; // Cobertura (Cob.)
-  resistance: number; // Resistência (Res.)
+  slashing: number | string; // Cortante (Cor.)
+  bludgeoning: number | string; // Esmagamento (Esm.)
+  piercing: number | string; // Perfurante (Per.)
+  coverage: number | string; // Cobertura (Cob.)
+  resistance: number | string; // Resistência (Res.)
   durabilityMax: number; // Durabilidade máxima
   durabilityCurrent: number; // Durabilidade restante
   size: string; // ex: 'gg', 'ggg'
   weight: number; // em gramas
   location: string;
+  stored?: boolean;
+  storageLocation?: string;
   extras?: string;
   description?: string;
   stars?: number; // 1 a 9
@@ -188,6 +197,8 @@ export type ProjectileItem = {
   size: string;
   weight: number; // em gramas
   location: string;
+  stored?: boolean;
+  storageLocation?: string;
   extras?: string;
   description?: string;
   stars?: number; // 1 a 9
@@ -206,6 +217,8 @@ export type AccessoryItem = {
   size?: string;
   weight: number; // em gramas
   location: string;
+  stored?: boolean;
+  storageLocation?: string;
   stars?: number; // 1 a 9
   rarity?: string;
 };
@@ -220,6 +233,8 @@ export type GeneralItem = {
   equipped: boolean;
   slot?: EquipmentSlot;
   location: string;
+  stored?: boolean;
+  storageLocation?: string;
   description?: string;
   stars?: number; // 1 a 9
   rarity?: string;

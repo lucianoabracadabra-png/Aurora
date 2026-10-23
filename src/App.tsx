@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initialCharacterData, createEmptyCharacterData } from './initialState';
 import { CharacterData, Identity as IdentityType, Alignment as AlignmentType, Personality as PersonalityType, Attributes as AttributesType, Skills as SkillsType, Domains as DomainsType, Ability, Trait, Inventory, FlowAndPatron as FlowAndPatronType, FlowPatronData, CampaignCharacter, CustomSkill } from './types';
-import { User, ScrollText, Sparkles, Check, Lock, Unlock, Pencil, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText, Calculator, Compass } from 'lucide-react';
+import { User, ScrollText, Sparkles, Check, Lock, Unlock, Pencil, X, Heart, Minus, Plus, RotateCcw, Swords, Backpack, HelpCircle, Crown, HardDrive, FileCode, Save, ShieldCheck, FileText, Calculator, Compass, Info } from 'lucide-react';
 
 import { BentoBox } from './components/BentoBox';
 import { AnimatedSection } from './components/AnimatedSection';
@@ -52,6 +52,9 @@ function normalizeCharacterData(parsed: any): CharacterData {
   } else {
     if (parsed.identity.archetype === undefined) {
       parsed.identity.archetype = '';
+    }
+    if (parsed.identity.background === undefined) {
+      parsed.identity.background = '';
     }
     if (!Array.isArray(parsed.identity.languages)) {
       parsed.identity.languages = [];
@@ -742,6 +745,7 @@ export default function App() {
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isFocusExpModalOpen, setIsFocusExpModalOpen] = useState(false);
+  const [showDamageBreakdownOverlay, setShowDamageBreakdownOverlay] = useState(false);
   const [activeEnvironment, setActiveEnvironment] = useState<'sheet' | 'battleTracker'>('sheet');
 
   const rollAttribute = (name: string, value: number, theme: 'rose' | 'cyan' | 'emerald' | 'amber') => {
@@ -1362,7 +1366,10 @@ export default function App() {
 
           {/* 2. Vantagens & Desvantagens */}
           <AnimatedSection id="vantagens" index={1}>
-            <BentoBox title="Vantagens & Desvantagens" titleClassName="text-violet-400">
+            <BentoBox 
+              title="Vantagens & Desvantagens" 
+              titleClassName="text-violet-400"
+            >
               <Traits data={data.traits} add={addTrait} update={updateTrait} remove={removeTrait} readonly={!isEditing} />
             </BentoBox>
           </AnimatedSection>
@@ -1608,6 +1615,18 @@ export default function App() {
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]" /> Simples</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-orange-500 shadow-[0_0_6px_rgba(249,115,22,0.5)]" /> Letal</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-red-600 shadow-[0_0_6px_rgba(220,38,38,0.5)]" /> Agravado</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDamageBreakdownOverlay(!showDamageBreakdownOverlay)}
+                    className={`w-4 h-4 rounded-full flex items-center justify-center cursor-pointer transition-colors ml-0.5 ${
+                      showDamageBreakdownOverlay 
+                        ? 'bg-cyan-500/30 text-cyan-200 shadow-[0_0_8px_rgba(6,182,212,0.5)] ring-1 ring-cyan-400/50' 
+                        : 'bg-white/5 hover:bg-white/15 text-white/40 hover:text-white'
+                    }`}
+                    title={showDamageBreakdownOverlay ? "Ocultar medição interna de dano nos membros" : "Abrir medição interna de dano nos membros"}
+                  >
+                    <Info size={11} />
+                  </button>
                 </div>
               </div>
 
@@ -1631,6 +1650,8 @@ export default function App() {
                     return { ...prev, health: { ...prev.health, [part]: current.slice(0, -1) } };
                   }
                 })}
+                showDamageOverlay={showDamageBreakdownOverlay}
+                onCloseDamageOverlay={() => setShowDamageBreakdownOverlay(false)}
               />
             </div>
           </AnimatedSection>

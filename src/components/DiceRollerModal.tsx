@@ -55,13 +55,22 @@ const DIE_LABELS: Record<DieType, string> = {
   d20: 'Extremo'
 };
 
+export type RollModifier = 'normal' | 'vantagem' | 'desvantagem';
+
 export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes, spiritus, focusConfig }) => {
   const [selectedDie, setSelectedDie] = useState<DieType>('d8');
+  const [rollModifier, setRollModifier] = useState<RollModifier>('normal');
+  const [numericModifier, setNumericModifier] = useState<number>(0);
   const [isRolling, setIsRolling] = useState(false);
   const [landedAnimationKey, setLandedAnimationKey] = useState<number>(0);
   
   // Attribute Roll State
+  type AttributeDieRoll = {
+    val: number;
+    isDiscarded: boolean;
+  };
   const [attributeResult, setAttributeResult] = useState<number | null>(null);
+  const [attributeRolls, setAttributeRolls] = useState<AttributeDieRoll[]>([]);
 
   // Skill Roll State
   type SkillDieRoll = {
@@ -69,6 +78,8 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
     val: number;
     isExplosion: boolean;
     chainIndex: number;
+    isDiscarded?: boolean;
+    discardReason?: string;
   };
   const [skillResults, setSkillResults] = useState<SkillDieRoll[]>([]);
   const [skillDiceCount, setSkillDiceCount] = useState<number>(1);
@@ -160,8 +171,17 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
     setSelectedAttribute(null);
     setShowAttributePicker(false);
     setAttributeResult(null);
+    setAttributeRolls([]);
     setSkillResults([]);
+    setNumericModifier(0);
     setIsRolling(false);
+
+    // Caso a perícia seja = 0, o teste é automaticamente com desvantagem no pop-up
+    if (request.type === 'skill' && request.dots === 0) {
+      setRollModifier('desvantagem');
+    } else {
+      setRollModifier('normal');
+    }
 
     if (request.type === 'attribute') {
       setSelectedDie('d8');
@@ -282,9 +302,10 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
     ? getAttrValue(selectedAttribute.category, selectedAttribute.code, selectedAttribute.value)
     : 0;
 
-  const executeAttributeRoll = (die: DieType) => {
+  const executeAttributeRoll = (die: DieType, modifier: RollModifier = rollModifier) => {
     setIsRolling(true);
     setAttributeResult(null);
+    setAttributeRolls([]);
 
     const sides = DIE_SIDES[die];
     let counter = 0;
@@ -295,24 +316,60 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
       counter++;
       if (counter >= maxIterations) {
         clearInterval(interval);
-        const finalVal = Math.floor(Math.random() * sides) + 1;
-        setAttributeResult(finalVal);
+        if (modifier === 'normal') {
+          const finalVal = Math.floor(Math.random() * sides) + 1;
+          setAttributeResult(finalVal);
+          setAttributeRolls([{ val: finalVal, isDiscarded: false }]);
+        } else {
+          const val1 = Math.floor(Math.random() * sides) + 1;
+          const val2 = Math.floor(Math.random() * sides) + 1;
+          
+          let keptVal: number;
+          let discardedIndex: number;
+          if (modifier === 'vantagem') {
+            // Vantagem: descarta o menor, mantém o maior
+            if (val1 < val2) {
+              discardedIndex = 0;
+              keptVal = val2;
+            } else {
+              discardedIndex = 1;
+              keptVal = val1;
+            }
+          } else {
+            // Desvantagem: descarta o maior, mantém o menor
+            if (val1 > val2) {
+              discardedIndex = 0;
+              keptVal = val2;
+            } else {
+              discardedIndex = 1;
+              keptVal = val1;
+            }
+          }
+          setAttributeResult(keptVal);
+          setAttributeRolls([
+            { val: val1, isDiscarded: discardedIndex === 0 },
+            { val: val2, isDiscarded: discardedIndex === 1 }
+          ]);
+        }
         setIsRolling(false);
         setLandedAnimationKey(Date.now());
       }
     }, 30);
   };
 
-  const executeSkillRoll = (diceCount: number) => {
+  const executeSkillRoll = (baseCount: number, modifier: RollModifier = rollModifier) => {
     setIsRolling(true);
     setSkillResults([]);
+
+    const hasExtraDie = modifier !== 'normal';
+    const initialDiceCount = baseCount + (hasExtraDie ? 1 : 0);
 
     let counter = 0;
     const maxIterations = 15;
 
     const interval = setInterval(() => {
       // Efeito Slot Reel: troca rápida de números no mesmo lugar
-      const fakeDice: SkillDieRoll[] = Array.from({ length: diceCount }).map((_, i) => ({
+      const fakeDice: SkillDieRoll[] = Array.from({ length: initialDiceCount }).map((_, i) => ({
         id: `slot-${i}`,
         val: Math.floor(Math.random() * 10) + 1,
         isExplosion: false,
@@ -324,38 +381,86 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
       if (counter >= maxIterations) {
         clearInterval(interval);
 
-        const rolls: SkillDieRoll[] = [];
-        const queue: { id: string; isExplosion: boolean; chainIndex: number }[] = [];
-
-        for (let i = 0; i < diceCount; i++) {
-          queue.push({ id: `base-${i}`, isExplosion: false, chainIndex: 0 });
+        // 1. Rola dados base
+        const baseRolls: SkillDieRoll[] = [];
+        for (let i = 0; i < initialDiceCount; i++) {
+          baseRolls.push({
+            id: `base-${i}`,
+            val: Math.floor(Math.random() * 10) + 1,
+            isExplosion: false,
+            chainIndex: 0
+          });
         }
 
-        let totalRolls = 0;
+        // 2. Aplica descarte se houver Vantagem ou Desvantagem
+        if (modifier === 'vantagem') {
+          // Descarta o menor dado
+          let minVal = 11;
+          let minIdx = -1;
+          baseRolls.forEach((r, idx) => {
+            if (r.val < minVal) {
+              minVal = r.val;
+              minIdx = idx;
+            }
+          });
+          if (minIdx !== -1) {
+            baseRolls[minIdx].isDiscarded = true;
+            baseRolls[minIdx].discardReason = 'Menor descartado (Vantagem)';
+          }
+        } else if (modifier === 'desvantagem') {
+          // Descarta o maior dado
+          let maxVal = -1;
+          let maxIdx = -1;
+          baseRolls.forEach((r, idx) => {
+            if (r.val > maxVal) {
+              maxVal = r.val;
+              maxIdx = idx;
+            }
+          });
+          if (maxIdx !== -1) {
+            baseRolls[maxIdx].isDiscarded = true;
+            baseRolls[maxIdx].discardReason = 'Maior descartado (Desvantagem)';
+          }
+        }
+
+        // 3. Explosão de 10 apenas para dados válidos (não descartados)
+        const finalRolls: SkillDieRoll[] = [...baseRolls];
+        const queue: { id: string; chainIndex: number }[] = [];
+
+        baseRolls.forEach((die) => {
+          if (!die.isDiscarded && die.val === 10) {
+            queue.push({
+              id: `exp-${die.id}-${Math.random().toString(36).substring(7)}`,
+              chainIndex: 1
+            });
+          }
+        });
+
+        let totalExplosions = 0;
         const MAX_SAFETY = 50;
 
-        while (queue.length > 0 && totalRolls < MAX_SAFETY) {
+        while (queue.length > 0 && totalExplosions < MAX_SAFETY) {
           const item = queue.shift()!;
-          totalRolls++;
+          totalExplosions++;
           const val = Math.floor(Math.random() * 10) + 1;
-          rolls.push({
+          finalRolls.push({
             id: item.id,
             val,
-            isExplosion: item.isExplosion,
-            chainIndex: item.chainIndex
+            isExplosion: true,
+            chainIndex: item.chainIndex,
+            isDiscarded: false
           });
 
           // 10 Explodes ad infinitum!
           if (val === 10) {
             queue.push({
               id: `exp-${item.id}-${Math.random().toString(36).substring(7)}`,
-              isExplosion: true,
               chainIndex: item.chainIndex + 1
             });
           }
         }
 
-        setSkillResults(rolls);
+        setSkillResults(finalRolls);
         setIsRolling(false);
         setLandedAnimationKey(Date.now());
       }
@@ -636,12 +741,98 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
           {request.type === 'attribute' ? (
             /* ATRIBUTO ROLL UI */
             <div className="flex flex-col gap-5">
-              {/* Rules description */}
-              <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl p-3 text-xs">
-                <span className="text-white/60">Alvo (Valor do Atributo):</span>
-                <span className={`text-base font-bold ${themeColors.text} px-2 py-0.5 rounded-lg bg-white/5`}>
-                  {request.value}
+              {/* Seletor de Condição: Normal, Vantagem (+1d, descarta menor), Desvantagem (+1d, descarta maior) */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">
+                  Condição do Teste:
                 </span>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollModifier('normal');
+                      if (attributeResult !== null) executeAttributeRoll(selectedDie, 'normal');
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      rollModifier === 'normal'
+                        ? 'bg-white/15 text-white shadow-xs'
+                        : 'text-white/50 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollModifier('vantagem');
+                      if (attributeResult !== null) executeAttributeRoll(selectedDie, 'vantagem');
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      rollModifier === 'vantagem'
+                        ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                        : 'text-white/50 hover:text-emerald-300 hover:bg-emerald-500/5'
+                    }`}
+                    title="Rola +1 dado e descarta o menor"
+                  >
+                    <span>Vantagem</span>
+                    <span className="text-[9px] font-mono opacity-80">(+1d)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollModifier('desvantagem');
+                      if (attributeResult !== null) executeAttributeRoll(selectedDie, 'desvantagem');
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      rollModifier === 'desvantagem'
+                        ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+                        : 'text-white/50 hover:text-rose-300 hover:bg-rose-500/5'
+                    }`}
+                    title="Rola +1 dado e descarta o maior"
+                  >
+                    <span>Desvantagem</span>
+                    <span className="text-[9px] font-mono opacity-80">(+1d)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modificador Numérico: 7 botões (-5, -3, -1, 0, +1, +3, +5) com soma cumulativa */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">
+                    Modificador:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${
+                      numericModifier === 0
+                        ? 'bg-white/5 border-white/10 text-white/50'
+                        : numericModifier > 0
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.2)]'
+                          : 'bg-rose-500/15 border-rose-500/30 text-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+                    }`}>
+                      {numericModifier > 0 ? `+${numericModifier}` : numericModifier}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-7 gap-1 p-1 bg-black/40 border border-white/10 rounded-xl">
+                  {[-5, -3, -1, 0, 1, 3, 5].map((mod) => (
+                    <button
+                      key={mod}
+                      type="button"
+                      onClick={() => setNumericModifier(prev => mod === 0 ? 0 : prev + mod)}
+                      className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 border ${
+                        mod === 0
+                          ? 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/15 hover:border-white/20'
+                          : mod > 0
+                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-500/50 hover:text-white'
+                            : 'bg-rose-500/10 border-rose-500/25 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500/50 hover:text-white'
+                      }`}
+                      title={mod === 0 ? 'Zerar modificador' : `Somar ${mod > 0 ? `+${mod}` : mod} ao modificador`}
+                    >
+                      {mod > 0 ? `+${mod}` : mod}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Die difficulty selector */}
@@ -677,71 +868,109 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
               </div>
 
               {/* Result Stage */}
-              <div className="flex flex-col items-center justify-center py-6 px-4 bg-white/[0.01] border border-white/5 rounded-2xl relative overflow-hidden">
-                <span className="text-[10px] tracking-widest uppercase text-white/40 font-semibold mb-2">
-                  Resultado no {selectedDie.toUpperCase()}
-                </span>
-
-                {attributeResult === null && !isRolling ? (
-                  <div className="flex flex-col items-center justify-center py-4 gap-2 text-center">
-                    <div className={`w-14 h-14 rounded-2xl border ${themeColors.border} ${themeColors.bgGlow} flex items-center justify-center mb-1`}>
-                      <Dices size={28} className={themeColors.text} />
-                    </div>
-                    <span className="text-xs text-white/70 font-medium">Aguardando Rolagem</span>
-                    <span className="text-[11px] text-white/40 max-w-xs">
-                      Defina a dificuldade acima e clique no botão abaixo para girar o dado
+              {(() => {
+                const effectiveTarget = request.value + numericModifier;
+                const isSuccess = attributeResult !== null && attributeResult <= effectiveTarget;
+                return (
+                  <div className="flex flex-col items-center justify-center py-6 px-4 bg-white/[0.01] border border-white/5 rounded-2xl relative overflow-hidden">
+                    <span className="text-[10px] tracking-widest uppercase text-white/40 font-semibold mb-2">
+                      Resultado no {selectedDie.toUpperCase()} {rollModifier !== 'normal' ? `(${rollModifier === 'vantagem' ? 'Vantagem: 2 dados' : 'Desvantagem: 2 dados'})` : ''}
                     </span>
-                  </div>
-                ) : (
-                  <>
-                    <div 
-                      key={landedAnimationKey || 'attr-res'}
-                      className={`relative flex items-center justify-center my-2 ${!isRolling && landedAnimationKey > 0 ? 'animate-shake-impact' : ''}`}
-                    >
-                      <div className={`text-6xl font-light tracking-tight transition-transform ${isRolling ? 'scale-110 opacity-70 blur-xs font-mono font-bold' : 'scale-100'} ${
-                        attributeResult !== null && attributeResult <= request.value 
-                          ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.6)] font-normal' 
-                          : 'text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.6)] font-normal'
-                      }`}>
-                        {attributeResult !== null ? attributeResult : '-'}
-                      </div>
-                    </div>
 
-                    {!isRolling && attributeResult !== null && (
-                      <div className="mt-3 flex flex-col items-center gap-1.5 animate-in zoom-in-95 duration-200">
-                        {attributeResult <= request.value ? (
-                          <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-sm bg-emerald-500/10 px-4 py-1.5 rounded-full border border-emerald-500/30 shadow-[0_0_15px_rgba(52,211,153,0.3)]">
-                            <CheckCircle2 size={16} />
-                            Sucesso! ({attributeResult} ≤ {request.value})
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-rose-400 font-bold uppercase tracking-widest text-sm bg-rose-500/10 px-4 py-1.5 rounded-full border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]">
-                            <XCircle size={16} />
-                            Falha ({attributeResult} &gt; {request.value})
+                    {attributeResult === null && !isRolling ? (
+                      <div className="flex flex-col items-center justify-center py-4 gap-2 text-center">
+                        <div className={`w-14 h-14 rounded-2xl border ${themeColors.border} ${themeColors.bgGlow} flex items-center justify-center mb-1`}>
+                          <Dices size={28} className={themeColors.text} />
+                        </div>
+                        <span className="text-xs text-white/70 font-medium">Aguardando Rolagem</span>
+                        <span className="text-[11px] text-white/40 max-w-xs">
+                          {rollModifier !== 'normal' 
+                            ? `Serão rolados 2${selectedDie} (${rollModifier === 'vantagem' ? 'menor será descartado' : 'maior será descartado'})`
+                            : 'Defina a dificuldade acima e clique no botão abaixo para girar o dado'}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Exibição dos dados rolados quando em vantagem ou desvantagem */}
+                        {!isRolling && attributeRolls.length > 1 && (
+                          <div className="flex items-center gap-2 mb-2 bg-black/30 px-3 py-1.5 rounded-xl border border-white/5">
+                            <span className="text-[10px] uppercase font-bold text-white/40">Faces:</span>
+                            {attributeRolls.map((d, i) => (
+                              <span
+                                key={i}
+                                className={`px-2 py-0.5 rounded-lg border text-xs font-mono font-bold flex items-center gap-1 ${
+                                  d.isDiscarded
+                                    ? 'line-through opacity-40 bg-rose-950/40 border-rose-500/30 text-rose-300'
+                                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                }`}
+                                title={d.isDiscarded ? (rollModifier === 'vantagem' ? 'Menor descartado' : 'Maior descartado') : 'Mantido'}
+                              >
+                                <span>{d.val}</span>
+                                <span className="text-[8px] no-underline uppercase tracking-tight">
+                                  {d.isDiscarded ? (rollModifier === 'vantagem' ? 'menor desc.' : 'maior desc.') : 'mantido'}
+                                </span>
+                              </span>
+                            ))}
                           </div>
                         )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
 
-              {/* Action Button (Sem somar no teste de atributo) */}
-              <button
-                type="button"
-                disabled={isRolling}
-                onClick={() => executeAttributeRoll(selectedDie)}
-                className={`w-full py-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isRolling 
-                    ? 'opacity-50 cursor-not-allowed border-white/10 text-white/40' 
-                    : attributeResult === null
-                      ? `${themeColors.border} ${themeColors.bgGlow} ${themeColors.text} ${themeColors.glow} hover:brightness-125`
-                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white hover:border-white/20'
-                }`}
-              >
-                <RotateCcw size={15} className={isRolling ? 'animate-spin' : ''} />
-                {attributeResult === null ? `Girar Dado (${selectedDie})` : `Rolar Novamente (${selectedDie})`}
-              </button>
+                        <div 
+                          key={landedAnimationKey || 'attr-res'}
+                          className={`relative flex items-center justify-center my-2 ${!isRolling && landedAnimationKey > 0 ? 'animate-shake-impact' : ''}`}
+                        >
+                          <div className={`text-6xl font-light tracking-tight transition-transform ${isRolling ? 'scale-110 opacity-70 blur-xs font-mono font-bold' : 'scale-100'} ${
+                            isSuccess
+                              ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.6)] font-normal' 
+                              : 'text-rose-400 drop-shadow-[0_0_20px_rgba(244,63,94,0.6)] font-normal'
+                          }`}>
+                            {attributeResult !== null ? attributeResult : '-'}
+                          </div>
+                        </div>
+
+                        {!isRolling && attributeResult !== null && (
+                          <div className="mt-3 flex flex-col items-center gap-1.5 animate-in zoom-in-95 duration-200">
+                            {isSuccess ? (
+                              <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-sm bg-emerald-500/10 px-4 py-1.5 rounded-full border border-emerald-500/30 shadow-[0_0_15px_rgba(52,211,153,0.3)]">
+                                <CheckCircle2 size={16} />
+                                Sucesso! ({attributeResult} ≤ {effectiveTarget})
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-rose-400 font-bold uppercase tracking-widest text-sm bg-rose-500/10 px-4 py-1.5 rounded-full border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]">
+                                <XCircle size={16} />
+                                Falha ({attributeResult} &gt; {effectiveTarget})
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Action Button */}
+              {(() => {
+                const numModLabel = numericModifier !== 0 ? ` [${numericModifier > 0 ? `+${numericModifier}` : numericModifier}]` : '';
+                return (
+                  <button
+                    type="button"
+                    disabled={isRolling}
+                    onClick={() => executeAttributeRoll(selectedDie)}
+                    className={`w-full py-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      isRolling 
+                        ? 'opacity-50 cursor-not-allowed border-white/10 text-white/40' 
+                        : attributeResult === null
+                          ? `${themeColors.border} ${themeColors.bgGlow} ${themeColors.text} ${themeColors.glow} hover:brightness-125`
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white hover:border-white/20'
+                    }`}
+                  >
+                    <RotateCcw size={15} className={isRolling ? 'animate-spin' : ''} />
+                    {attributeResult === null 
+                      ? `Girar Dado (${rollModifier !== 'normal' ? '2' : '1'}${selectedDie}${rollModifier !== 'normal' ? ` • ${rollModifier === 'vantagem' ? 'Vantagem' : 'Desvantagem'}` : ''}${numModLabel})` 
+                      : `Rolar Novamente (${rollModifier !== 'normal' ? '2' : '1'}${selectedDie}${rollModifier !== 'normal' ? ` • ${rollModifier === 'vantagem' ? 'Vantagem' : 'Desvantagem'}` : ''}${numModLabel})`}
+                  </button>
+                );
+              })()}
             </div>
           ) : request.type === 'damage' ? (
             /* DAMAGE ROLL UI */
@@ -826,8 +1055,118 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
           ) : (
             /* PERÍCIA ROLL UI */
             <div className="flex flex-col gap-5">
+              {/* Seletor de Condição: Normal, Vantagem (+1d, descarta menor), Desvantagem (+1d, descarta maior) */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">
+                    Condição do Teste:
+                  </span>
+                  {request.type === 'skill' && request.dots === 0 && (
+                    <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span>Perícia 0</span>
+                      <span className="text-rose-300/80 font-normal">➔ Auto Desvantagem</span>
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollModifier('normal');
+                      if (skillResults.length > 0) executeSkillRoll(skillDiceCount, 'normal');
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      rollModifier === 'normal'
+                        ? 'bg-white/15 text-white shadow-xs'
+                        : 'text-white/50 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollModifier('vantagem');
+                      if (skillResults.length > 0) executeSkillRoll(skillDiceCount, 'vantagem');
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      rollModifier === 'vantagem'
+                        ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                        : 'text-white/50 hover:text-emerald-300 hover:bg-emerald-500/5'
+                    }`}
+                    title="Rola +1 dado e descarta o menor resultado"
+                  >
+                    <span>Vantagem</span>
+                    <span className="text-[9px] font-mono opacity-80">(+1d)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollModifier('desvantagem');
+                      if (skillResults.length > 0) executeSkillRoll(skillDiceCount, 'desvantagem');
+                    }}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      rollModifier === 'desvantagem'
+                        ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+                        : 'text-white/50 hover:text-rose-300 hover:bg-rose-500/5'
+                    }`}
+                    title="Rola +1 dado e descarta o maior resultado"
+                  >
+                    <span>Desvantagem</span>
+                    <span className="text-[9px] font-mono opacity-80">(+1d)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modificador Numérico: 7 botões (-5, -3, -1, 0, +1, +3, +5) com soma cumulativa */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">
+                    Modificador:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-lg border ${
+                      numericModifier === 0
+                        ? 'bg-white/5 border-white/10 text-white/50'
+                        : numericModifier > 0
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.2)]'
+                          : 'bg-rose-500/15 border-rose-500/30 text-rose-300 shadow-[0_0_8px_rgba(244,63,94,0.2)]'
+                    }`}>
+                      {numericModifier > 0 ? `+${numericModifier}` : numericModifier}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-7 gap-1 p-1 bg-black/40 border border-white/10 rounded-xl">
+                  {[-5, -3, -1, 0, 1, 3, 5].map((mod) => (
+                    <button
+                      key={mod}
+                      type="button"
+                      onClick={() => setNumericModifier(prev => mod === 0 ? 0 : prev + mod)}
+                      className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95 border ${
+                        mod === 0
+                          ? 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/15 hover:border-white/20'
+                          : mod > 0
+                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 hover:bg-emerald-500/25 hover:border-emerald-500/50 hover:text-white'
+                            : 'bg-rose-500/10 border-rose-500/25 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500/50 hover:text-white'
+                      }`}
+                      title={mod === 0 ? 'Zerar modificador' : `Somar ${mod > 0 ? `+${mod}` : mod} ao modificador`}
+                    >
+                      {mod > 0 ? `+${mod}` : mod}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quantidade de Dados Base */}
               <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl p-3 text-xs">
-                <span className="text-white/60">Quantidade de Dados:</span>
+                <div className="flex flex-col">
+                  <span className="text-white/70 font-medium">Quantidade de Dados Base:</span>
+                  {rollModifier !== 'normal' && (
+                    <span className="text-[10px] text-white/40">
+                      Total a rolar: <strong className="text-white/80">{skillDiceCount + 1}d10</strong> ({skillDiceCount}d10 + 1d10 {rollModifier === 'vantagem' ? 'Vantagem' : 'Desvantagem'})
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -866,53 +1205,24 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">
-                      {skillResults.length > 0 ? `Dados Rolados (${skillResults.length} no total):` : `Dados a Rolar (${skillDiceCount}d10):`}
+                      Resultado dos dados
                     </span>
                   </div>
 
-                  {/* Botões para Somar Atributo: Atalho Rápido de Fluxo e Seletor Completo */}
+                  {/* Botão para Somar Atributo (Fluxo e demais atributos disponíveis no modal completo) */}
                   <div className="flex items-center gap-1.5 sm:gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const fluxoVal = spiritus?.fluxo ?? 1;
-                        if (selectedAttribute?.code === 'FLUX') {
-                          setSelectedAttribute(null);
-                        } else {
-                          setSelectedAttribute({
-                            code: 'FLUX',
-                            name: 'Fluxo',
-                            value: fluxoVal,
-                            category: 'Spiritus',
-                            theme: 'amber'
-                          });
-                        }
-                      }}
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
-                        selectedAttribute?.code === 'FLUX'
-                          ? 'bg-amber-500/25 border-amber-400 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.4)] ring-1 ring-amber-400/60'
-                          : (request.type === 'domain' || request.type === 'personality')
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20 hover:border-amber-400/50 hover:text-white'
-                            : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/70 hover:text-white'
-                      }`}
-                      title={selectedAttribute?.code === 'FLUX' ? "Clique para remover a soma do Fluxo" : `Clique para somar Fluxo (+${spiritus?.fluxo ?? 1}) a cada face`}
-                    >
-                      <Zap size={13} className={selectedAttribute?.code === 'FLUX' ? "text-amber-400 fill-amber-400 animate-pulse" : "text-amber-400"} />
-                      <span>{selectedAttribute?.code === 'FLUX' ? `Fluxo (+${spiritus?.fluxo ?? 1})` : `+ Fluxo (+${spiritus?.fluxo ?? 1})`}</span>
-                    </button>
-
                     <button
                       type="button"
                       onClick={() => setShowAttributePicker(true)}
                       className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer ${
-                        selectedAttribute && selectedAttribute.code !== 'FLUX' && activeFocusStyle
+                        selectedAttribute && activeFocusStyle
                           ? activeFocusStyle.btnActive
                           : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/80 hover:text-white hover:border-white/20'
                       }`}
-                      title="Escolher outro atributo para somar às faces"
+                      title={selectedAttribute ? `Atributo: ${selectedAttribute.name} (+${currentSelectedValue}). Clique para trocar` : 'Escolher um atributo para somar às faces'}
                     >
-                      <Plus size={13} className={selectedAttribute && selectedAttribute.code !== 'FLUX' && activeFocusStyle ? activeFocusStyle.plusIcon : 'text-white/60'} />
-                      <span>{selectedAttribute && selectedAttribute.code !== 'FLUX' ? `${selectedAttribute.name} (+${currentSelectedValue})` : 'Somar'}</span>
+                      <Plus size={13} className={selectedAttribute && activeFocusStyle ? activeFocusStyle.plusIcon : 'text-white/60'} />
+                      <span>{selectedAttribute ? `${selectedAttribute.name} (+${currentSelectedValue})` : '+ Somar'}</span>
                     </button>
                   </div>
                 </div>
@@ -926,7 +1236,7 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
                     <div>
                       <span className="text-xs font-semibold text-white/70 block">Aguardando Rolagem</span>
                       <span className="text-[10px] text-white/40">
-                        Ajuste os dados ({skillDiceCount}d10) e clique em "Girar Dados" abaixo
+                        Ajuste os dados ({skillDiceCount + (rollModifier !== 'normal' ? 1 : 0)}d10) e clique em "Girar Dados" abaixo
                       </span>
                     </div>
                   </div>
@@ -942,88 +1252,124 @@ export const DiceRollerModal: React.FC<Props> = ({ request, onClose, attributes,
                     ) : skillResults.map((die, idx) => (
                       <div
                         key={die.id + idx}
-                        className={`relative px-3 py-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${
-                          die.val === 10
-                            ? 'bg-amber-500/20 border-amber-400/80 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.5)] font-bold'
-                          : die.isExplosion
-                            ? 'bg-white/10 border-white/20 text-white font-medium'
-                            : 'bg-white/[0.03] border-white/10 text-slate-300 font-light'
+                        className={`relative px-3 py-2 rounded-xl border flex flex-col items-center justify-center gap-0.5 transition-all ${
+                          die.isDiscarded
+                            ? 'opacity-40 border-dashed border-rose-500/50 bg-rose-950/20 text-rose-300'
+                            : die.val === 10
+                              ? 'bg-amber-500/20 border-amber-400/80 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.5)] font-bold'
+                              : die.isExplosion
+                                ? 'bg-white/10 border-white/20 text-white font-medium'
+                                : 'bg-white/[0.03] border-white/10 text-slate-300 font-light'
                         }`}
                       >
-                        <span className="text-base">{die.val}</span>
-                        {die.val === 10 && (
-                          <Zap size={12} className="text-amber-400 animate-bounce" />
-                        )}
-                        {die.isExplosion && die.val !== 10 && (
-                          <span className="text-[8px] uppercase tracking-tighter text-white/40">+d10</span>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-base ${die.isDiscarded ? 'line-through' : ''}`}>{die.val}</span>
+                          {!die.isDiscarded && die.val === 10 && (
+                            <Zap size={12} className="text-amber-400 animate-bounce" />
+                          )}
+                          {!die.isDiscarded && die.isExplosion && die.val !== 10 && (
+                            <span className="text-[8px] uppercase tracking-tighter text-white/40">+d10</span>
+                          )}
+                        </div>
+                        {die.isDiscarded && (
+                          <span className="text-[8px] uppercase tracking-tight text-rose-400 font-semibold no-underline">
+                            {rollModifier === 'vantagem' ? 'menor desc.' : 'maior desc.'}
+                          </span>
                         )}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Nova Linha: Resultado da soma de cada face separadamente + atributo com a cor do foco correspondente */}
-                {selectedAttribute && activeFocusStyle && skillResults.length > 0 && !isRolling && (
-                  <div className={`flex flex-col gap-2 p-3.5 border rounded-2xl animate-in fade-in-50 slide-in-from-top-1 duration-200 ${activeFocusStyle.sumBox}`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] uppercase tracking-widest font-bold flex items-center gap-1 ${activeFocusStyle.sumTitle}`}>
-                        <Plus size={12} />
-                        Faces + {selectedAttribute.name} (+{currentSelectedValue}):
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedAttribute(null)}
-                        className="text-[10px] text-white/40 hover:text-rose-300 transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/5"
-                        title="Remover soma"
-                      >
-                        Limpar
-                      </button>
-                    </div>
+                {/* Nova Linha: Resultado da soma de cada face separadamente + atributo e/ou modificador (Apenas dados não descartados) */}
+                {(selectedAttribute || numericModifier !== 0) && skillResults.length > 0 && !isRolling && (() => {
+                  const totalModifier = currentSelectedValue + numericModifier;
+                  // Mantém a cor da perícia testada no resultado
+                  const skillThemeStyle = focusColorStyles[currentTheme] || focusColorStyles.violet;
+                  const displayStyle = skillThemeStyle;
 
-                    <div className="p-2.5 bg-black/20 border border-white/5 rounded-xl min-h-[56px] max-h-48 overflow-y-auto flex flex-wrap gap-2 items-center justify-start custom-scrollbar">
-                      {skillResults.map((die, idx) => {
-                        const sumVal = die.val + currentSelectedValue;
-                        return (
-                          <div
-                            key={`sum-${die.id}-${idx}`}
-                            className={`relative px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[48px] transition-all ${
-                              die.val === 10
-                                ? 'bg-amber-500/20 border-amber-400/70 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.4)]'
-                                : activeFocusStyle.dieCard
-                            }`}
-                          >
-                            <span className="text-base font-bold leading-tight">
-                              {sumVal}
-                            </span>
-                            <span className={`text-[8px] font-mono leading-none mt-0.5 ${die.val === 10 ? 'text-amber-200/60' : activeFocusStyle.dieSubtext}`}>
-                              {die.val}+{currentSelectedValue}
-                            </span>
-                          </div>
-                        );
-                      })}
+                  let labelText = '';
+                  if (selectedAttribute && numericModifier !== 0) {
+                    labelText = `Faces + ${selectedAttribute.name} (+${currentSelectedValue}) ${numericModifier > 0 ? `+ Mod (+${numericModifier})` : `- Mod (${Math.abs(numericModifier)})`} (= ${totalModifier >= 0 ? `+${totalModifier}` : totalModifier}):`;
+                  } else if (selectedAttribute) {
+                    labelText = `Faces + ${selectedAttribute.name} (+${currentSelectedValue}):`;
+                  } else {
+                    labelText = `Faces + Modificador (${numericModifier > 0 ? `+${numericModifier}` : numericModifier}):`;
+                  }
+
+                  return (
+                    <div className={`flex flex-col gap-2 p-3.5 border rounded-2xl animate-in fade-in-50 slide-in-from-top-1 duration-200 ${displayStyle.sumBox}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] uppercase tracking-widest font-bold flex items-center gap-1 ${displayStyle.sumTitle}`}>
+                          <Plus size={12} />
+                          {labelText}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAttribute(null);
+                            setNumericModifier(0);
+                          }}
+                          className="text-[10px] text-white/40 hover:text-rose-300 transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-white/5"
+                          title="Remover soma e modificador"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+
+                      <div className="p-2.5 bg-black/20 border border-white/5 rounded-xl min-h-[56px] max-h-48 overflow-y-auto flex flex-wrap gap-2 items-center justify-start custom-scrollbar">
+                        {skillResults.filter(die => !die.isDiscarded).map((die, idx) => {
+                          const sumVal = die.val + totalModifier;
+                          return (
+                            <div
+                              key={`sum-${die.id}-${idx}`}
+                              className={`relative px-3 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[48px] transition-all ${
+                                die.val === 10
+                                  ? 'bg-amber-500/20 border-amber-400/70 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.4)]'
+                                  : displayStyle.dieCard
+                              }`}
+                            >
+                              <span className="text-base font-bold leading-tight">
+                                {sumVal}
+                              </span>
+                              <span className={`text-[8px] font-mono leading-none mt-0.5 ${die.val === 10 ? 'text-amber-200/60' : displayStyle.dieSubtext}`}>
+                                {die.val}{totalModifier >= 0 ? `+${totalModifier}` : `${totalModifier}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
+
               </div>
 
               {/* Roll button */}
-              <button
-                type="button"
-                disabled={isRolling}
-                onClick={() => executeSkillRoll(skillDiceCount)}
-                className={`w-full py-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                  isRolling 
-                    ? 'opacity-50 cursor-not-allowed border-white/10 text-white/40' 
-                    : skillResults.length === 0
-                      ? `${themeColors.border} ${themeColors.bgGlow} ${themeColors.text} ${themeColors.glow} hover:brightness-125`
-                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-white hover:border-white/20'
-                }`}
-              >
-                <RotateCcw size={15} className={isRolling ? 'animate-spin' : ''} />
-                {skillResults.length === 0 
-                  ? `Girar Dados (${skillDiceCount}d10)` 
-                  : `Rolar Novamente (${skillDiceCount}d10)`}
-              </button>
+              {(() => {
+                const totalRollDice = skillDiceCount + (rollModifier !== 'normal' ? 1 : 0);
+                const modTag = rollModifier === 'vantagem' ? ' • Vantagem' : rollModifier === 'desvantagem' ? ' • Desvantagem' : '';
+                const numModTag = numericModifier !== 0 ? ` [${numericModifier > 0 ? `+${numericModifier}` : numericModifier}]` : '';
+                return (
+                  <button
+                    type="button"
+                    disabled={isRolling}
+                    onClick={() => executeSkillRoll(skillDiceCount)}
+                    className={`w-full py-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      isRolling 
+                        ? 'opacity-50 cursor-not-allowed border-white/10 text-white/40' 
+                        : skillResults.length === 0
+                          ? `${themeColors.border} ${themeColors.bgGlow} ${themeColors.text} ${themeColors.glow} hover:brightness-125`
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white hover:border-white/20'
+                    }`}
+                  >
+                    <RotateCcw size={15} className={isRolling ? 'animate-spin' : ''} />
+                    {skillResults.length === 0 
+                      ? `Girar Dados (${totalRollDice}d10${modTag}${numModTag})` 
+                      : `Rolar Novamente (${totalRollDice}d10${modTag}${numModTag})`}
+                  </button>
+                );
+              })()}
             </div>
           )}
         </div>

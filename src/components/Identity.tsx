@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Identity as IdentityType } from '../types';
-import { Check, Globe2, X, Camera, ZoomIn, Upload, RotateCcw } from 'lucide-react';
+import { Check, Globe2, X, Camera, ZoomIn, Upload, RotateCcw, ScrollText, BookOpen } from 'lucide-react';
 const defaultPortrait = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
 
 type Props = {
@@ -197,6 +197,7 @@ const LanguageSelector = ({
 
 export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, update, readonly = false, expanded = true }) => {
   const [showLightbox, setShowLightbox] = useState(false);
+  const [isBackgroundModalOpen, setIsBackgroundModalOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   React.useEffect(() => {
@@ -348,6 +349,134 @@ export const Identity: React.FC<Props & { expanded?: boolean }> = ({ data, updat
           </div>
         </div>
       </div>
+
+      {/* Background / História do Personagem - Apenas no formato expandido (~180 caracteres e modal dedicado) */}
+      {(() => {
+        const bgRaw = data.background || '';
+        const isLong = bgRaw.length > 180;
+        const previewText = isLong ? `${bgRaw.slice(0, 180).trim()}...` : bgRaw;
+
+        return (
+          <div 
+            className={`grid transition-all duration-500 ease-in-out ${
+              expanded ? 'grid-rows-[1fr] opacity-100 mt-4 pt-4 border-t border-white/5' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="overflow-hidden flex flex-col gap-2 w-full">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] tracking-widest text-violet-400/80 uppercase font-bold flex items-center gap-1.5 drop-shadow-[0_0_8px_rgba(167,139,250,0.3)]">
+                  <ScrollText size={13} className="text-violet-400" />
+                  Background & História
+                </span>
+              </div>
+
+              <div 
+                onClick={() => setIsBackgroundModalOpen(true)}
+                className="text-slate-200 text-sm py-2.5 px-3.5 bg-white/[0.015] hover:bg-white/[0.035] border border-white/10 hover:border-violet-500/40 rounded-2xl cursor-pointer transition-all flex flex-col gap-1.5 group/bg select-none shadow-xs"
+                title="Clique para abrir a história em detalhes"
+              >
+                {previewText.trim() ? (
+                  <p className="text-slate-300 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-normal">
+                    {previewText}
+                  </p>
+                ) : (
+                  <span className="text-white/30 italic text-xs py-1">
+                    {readonly 
+                      ? 'Nenhum background registrado para este personagem.' 
+                      : 'Nenhum background registrado. Clique aqui para escrever a história do personagem...'}
+                  </span>
+                )}
+
+                {isLong && (
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-violet-400 group-hover/bg:text-violet-300 transition-colors flex items-center gap-1 mt-0.5">
+                    <span>Continuar lendo</span>
+                    <span>→</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Modal Dedicado de Leitura e Edição Longa de Background */}
+      {isBackgroundModalOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsBackgroundModalOpen(false);
+          }}
+        >
+          <div 
+            className="bg-[#070512] border border-violet-500/25 rounded-3xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[0_20px_70px_rgba(0,0,0,0.95)] overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-5 sm:p-6 border-b border-white/10 bg-gradient-to-r from-violet-950/40 via-purple-900/10 to-transparent flex items-center justify-between relative shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-300 shadow-[0_0_15px_rgba(139,92,246,0.25)]">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg text-white flex items-center gap-2">
+                    Background & História
+                  </h3>
+                  <span className="text-xs text-white/50 tracking-wide block font-medium">
+                    {data.name || 'Personagem'} {data.origin ? `• ${data.origin}` : ''}
+                  </span>
+                </div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => setIsBackgroundModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content Body: Ambiente de texto longo apropriado para historinhas */}
+            <div className="p-5 sm:p-7 overflow-y-auto flex-1 custom-scrollbar flex flex-col">
+              {readonly ? (
+                <div className="text-slate-100 text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] font-sans selection:bg-violet-500/30">
+                  {data.background?.trim() ? (
+                    data.background
+                  ) : (
+                    <span className="text-white/30 italic">Nenhum background registrado para este personagem.</span>
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  value={data.background || ''}
+                  onChange={(e) => update('background', e.target.value)}
+                  placeholder={`Era uma vez nas terras místicas...\n\nEscreva aqui a crônica, antecedentes, traumas, motivações, vínculos, juramentos e os segredos do seu personagem com liberdade para parágrafos longos...`}
+                  className="w-full flex-1 min-h-[360px] sm:min-h-[460px] bg-transparent border-none outline-none text-slate-100 text-sm sm:text-base leading-relaxed placeholder:text-white/20 placeholder:italic resize-none font-sans custom-scrollbar whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+                  autoFocus
+                />
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 sm:p-5 border-t border-white/10 bg-black/40 flex items-center justify-between gap-3 shrink-0">
+              <span className="text-[11px] text-white/40 tracking-wide hidden sm:inline">
+                {readonly ? 'Ambiente de leitura de crônica.' : 'Edição em tempo real • Quebras de linha e parágrafos preservados.'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsBackgroundModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold text-xs tracking-wider uppercase transition-all shadow-[0_0_15px_rgba(139,92,246,0.35)] cursor-pointer ml-auto"
+              >
+                {readonly ? 'Fechar' : 'Concluir Edição'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Lightbox / Visualização em tela cheia do retrato */}
       {showLightbox && typeof document !== 'undefined' && createPortal(

@@ -15,6 +15,7 @@ export const initialCharacterData: CharacterData = {
     origin: 'Coração do deserto de Igbalim',
     archetype: 'Guardião do Deserto',
     languages: ['Ma\'isha', 'Igbalim', 'Tantumá'],
+    background: 'Nascido sob as areias escaldantes de Igbalim, Elias cresceu aprendendo a ouvir os sussurros do vento e a respeitar a severidade do deserto. Jurou proteger seu povo e preservar as tradições ancestrais.',
   },
   focusConfig: {
     distribution: 'padrao',
@@ -535,6 +536,7 @@ export const createEmptyCharacterData = (name: string = '', _color?: string): Ch
     ideals: '',
     origin: '',
     languages: [],
+    background: '',
   },
   focusConfig: {
     distribution: 'padrao',

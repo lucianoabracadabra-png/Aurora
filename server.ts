@@ -144,7 +144,8 @@ function createBaseCharacter(name: string, role?: string, color?: string) {
       age: '',
       ideals: '',
       origin: role || '',
-      languages: []
+      languages: [],
+      background: ''
     },
     alignment: { altruism: 1, logic: 1, integrity: 1 },
     personality: { courage: 1, conviction: 1, serenity: 1 },

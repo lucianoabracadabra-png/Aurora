@@ -32,7 +32,11 @@ import {
   List,
   Sparkle,
   CircleDot,
-  History
+  History,
+  Archive,
+  ChevronRight,
+  MapPin,
+  Boxes
 } from 'lucide-react';
 import { 
   Inventory, 
@@ -582,6 +586,47 @@ export const InventoryManager: React.FC<Props> = ({
   const [hoveredTooltip, setHoveredTooltip] = useState<HoveredTooltipState>(null);
   const [selectedItem, setSelectedItem] = useState<AnyItem | null>(null);
 
+  // Estados do Armazém & Depósito de Itens
+  const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
+  const [warehouseSearchQuery, setWarehouseSearchQuery] = useState('');
+  const [warehouseLocationFilter, setWarehouseLocationFilter] = useState<string>('all');
+  const [storageDialogItem, setStorageDialogItem] = useState<AnyItem | null>(null);
+  const [storageLocationInput, setStorageLocationInput] = useState<string>('Carroça');
+  const [isPickingItemToStore, setIsPickingItemToStore] = useState(false);
+
+  // Locais de armazenamento salvos e persistentes com histórico
+  const [savedStorageLocations, setSavedStorageLocations] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('arcana_storage_locations');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return ['Carroça', 'Estalagem', 'Cofre', 'Esconderijo', 'Base / Torre'];
+  });
+
+  const persistStorageLocations = (locs: string[]) => {
+    setSavedStorageLocations(locs);
+    try {
+      localStorage.setItem('arcana_storage_locations', JSON.stringify(locs));
+    } catch (e) {}
+  };
+
+  const addStorageLocation = (loc: string) => {
+    const trimmed = loc.trim();
+    if (!trimmed) return;
+    if (!savedStorageLocations.some(l => l.toLowerCase() === trimmed.toLowerCase())) {
+      const updated = [...savedStorageLocations, trimmed];
+      persistStorageLocations(updated);
+    }
+  };
+
+  const removeStorageLocation = (locToRemove: string) => {
+    const updated = savedStorageLocations.filter(l => l.toLowerCase() !== locToRemove.toLowerCase());
+    persistStorageLocations(updated.length > 0 ? updated : ['Carroça']);
+  };
+
   // Modal para escolher item a equipar em um slot do Paperdoll
   const [slotPickerTarget, setSlotPickerTarget] = useState<EquipmentSlot | null>(null);
 
@@ -702,9 +747,10 @@ export const InventoryManager: React.FC<Props> = ({
   }, [weapons, armors, projectiles, accessories, generalItems]);
 
   // Resumo de carga e defesas ativas
-  const { totalWeightG, equippedWeightG, storedWeightG, activeDefense } = useMemo(() => {
+  const { totalWeightG, equippedWeightG, storedWeightG, warehouseWeightG, activeDefense } = useMemo(() => {
     let totalG = 0;
     let equippedG = 0;
+    let warehouseG = 0;
     let sumSlashing = 0;
     let sumBludgeoning = 0;
     let sumPiercing = 0;
@@ -715,6 +761,13 @@ export const InventoryManager: React.FC<Props> = ({
     allItems.forEach(item => {
       const qty = 'quantity' in item && typeof item.quantity === 'number' ? item.quantity : 1;
       const weight = (item.weight || 0) * qty;
+
+      // Se o item estiver armazenado no Armazém, NÃO conta na carga do personagem!
+      if (item.stored) {
+        warehouseG += weight;
+        return;
+      }
+
       totalG += weight;
 
       if (item.equipped) {
@@ -734,6 +787,7 @@ export const InventoryManager: React.FC<Props> = ({
       totalWeightG: totalG,
       equippedWeightG: equippedG,
       storedWeightG: Math.max(0, totalG - equippedG),
+      warehouseWeightG: warehouseG,
       activeDefense: {
         count: equippedArmorCount,
         sumSlashing,
@@ -745,6 +799,47 @@ export const InventoryManager: React.FC<Props> = ({
     };
   }, [allItems]);
 
+  // Itens guardados no Armazém / Depósito (isentos do peso da carga)
+  const warehouseItems = useMemo(() => {
+    return allItems.filter(item => item.stored === true);
+  }, [allItems]);
+
+  // Locais conhecidos onde há itens guardados ou salvos
+  const availableLocations = useMemo(() => {
+    const locSet = new Set<string>();
+    warehouseItems.forEach(item => {
+      const loc = (item.storageLocation || item.location || '').trim();
+      if (loc && loc.toLowerCase() !== 'mochila' && loc.toLowerCase() !== 'equipado') {
+        locSet.add(loc);
+      }
+    });
+    savedStorageLocations.forEach(loc => {
+      const trimmed = loc.trim();
+      if (trimmed && trimmed.toLowerCase() !== 'mochila' && trimmed.toLowerCase() !== 'equipado') {
+        locSet.add(trimmed);
+      }
+    });
+    return Array.from(locSet);
+  }, [warehouseItems, savedStorageLocations]);
+
+  // Filtragem e busca dos itens do Armazém
+  const filteredWarehouseItems = useMemo(() => {
+    let list = warehouseItems;
+    if (warehouseLocationFilter !== 'all') {
+      list = list.filter(item => (item.storageLocation || item.location || '').trim().toLowerCase() === warehouseLocationFilter.toLowerCase());
+    }
+    if (warehouseSearchQuery.trim()) {
+      const q = warehouseSearchQuery.toLowerCase();
+      list = list.filter(item => {
+        const matchName = item.name.toLowerCase().includes(q);
+        const matchLoc = (item.storageLocation || item.location || '').toLowerCase().includes(q);
+        const matchDesc = 'description' in item && typeof item.description === 'string' && item.description.toLowerCase().includes(q);
+        return matchName || matchLoc || matchDesc;
+      });
+    }
+    return list;
+  }, [warehouseItems, warehouseLocationFilter, warehouseSearchQuery]);
+
   const formatWeight = (g: number) => {
     if (g >= 1000) {
       return `${(g / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })} kg`;
@@ -752,9 +847,12 @@ export const InventoryManager: React.FC<Props> = ({
     return `${g} g`;
   };
 
-  // Filtragem e Ordenação da Mochila WoW
+  // Filtragem e Ordenação da Mochila WoW (apenas itens NÃO armazenados no Armazém)
   const bagItems = useMemo(() => {
     let list = allItems.filter(item => {
+      // Itens no armazém não ficam na mochila ativa
+      if (item.stored) return false;
+
       if (activeCategoryFilter === 'weapons' && item.category !== 'weapon') return false;
       if (activeCategoryFilter === 'armors' && item.category !== 'armor') return false;
       if (activeCategoryFilter === 'projectiles' && item.category !== 'projectile') return false;
@@ -784,6 +882,152 @@ export const InventoryManager: React.FC<Props> = ({
 
     return list;
   }, [allItems, activeCategoryFilter, searchQuery, sortOption]);
+
+  // Ações de Armazenamento / Depósito
+  const sendItemToStorage = (item: AnyItem, targetLocation: string = 'Carroça') => {
+    const finalLocation = targetLocation.trim() || 'Carroça';
+    addStorageLocation(finalLocation);
+    onUpdateInventory(prev => {
+      const updateList = (list: any[]) => {
+        return list.map(it => {
+          if (it.id === item.id) {
+            return {
+              ...it,
+              stored: true,
+              storageLocation: finalLocation,
+              location: finalLocation,
+              equipped: false
+            };
+          }
+          return it;
+        });
+      };
+
+      return {
+        ...prev,
+        weapons: updateList(prev.weapons || []),
+        armors: updateList(prev.armors || []),
+        projectiles: updateList(prev.projectiles || []),
+        accessories: updateList(prev.accessories || []),
+        generalItems: updateList(prev.generalItems || [])
+      };
+    });
+
+    if (selectedItem?.id === item.id) {
+      setSelectedItem(prev => prev ? { ...prev, stored: true, storageLocation: finalLocation, location: finalLocation, equipped: false } : null);
+    }
+    setStorageDialogItem(null);
+  };
+
+  const retrieveItemFromStorage = (item: AnyItem) => {
+    onUpdateInventory(prev => {
+      const updateList = (list: any[]) => {
+        return list.map(it => {
+          if (it.id === item.id) {
+            return {
+              ...it,
+              stored: false,
+              location: 'Mochila'
+            };
+          }
+          return it;
+        });
+      };
+
+      return {
+        ...prev,
+        weapons: updateList(prev.weapons || []),
+        armors: updateList(prev.armors || []),
+        projectiles: updateList(prev.projectiles || []),
+        accessories: updateList(prev.accessories || []),
+        generalItems: updateList(prev.generalItems || [])
+      };
+    });
+
+    if (selectedItem?.id === item.id) {
+      setSelectedItem(prev => prev ? { ...prev, stored: false, location: 'Mochila' } : null);
+    }
+    setStorageDialogItem(null);
+  };
+
+  // Equipar diretamente do armazém no personagem:
+  // Se já havia um item equipado nesse slot, o antigo vai para a MOCHILA (não para o armazém)
+  const equipItemDirectlyFromStorage = (item: AnyItem) => {
+    const targetSlot = inferItemSlot(item);
+    onUpdateInventory(prev => {
+      const processList = (list: any[]) => {
+        return list.map(it => {
+          if (it.equipped && inferItemSlot(it) === targetSlot && it.id !== item.id) {
+            // Desequipa para a mochila do personagem, não para o armazém!
+            return {
+              ...it,
+              equipped: false,
+              location: 'Mochila',
+              stored: false,
+              storageLocation: undefined
+            };
+          }
+          if (it.id === item.id) {
+            // O item do armazém agora fica equipado no corpo
+            return {
+              ...it,
+              equipped: true,
+              slot: targetSlot,
+              location: 'Equipado',
+              stored: false,
+              storageLocation: undefined
+            };
+          }
+          return it;
+        });
+      };
+
+      return {
+        ...prev,
+        weapons: processList(prev.weapons || []),
+        armors: processList(prev.armors || []),
+        projectiles: processList(prev.projectiles || []),
+        accessories: processList(prev.accessories || []),
+        generalItems: processList(prev.generalItems || [])
+      };
+    });
+
+    if (selectedItem?.id === item.id) {
+      setSelectedItem(prev => prev ? { ...prev, equipped: true, slot: targetSlot, stored: false, location: 'Equipado' } : null);
+    }
+  };
+
+  const updateItemStorageLocation = (item: AnyItem, newLoc: string) => {
+    const finalLocation = newLoc.trim() || 'Armazém';
+    addStorageLocation(finalLocation);
+    onUpdateInventory(prev => {
+      const updateList = (list: any[]) => {
+        return list.map(it => {
+          if (it.id === item.id) {
+            return {
+              ...it,
+              storageLocation: finalLocation,
+              location: finalLocation
+            };
+          }
+          return it;
+        });
+      };
+
+      return {
+        ...prev,
+        weapons: updateList(prev.weapons || []),
+        armors: updateList(prev.armors || []),
+        projectiles: updateList(prev.projectiles || []),
+        accessories: updateList(prev.accessories || []),
+        generalItems: updateList(prev.generalItems || [])
+      };
+    });
+
+    if (selectedItem?.id === item.id) {
+      setSelectedItem(prev => prev ? { ...prev, storageLocation: finalLocation, location: finalLocation } : null);
+    }
+  };
 
   const totalBagSlots = Math.max(24, Math.ceil((bagItems.length + 4) / 4) * 4);
   const bagSlotsArray = Array.from({ length: totalBagSlots });
@@ -1360,7 +1604,12 @@ export const InventoryManager: React.FC<Props> = ({
               {rarity.label}
             </span>
 
-            {item.equipped ? (
+            {item.stored ? (
+              <span className="text-[10px] font-bold text-amber-300 flex items-center gap-1 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 shadow-xs">
+                <Archive size={11} className="text-amber-400" />
+                <span>Armazém: {item.storageLocation || 'Carroça'}</span>
+              </span>
+            ) : item.equipped ? (
               <span className="text-[10px] font-bold text-amber-300 flex items-center gap-1 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40">
                 <Check size={11} className="text-amber-400" />
                 <span>Equipado no Corpo</span>
@@ -1598,41 +1847,73 @@ export const InventoryManager: React.FC<Props> = ({
           </div>
         )}
 
-        {/* BARRA DE AÇÕES (EQUIPAR / DESEQUIPAR / EDITAR / EXCLUIR) */}
+        {/* BARRA DE AÇÕES (EQUIPAR / DESEQUIPAR / ARMAZENAR / EDITAR / EXCLUIR) */}
         {!isFloatingPreview && (
           <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2 mt-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleEquipAuto(item);
-              }}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 select-none ${
-                item.equipped
-                  ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40'
-                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
-              }`}
-            >
-              {item.equipped ? (
-                <>
-                  <X size={13} />
-                  <span>Desequipar para a Mochila</span>
-                </>
-              ) : (
-                <>
-                  <Check size={13} />
-                  <span>Equipar no Corpo</span>
-                </>
-              )}
-            </button>
+            {item.stored ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  retrieveItemFromStorage(item);
+                }}
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 select-none bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 cursor-pointer"
+                title="Retirar item do armazém e mover para a mochila do personagem"
+              >
+                <Backpack size={13} />
+                <span>Mover para Mochila</span>
+              </button>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleEquipAuto(item);
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 select-none ${
+                  item.equipped
+                    ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                }`}
+              >
+                {item.equipped ? (
+                  <>
+                    <X size={13} />
+                    <span>Desequipar para a Mochila</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={13} />
+                    <span>Equipar no Corpo</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {!readonly && (
               <>
+                {/* Botão de Armazenar / Pequeno Baú ao lado de Editar / Excluir */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStorageLocationInput(item.storageLocation || 'Carroça');
+                    setStorageDialogItem(item);
+                  }}
+                  className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                    item.stored
+                      ? 'bg-amber-500/25 hover:bg-amber-500/35 text-amber-200 border-amber-400/60 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                      : 'bg-white/5 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border-white/10 hover:border-amber-500/40'
+                  }`}
+                  title={item.stored ? `Guardado em "${item.storageLocation || 'Armazém'}". Clique para alterar local ou retirar` : "Guardar no Armazém (Baú - isenção de peso)"}
+                >
+                  <Archive size={14} />
+                </button>
+
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditingItem(item);
                   }}
-                  className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10 transition-all"
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10 transition-all cursor-pointer"
                   title="Editar Propriedades do Item"
                 >
                   <Edit3 size={14} />
@@ -1643,7 +1924,7 @@ export const InventoryManager: React.FC<Props> = ({
                     e.stopPropagation();
                     deleteItem(item);
                   }}
-                  className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-all"
+                  className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
                   title="Excluir Item do Personagem"
                 >
                   <Trash2 size={14} />
@@ -1901,80 +2182,44 @@ export const InventoryManager: React.FC<Props> = ({
 
         {/* Filtros, Ordenação e Barra de Busca da Mochila */}
         <div className="flex flex-col gap-3">
-          {/* LINHA 1: Tags de Categorias Separadas */}
+          {/* LINHA 1: Tags de Categorias com Ícones Apenas (Expandindo ao Selecionar) */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none border-b border-white/5">
-            <button
-              onClick={() => setActiveCategoryFilter('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 ${
-                activeCategoryFilter === 'all'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <Package size={13} />
-              <span>Todos</span>
-              <span className="text-[10px] font-mono opacity-60">({allItems.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveCategoryFilter('weapons')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 ${
-                activeCategoryFilter === 'weapons'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <Sword size={13} />
-              <span>Armas</span>
-              <span className="text-[10px] font-mono opacity-60">({weapons.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveCategoryFilter('armors')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 ${
-                activeCategoryFilter === 'armors'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <Shield size={13} />
-              <span>Armaduras</span>
-              <span className="text-[10px] font-mono opacity-60">({armors.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveCategoryFilter('projectiles')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 ${
-                activeCategoryFilter === 'projectiles'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <Target size={13} />
-              <span>Projéteis</span>
-              <span className="text-[10px] font-mono opacity-60">({projectiles.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveCategoryFilter('accessories')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 ${
-                activeCategoryFilter === 'accessories'
-                  ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40 shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <Sparkles size={13} />
-              <span>Acessórios</span>
-              <span className="text-[10px] font-mono opacity-60">({accessories.length})</span>
-            </button>
-            <button
-              onClick={() => setActiveCategoryFilter('supplies')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 ${
-                activeCategoryFilter === 'supplies'
-                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/5 border border-transparent'
-              }`}
-            >
-              <FlaskConical size={13} />
-              <span>Suprimentos</span>
-              <span className="text-[10px] font-mono opacity-60">({generalItems.length})</span>
-            </button>
+            {[
+              { id: 'all' as const, label: 'Todos', count: allItems.length, icon: Package, activeCls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+              { id: 'weapons' as const, label: 'Armas', count: weapons.length, icon: Sword, activeCls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+              { id: 'armors' as const, label: 'Armaduras', count: armors.length, icon: Shield, activeCls: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+              { id: 'projectiles' as const, label: 'Projéteis', count: projectiles.length, icon: Target, activeCls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' },
+              { id: 'accessories' as const, label: 'Acessórios', count: accessories.length, icon: Sparkles, activeCls: 'bg-violet-500/20 text-violet-300 border-violet-500/40' },
+              { id: 'supplies' as const, label: 'Suprimentos', count: generalItems.length, icon: FlaskConical, activeCls: 'bg-sky-500/20 text-sky-300 border-sky-500/40' }
+            ].map(tab => {
+              const isSelected = activeCategoryFilter === tab.id;
+              const IconComp = tab.icon;
+
+              if (isSelected) {
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveCategoryFilter(tab.id)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 border shadow-sm cursor-pointer ${tab.activeCls}`}
+                  >
+                    <IconComp size={14} />
+                    <span>{tab.label}</span>
+                    <span className="text-[10px] font-mono opacity-70">({tab.count})</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveCategoryFilter(tab.id)}
+                  title={`${tab.label} (${tab.count})`}
+                  className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-xs font-bold transition-all select-none flex items-center justify-center shrink-0 text-white/50 hover:text-white hover:bg-white/5 border border-transparent cursor-pointer"
+                >
+                  <IconComp size={15} />
+                </button>
+              );
+            })}
           </div>
 
           {/* LINHA 2: Barra de Ferramentas (Busca, Ordenação e Grade/Lista) */}
@@ -2161,25 +2406,72 @@ export const InventoryManager: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleEquipAuto(item);
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                        item.equipped
-                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                      }`}
-                    >
-                      {item.equipped ? 'Desequipar' : 'Equipar'}
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Botão Baú de Armazenar no modo lista */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStorageLocationInput(item.storageLocation || 'Carroça');
+                          setStorageDialogItem(item);
+                        }}
+                        className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                          item.stored
+                            ? 'bg-amber-500/25 hover:bg-amber-500/35 text-amber-200 border-amber-400/60 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                            : 'bg-white/5 hover:bg-amber-500/20 text-white/50 hover:text-amber-300 border-white/10 hover:border-amber-500/40'
+                        }`}
+                        title={item.stored ? `Armazenado em "${item.storageLocation || 'Armazém'}". Clique para retirar ou alterar local` : "Guardar no Armazém (Baú)"}
+                      >
+                        <Archive size={14} />
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleEquipAuto(item);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                          item.equipped
+                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                        }`}
+                      >
+                        {item.equipped ? 'Desequipar' : 'Equipar'}
+                      </button>
+                    </div>
                   </div>
                 );
               })
             )}
           </div>
         )}
+
+        {/* ========================================================================= */}
+        {/* BOTÃO ARMAZÉM: ABAIXO DAS CAIXAS DO INVENTÁRIO (ÍCONE, TÍTULO E QUANTIDADE) */}
+        {/* ========================================================================= */}
+        <div className="pt-3 border-t border-white/10 mt-1">
+          <button
+            type="button"
+            onClick={() => setIsWarehouseModalOpen(true)}
+            className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-950/30 via-[#0e0a1b] to-amber-950/30 border border-amber-500/30 hover:border-amber-400/80 hover:bg-amber-500/15 text-amber-200 transition-all flex items-center justify-between shadow-[0_4px_20px_rgba(245,158,11,0.12)] group cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)] group-hover:scale-105 group-hover:border-amber-400 transition-transform shrink-0">
+                <Archive size={17} />
+              </div>
+              <span className="text-xs uppercase font-extrabold tracking-widest text-amber-300">
+                Armazém & Depósito
+              </span>
+              <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-200">
+                {warehouseItems.length} {warehouseItems.length === 1 ? 'item' : 'itens'}
+              </span>
+            </div>
+
+            <div className="w-8 h-8 rounded-lg bg-white/5 group-hover:bg-amber-500/20 flex items-center justify-center text-white/50 group-hover:text-amber-300 transition-colors">
+              <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+        </div>
 
       </div>
 
@@ -3201,6 +3493,424 @@ export const InventoryManager: React.FC<Props> = ({
               </button>
             </div>
           </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* 8. MODAL DE ARMAZENAMENTO: DEFINIR LOCAL DE GUARDA (CARROÇA, ESTALAGEM)   */}
+      {/* ========================================================================= */}
+      {storageDialogItem && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200"
+          onClick={() => setStorageDialogItem(null)}
+        >
+          <div 
+            className="bg-[#0b0817] border border-amber-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl max-w-md w-full animate-in zoom-in-95 duration-200 relative text-left"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm uppercase tracking-wider">
+                <Archive size={18} />
+                <span>Armazenar no Depósito</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setStorageDialogItem(null)}
+                className="text-white/40 hover:text-white p-1 rounded-lg cursor-pointer transition-colors"
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center shrink-0">
+                <ItemIcon item={storageDialogItem} size={20} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <h4 className="text-sm font-bold text-white truncate">{storageDialogItem.name}</h4>
+                <span className="text-[11px] font-mono text-amber-300/80">
+                  Peso: {formatWeight(storageDialogItem.weight || 0)} (isento da carga transportada)
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-white/70 flex items-center gap-1.5">
+                <MapPin size={12} className="text-amber-400" />
+                <span>Onde o item está sendo armazenado?</span>
+              </label>
+
+              <input 
+                type="text"
+                value={storageLocationInput}
+                onChange={e => setStorageLocationInput(e.target.value)}
+                placeholder="Ex: Carroça, Estalagem da Rosa, Cofre da Guilda..."
+                className="w-full bg-black/50 border border-white/15 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-white/30 focus:outline-none transition-colors"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    sendItemToStorage(storageDialogItem, storageLocationInput);
+                  }
+                }}
+              />
+
+              {/* Sugestões Rápidas de Locais & Histórico com Remoção */}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-white/50 font-medium">Locais Salvos / Sugestões:</span>
+                  <span className="text-[9px] text-white/30 italic">Clique para usar • × para apagar</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 max-h-28 overflow-y-auto custom-scrollbar p-0.5">
+                  {savedStorageLocations.map(sug => (
+                    <div 
+                      key={sug}
+                      className="group flex items-center bg-white/5 hover:bg-amber-500/20 text-white/80 hover:text-amber-200 border border-white/10 hover:border-amber-400/40 rounded-lg text-[10px] transition-colors"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setStorageLocationInput(sug)}
+                        className="px-2 py-1 cursor-pointer font-medium"
+                      >
+                        {sug}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeStorageLocation(sug);
+                        }}
+                        className="pr-1.5 pl-0.5 py-1 text-white/30 hover:text-rose-400 cursor-pointer transition-colors"
+                        title={`Remover "${sug}" dos locais salvos`}
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-4 mt-2 border-t border-white/10">
+                {storageDialogItem.stored ? (
+                  <button
+                    type="button"
+                    onClick={() => retrieveItemFromStorage(storageDialogItem)}
+                    className="px-3.5 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Backpack size={13} />
+                    <span>Mover para Mochila</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStorageDialogItem(null)}
+                    className="px-3 py-2 rounded-xl text-white/50 hover:text-white text-xs cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => sendItemToStorage(storageDialogItem, storageLocationInput)}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(245,158,11,0.4)] cursor-pointer ml-auto flex items-center gap-1.5"
+                >
+                  <Archive size={14} />
+                  <span>{storageDialogItem.stored ? 'Atualizar Local' : 'Confirmar Armazenamento'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* 9. MODAL PRINCIPAL DO ARMAZÉM & DEPÓSITO DE ITENS                         */}
+      {/* ========================================================================= */}
+      {isWarehouseModalOpen && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => {
+            setIsWarehouseModalOpen(false);
+            setIsPickingItemToStore(false);
+          }}
+        >
+          <div 
+            className="bg-[#0b0818] border border-amber-500/40 rounded-3xl w-full max-w-3xl h-[88vh] max-h-[820px] flex flex-col shadow-[0_20px_70px_rgba(0,0,0,0.95)] overflow-hidden text-left animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header do Armazém */}
+            <div className="p-5 sm:p-6 border-b border-white/10 bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-transparent flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)] shrink-0">
+                  <Archive size={22} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
+                    <span>Armazém & Depósito</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-200">
+                      {warehouseItems.length} {warehouseItems.length === 1 ? 'item' : 'itens'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-white/50 tracking-wide mt-0.5">
+                    Itens guardados em carroças, estalagens ou cofres • Isentos da carga pessoal
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsWarehouseModalOpen(false);
+                  setIsPickingItemToStore(false);
+                }}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/40 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Resumo de Locais do Armazém */}
+            <div className="px-5 sm:px-6 py-3 border-b border-white/5 bg-black/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-0.5 max-w-xl">
+                <button
+                  type="button"
+                  onClick={() => setWarehouseLocationFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    warehouseLocationFilter === 'all'
+                      ? 'bg-amber-500/25 border border-amber-400 text-amber-200'
+                      : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  Todos ({warehouseItems.length})
+                </button>
+                {availableLocations.map(loc => {
+                  const count = warehouseItems.filter(i => (i.storageLocation || i.location || '').toLowerCase() === loc.toLowerCase()).length;
+                  return (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => setWarehouseLocationFilter(loc)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                        warehouseLocationFilter.toLowerCase() === loc.toLowerCase()
+                          ? 'bg-amber-500/25 border border-amber-400 text-amber-200'
+                          : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <MapPin size={11} className="text-amber-400" />
+                      <span>{loc}</span>
+                      <span className="text-[10px] opacity-70">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {!readonly && (
+                <button
+                  type="button"
+                  onClick={() => setIsPickingItemToStore(!isPickingItemToStore)}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
+                >
+                  <Plus size={13} />
+                  <span>Guardar Item da Mochila</span>
+                </button>
+              )}
+            </div>
+
+            {/* Subpainel para Escolher Item da Mochila para Guardar */}
+            {isPickingItemToStore && (
+              <div className="p-4 bg-amber-950/20 border-b border-amber-500/20 flex flex-col gap-2 shrink-0 animate-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Backpack size={14} />
+                    <span>Selecione um item da mochila para guardar no armazém:</span>
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => setIsPickingItemToStore(false)}
+                    className="text-white/40 hover:text-white text-xs cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                </div>
+
+                {bagItems.length === 0 ? (
+                  <p className="text-xs text-white/40 italic py-2">Sua mochila ativa não possui itens disponíveis para guardar.</p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
+                    {bagItems.map(item => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setStorageLocationInput(warehouseLocationFilter !== 'all' ? warehouseLocationFilter : 'Carroça');
+                          setStorageDialogItem(item);
+                          setIsPickingItemToStore(false);
+                        }}
+                        className="p-2 rounded-xl bg-black/40 hover:bg-amber-500/20 border border-white/10 hover:border-amber-400 text-left flex items-center justify-between gap-2 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ItemIcon item={item} size={16} />
+                          <span className="text-xs text-white truncate font-medium">{item.name}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-white/50 shrink-0">{formatWeight(item.weight || 0)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Barra de Busca de Itens Armazenados */}
+            <div className="px-5 sm:px-6 py-2.5 border-b border-white/5 bg-black/20 flex items-center justify-between gap-3 shrink-0">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                <input 
+                  type="text"
+                  value={warehouseSearchQuery}
+                  onChange={e => setWarehouseSearchQuery(e.target.value)}
+                  placeholder="Buscar itens guardados no armazém..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-amber-400/60"
+                />
+              </div>
+            </div>
+
+            {/* Lista dos Itens Armazenados */}
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 custom-scrollbar flex flex-col gap-2.5">
+              {filteredWarehouseItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-center text-white/40">
+                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/30">
+                    <Boxes size={28} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white/70">Nenhum item encontrado no armazém</h4>
+                    <p className="text-xs text-white/40 max-w-sm mt-1">
+                      {warehouseSearchQuery || warehouseLocationFilter !== 'all' 
+                        ? 'Tente ajustar os filtros ou a busca acima.' 
+                        : 'Você pode guardar itens da mochila clicando no pequeno ícone de baú ao lado de editar/excluir.'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                filteredWarehouseItems.map(item => {
+                  const rarity = getItemRarity(item);
+                  const loc = item.storageLocation || item.location || 'Carroça';
+
+                  return (
+                    <div
+                      key={`warehouse_${item.id}`}
+                      className="p-3 sm:p-3.5 rounded-2xl bg-black/40 border border-white/10 hover:border-amber-500/40 flex items-center justify-between gap-3 transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div 
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center bg-black/60 border ${rarity.border} shrink-0 cursor-pointer`}
+                          onClick={() => setSelectedItem(item)}
+                          title="Clique para inspecionar o item"
+                        >
+                          <ItemIcon item={item} size={20} />
+                        </div>
+
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span 
+                              className="text-xs sm:text-sm font-bold truncate cursor-pointer hover:underline"
+                              style={{ color: rarity.color }}
+                              onClick={() => setSelectedItem(item)}
+                            >
+                              {item.name}
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-1 shrink-0">
+                              <MapPin size={10} className="text-amber-400" />
+                              <span>{loc}</span>
+                            </span>
+                          </div>
+
+                          {/* Mínimo de Atributos do Item */}
+                          <div className="flex items-center gap-2 text-[10px] font-mono mt-0.5 truncate">
+                            {item.category === 'weapon' && (
+                              <span className="text-amber-300/90 truncate">
+                                Estocada: {item.thrust.damage} ({item.thrust.type}) • Golpe: {item.swing.damage} ({item.swing.type}) • AP {item.thrust.ap}/{item.swing.ap}
+                              </span>
+                            )}
+                            {item.category === 'armor' && (
+                              <span className="text-cyan-300/90 truncate">
+                                Corte +{item.slashing} • Esmag +{item.bludgeoning} • Perf +{item.piercing} • Cob {item.coverage}
+                              </span>
+                            )}
+                            {item.category === 'projectile' && (
+                              <span className="text-emerald-300/90 truncate">
+                                Dano: {item.damage} ({item.type}) • AP {item.ap} • Prec +{item.precision}
+                              </span>
+                            )}
+                            {item.category === 'accessory' && (
+                              <span className="text-violet-300/90 truncate">
+                                {item.typeAndDesc || item.extras || 'Acessório Místico'}
+                              </span>
+                            )}
+                            {item.category === 'general' && (
+                              <span className="text-sky-300/90 truncate">
+                                {'quantity' in item && typeof item.quantity === 'number' && item.quantity > 1 ? `Qtd: ${item.quantity}` : (item.description || item.extras || 'Suprimento / Utilidade')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Botão de Alterar Local (somente ícone) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStorageLocationInput(loc);
+                            setStorageDialogItem(item);
+                          }}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-amber-500/20 text-white/60 hover:text-amber-300 border border-white/10 transition-colors cursor-pointer"
+                          title={`Local de Armazenamento: "${loc}". Clique para alterar`}
+                        >
+                          <MapPin size={14} />
+                        </button>
+
+                        {/* Botão Retirar para Mochila (somente ícone) */}
+                        <button
+                          type="button"
+                          onClick={() => retrieveItemFromStorage(item)}
+                          className="p-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 text-sky-300 border border-sky-500/40 transition-colors cursor-pointer"
+                          title="Mover de volta para a mochila do personagem"
+                        >
+                          <Backpack size={14} />
+                        </button>
+
+                        {/* Botão Equipar Diretamente no Personagem (somente ícone, desloca o item atual do slot para a mochila) */}
+                        <button
+                          type="button"
+                          onClick={() => equipItemDirectlyFromStorage(item)}
+                          className="p-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 transition-colors cursor-pointer"
+                          title="Equipar diretamente no personagem (o item atual do slot vai para a mochila)"
+                        >
+                          <ShieldCheck size={14} />
+                        </button>
+
+                        {/* Excluir (somente ícone) */}
+                        {!readonly && (
+                          <button
+                            type="button"
+                            onClick={() => deleteItem(item)}
+                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
+                            title="Excluir item permanentemente"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>,
         document.body

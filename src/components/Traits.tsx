@@ -29,6 +29,10 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
   const advantages = data.filter(t => t.type === 'advantage');
   const disadvantages = data.filter(t => t.type === 'disadvantage');
 
+  const totalAdvantagePoints = advantages.reduce((acc, t) => acc + (Number(t.value) || 0), 0);
+  const totalDisadvantagePoints = disadvantages.reduce((acc, t) => acc + (Number(t.value) || 0), 0);
+  const pointsBalance = totalAdvantagePoints - totalDisadvantagePoints;
+
   const handleOpenDetailModal = (trait: Trait) => {
     setSelectedTrait(trait);
     setEditingTitle(trait.name);
@@ -81,7 +85,7 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-4">
         {/* Coluna de Vantagens */}
         <div className="flex flex-col gap-2.5">
@@ -89,8 +93,8 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
             <h3 className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">
               Vantagens
             </h3>
-            <span className="text-[9px] font-mono text-emerald-400/60 font-bold bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
-              {advantages.length}
+            <span className="text-[9px] font-mono text-emerald-300 font-bold bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 shadow-[0_0_8px_rgba(52,211,153,0.2)]">
+              +{totalAdvantagePoints} pts
             </span>
           </div>
 
@@ -148,8 +152,8 @@ export const Traits: React.FC<Props> = ({ data, add, update, remove, readonly = 
             <h3 className="text-[10px] text-rose-400 font-bold uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">
               Desvantagens
             </h3>
-            <span className="text-[9px] font-mono text-rose-400/60 font-bold bg-rose-500/10 px-1.5 py-0.2 rounded border border-rose-500/20">
-              {disadvantages.length}
+            <span className="text-[9px] font-mono text-rose-300 font-bold bg-rose-500/15 px-2 py-0.5 rounded-full border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.2)]">
+              -{totalDisadvantagePoints} pts
             </span>
           </div>
 
