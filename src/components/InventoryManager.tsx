@@ -36,7 +36,8 @@ import {
   Archive,
   ChevronRight,
   MapPin,
-  Boxes
+  Boxes,
+  User
 } from 'lucide-react';
 import { 
   Inventory, 
@@ -652,6 +653,9 @@ export const InventoryManager: React.FC<Props> = ({
   const [weaponSwingType, setWeaponSwingType] = useState('cor');
   const [weaponSwingAP, setWeaponSwingAP] = useState(5);
   const [weaponSwingPre, setWeaponSwingPre] = useState(1);
+  const [weaponReach, setWeaponReach] = useState('Corpo a Corpo');
+  const [weaponResistance, setWeaponResistance] = useState(10);
+  const [weaponDurability, setWeaponDurability] = useState(10);
 
   const [armorSlashing, setArmorSlashing] = useState(2);
   const [armorBludgeoning, setArmorBludgeoning] = useState(2);
@@ -774,11 +778,11 @@ export const InventoryManager: React.FC<Props> = ({
         equippedG += weight;
         if (item.category === 'armor') {
           equippedArmorCount++;
-          sumSlashing += item.slashing || 0;
-          sumBludgeoning += item.bludgeoning || 0;
-          sumPiercing += item.piercing || 0;
-          maxCoverage = Math.max(maxCoverage, item.coverage || 0);
-          maxResistance = Math.max(maxResistance, item.resistance || 0);
+          sumSlashing += Number(item.slashing) || 0;
+          sumBludgeoning += Number(item.bludgeoning) || 0;
+          sumPiercing += Number(item.piercing) || 0;
+          maxCoverage = Math.max(maxCoverage, Number(item.coverage) || 0);
+          maxResistance = Math.max(maxResistance, Number(item.resistance) || 0);
         }
       }
     });
@@ -1157,6 +1161,22 @@ export const InventoryManager: React.FC<Props> = ({
     }));
   };
 
+  const adjustWeaponDurability = (weaponId: string, delta: number) => {
+    onUpdateInventory(prev => ({
+      ...prev,
+      weapons: (prev.weapons || []).map(w => {
+        if (w.id !== weaponId) return w;
+        const max = w.durabilityMax ?? 10;
+        const current = w.durabilityCurrent ?? max;
+        return {
+          ...w,
+          durabilityMax: max,
+          durabilityCurrent: Math.max(0, Math.min(max, current + delta))
+        };
+      })
+    }));
+  };
+
   const recordTransaction = (coin: 'gold' | 'silver' | 'copper', delta: number, reason?: string) => {
     onUpdateInventory(prev => {
       const cur = prev.currency || { gold: 0, silver: 0, copper: 0, gems: '', history: [] };
@@ -1407,6 +1427,10 @@ export const InventoryManager: React.FC<Props> = ({
         },
         size: newItemSize,
         weight: Number(newItemWeight) || 0,
+        reach: weaponReach.trim() || 'Corpo a Corpo',
+        resistance: Number(weaponResistance) || 10,
+        durabilityMax: Number(weaponDurability) || 10,
+        durabilityCurrent: Number(weaponDurability) || 10,
         location: newItemEquipped ? 'Em Mãos' : 'Mochila',
         extras: newItemExtras.trim(),
         description: newItemDesc.trim() || undefined,
@@ -1661,7 +1685,7 @@ export const InventoryManager: React.FC<Props> = ({
 
         {/* ESTATÍSTICAS DE ARMAS */}
         {item.category === 'weapon' && (
-          <div className="flex flex-col gap-2 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/25">
+          <div className="flex flex-col gap-2.5 bg-amber-500/10 p-3 rounded-2xl border border-amber-500/25">
             <div className="flex items-center justify-between text-[11px]">
               <div>
                 <span className="text-amber-300 font-bold uppercase text-[10px] tracking-wider">Estocada: </span>
@@ -1707,36 +1731,101 @@ export const InventoryManager: React.FC<Props> = ({
                 </button>
               )}
             </div>
+
+            {/* Alcance e Resistência da Arma */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-500/20">
+              <div className="bg-black/50 p-2 rounded-xl border border-white/10 flex flex-col items-center justify-center text-center">
+                <span className="text-[10px] text-white/60 uppercase font-semibold">Alcance</span>
+                <span className="text-xs font-mono font-bold text-amber-300 mt-0.5">{item.reach || 'Corpo a Corpo'}</span>
+              </div>
+              <div className="bg-black/50 p-2 rounded-xl border border-white/10 flex flex-col items-center justify-center text-center">
+                <span className="text-[10px] text-white/60 uppercase font-semibold">Resistência</span>
+                <span className="text-xs font-mono font-bold text-emerald-300 mt-0.5">{item.resistance ?? 10}</span>
+              </div>
+            </div>
+
+            {/* Durabilidade da Arma com Barra de Integridade */}
+            {(() => {
+              const maxD = item.durabilityMax ?? 10;
+              const curD = item.durabilityCurrent ?? maxD;
+              return (
+                <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-white/60 uppercase font-semibold">Durabilidade:</span>
+                    <span className="font-mono font-bold text-slate-200">
+                      {curD} / {maxD}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-black/60 rounded-full overflow-hidden border border-white/10">
+                    <div 
+                      className={`h-full transition-all ${
+                        curD <= Math.ceil(maxD * 0.25) ? 'bg-rose-500' : curD <= Math.ceil(maxD * 0.5) ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, (curD / maxD) * 100))}%` }}
+                    />
+                  </div>
+
+                  {!readonly && (
+                    <div className="flex items-center justify-end gap-1.5 mt-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); adjustWeaponDurability(item.id, -1); }}
+                        disabled={curD <= 0}
+                        className="p-1 rounded bg-white/5 hover:bg-white/15 text-slate-300 disabled:opacity-30 cursor-pointer"
+                        title="Diminuir Durabilidade"
+                      >
+                        <Minus size={10} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); adjustWeaponDurability(item.id, 1); }}
+                        disabled={curD >= maxD}
+                        className="p-1 rounded bg-white/5 hover:bg-white/15 text-slate-300 disabled:opacity-30 cursor-pointer"
+                        title="Reparar Durabilidade"
+                      >
+                        <Plus size={10} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
         {/* ESTATÍSTICAS DE ARMADURAS */}
         {item.category === 'armor' && (
-          <div className="flex flex-col gap-2 bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/25">
-            <div className="grid grid-cols-3 gap-1.5 text-center">
-              <div className="bg-black/40 p-1.5 rounded-lg border border-white/5">
-                <div className="text-[9px] text-white/50 uppercase">Corte</div>
-                <div className="font-mono font-bold text-cyan-300 text-xs">+{item.slashing}</div>
+          <div className="flex flex-col gap-2.5 bg-cyan-500/10 p-3 rounded-2xl border border-cyan-500/25">
+            {/* Corte, Esmag., Perf. sem o prefixo + e expandidos */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-black/50 p-2.5 rounded-xl border border-white/10 flex flex-col items-center justify-center">
+                <span className="text-[10px] text-white/50 uppercase font-semibold">Corte</span>
+                <span className="font-mono font-bold text-cyan-300 text-sm mt-0.5">{item.slashing}</span>
               </div>
-              <div className="bg-black/40 p-1.5 rounded-lg border border-white/5">
-                <div className="text-[9px] text-white/50 uppercase">Esmag.</div>
-                <div className="font-mono font-bold text-cyan-300 text-xs">+{item.bludgeoning}</div>
+              <div className="bg-black/50 p-2.5 rounded-xl border border-white/10 flex flex-col items-center justify-center">
+                <span className="text-[10px] text-white/50 uppercase font-semibold">Esmag.</span>
+                <span className="font-mono font-bold text-cyan-300 text-sm mt-0.5">{item.bludgeoning}</span>
               </div>
-              <div className="bg-black/40 p-1.5 rounded-lg border border-white/5">
-                <div className="text-[9px] text-white/50 uppercase">Perf.</div>
-                <div className="font-mono font-bold text-cyan-300 text-xs">+{item.piercing}</div>
+              <div className="bg-black/50 p-2.5 rounded-xl border border-white/10 flex flex-col items-center justify-center">
+                <span className="text-[10px] text-white/50 uppercase font-semibold">Perf.</span>
+                <span className="font-mono font-bold text-cyan-300 text-sm mt-0.5">{item.piercing}</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-cyan-500/20">
-              <span>Cobertura: <strong className="text-amber-300 font-mono">{item.coverage}</strong></span>
-              <span>Resistência: <strong className="text-emerald-300 font-mono">{item.resistance}</strong></span>
+            {/* Cobertura e Resistência expandidas em caixas dedicadas */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-cyan-500/20">
+              <div className="bg-black/50 p-2 rounded-xl border border-white/10 flex flex-col items-center justify-center text-center">
+                <span className="text-[10px] text-white/60 uppercase font-semibold">Cobertura</span>
+                <span className="text-sm font-mono font-bold text-amber-300 mt-0.5">{item.coverage ?? '—'}</span>
+              </div>
+              <div className="bg-black/50 p-2 rounded-xl border border-white/10 flex flex-col items-center justify-center text-center">
+                <span className="text-[10px] text-white/60 uppercase font-semibold">Resistência</span>
+                <span className="text-sm font-mono font-bold text-emerald-300 mt-0.5">{item.resistance ?? '—'}</span>
+              </div>
             </div>
 
             {/* Durabilidade com Barra de Integridade */}
-            <div className="flex flex-col gap-1 pt-1 border-t border-white/5">
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5">
               <div className="flex items-center justify-between text-[10px]">
-                <span className="text-white/60">Durabilidade:</span>
+                <span className="text-white/60 uppercase font-semibold">Durabilidade:</span>
                 <span className="font-mono font-bold text-slate-200">
                   {item.durabilityCurrent} / {item.durabilityMax}
                 </span>
@@ -2200,7 +2289,7 @@ export const InventoryManager: React.FC<Props> = ({
                   <button
                     key={tab.id}
                     onClick={() => setActiveCategoryFilter(tab.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all select-none flex items-center gap-1.5 shrink-0 border shadow-sm cursor-pointer ${tab.activeCls}`}
+                    className={`h-8 px-3.5 rounded-xl text-xs font-bold transition-[width,background-color,border-color,color] duration-150 select-none flex items-center justify-center gap-1.5 shrink-0 border shadow-sm cursor-pointer ${tab.activeCls}`}
                   >
                     <IconComp size={14} />
                     <span>{tab.label}</span>
@@ -2214,7 +2303,7 @@ export const InventoryManager: React.FC<Props> = ({
                   key={tab.id}
                   onClick={() => setActiveCategoryFilter(tab.id)}
                   title={`${tab.label} (${tab.count})`}
-                  className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-xs font-bold transition-all select-none flex items-center justify-center shrink-0 text-white/50 hover:text-white hover:bg-white/5 border border-transparent cursor-pointer"
+                  className="h-8 w-8 sm:w-9 rounded-xl text-xs font-bold transition-[width,background-color,border-color,color] duration-150 select-none flex items-center justify-center shrink-0 text-white/50 hover:text-white hover:bg-white/5 border border-transparent cursor-pointer"
                 >
                   <IconComp size={15} />
                 </button>
@@ -2956,6 +3045,38 @@ export const InventoryManager: React.FC<Props> = ({
                             </div>
                           </div>
                         </div>
+
+                        {/* Alcance, Resistência e Durabilidade da Arma */}
+                        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-amber-500/15">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/50 uppercase font-semibold">Alcance</span>
+                            <input
+                              type="text"
+                              value={weaponReach}
+                              onChange={(e) => setWeaponReach(e.target.value)}
+                              placeholder="Ex: Corpo a Corpo, 2m..."
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-amber-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/50 uppercase font-semibold">Resistência</span>
+                            <input
+                              type="number"
+                              value={weaponResistance}
+                              onChange={(e) => setWeaponResistance(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-emerald-300 text-xs"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-white/50 uppercase font-semibold">Durabilidade</span>
+                            <input
+                              type="number"
+                              value={weaponDurability}
+                              onChange={(e) => setWeaponDurability(Number(e.target.value))}
+                              className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-center font-mono text-cyan-300 text-xs"
+                            />
+                          </div>
+                        </div>
                       </div>
                     );
                   }
@@ -3392,8 +3513,8 @@ export const InventoryManager: React.FC<Props> = ({
 
               {/* Detalhes específicos de Arma */}
               {editingItem.category === 'weapon' && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl bg-black/40 border border-white/10">
-                  <span className="font-bold text-amber-400 text-xs">Ataques da Arma:</span>
+                <div className="flex flex-col gap-2.5 p-3 rounded-xl bg-black/40 border border-white/10">
+                  <span className="font-bold text-amber-400 text-xs">Ataques e Atributos da Arma:</span>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] text-white/60 font-semibold">Estocada: Dano</span>
@@ -3420,39 +3541,113 @@ export const InventoryManager: React.FC<Props> = ({
                       />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10">
+                    <div>
+                      <span className="text-[10px] text-white/60">Alcance</span>
+                      <input
+                        type="text"
+                        value={editingItem.reach || 'Corpo a Corpo'}
+                        onChange={(e) => setEditingItem({ ...editingItem, reach: e.target.value })}
+                        className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-white/60">Resistência</span>
+                      <input
+                        type="number"
+                        value={editingItem.resistance ?? 10}
+                        onChange={(e) => setEditingItem({ ...editingItem, resistance: Number(e.target.value) })}
+                        className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-white/60">Durabilidade</span>
+                      <input
+                        type="number"
+                        value={editingItem.durabilityMax ?? 10}
+                        onChange={(e) => {
+                          const max = Number(e.target.value);
+                          setEditingItem({ 
+                            ...editingItem, 
+                            durabilityMax: max,
+                            durabilityCurrent: Math.min(editingItem.durabilityCurrent ?? max, max)
+                          });
+                        }}
+                        className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Detalhes de Armadura */}
               {editingItem.category === 'armor' && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl bg-black/40 border border-white/10">
+                <div className="flex flex-col gap-2.5 p-3 rounded-xl bg-black/40 border border-white/10">
                   <span className="font-bold text-cyan-400 text-xs">Proteção da Armadura:</span>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <span className="text-[10px] text-white/60">Corte</span>
                       <input
-                        type="number"
+                        type="text"
                         value={editingItem.slashing}
-                        onChange={(e) => setEditingItem({ ...editingItem, slashing: Number(e.target.value) })}
+                        onChange={(e) => setEditingItem({ ...editingItem, slashing: e.target.value })}
                         className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono"
                       />
                     </div>
                     <div>
                       <span className="text-[10px] text-white/60">Esmag.</span>
                       <input
-                        type="number"
+                        type="text"
                         value={editingItem.bludgeoning}
-                        onChange={(e) => setEditingItem({ ...editingItem, bludgeoning: Number(e.target.value) })}
+                        onChange={(e) => setEditingItem({ ...editingItem, bludgeoning: e.target.value })}
                         className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono"
                       />
                     </div>
                     <div>
                       <span className="text-[10px] text-white/60">Perf.</span>
                       <input
-                        type="number"
+                        type="text"
                         value={editingItem.piercing}
-                        onChange={(e) => setEditingItem({ ...editingItem, piercing: Number(e.target.value) })}
+                        onChange={(e) => setEditingItem({ ...editingItem, piercing: e.target.value })}
                         className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/10">
+                    <div>
+                      <span className="text-[10px] text-white/60">Cobertura</span>
+                      <input
+                        type="text"
+                        value={editingItem.coverage}
+                        onChange={(e) => setEditingItem({ ...editingItem, coverage: e.target.value })}
+                        className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-white/60">Resistência</span>
+                      <input
+                        type="text"
+                        value={editingItem.resistance}
+                        onChange={(e) => setEditingItem({ ...editingItem, resistance: e.target.value })}
+                        className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-white/60">Durabilidade</span>
+                      <input
+                        type="number"
+                        value={editingItem.durabilityMax}
+                        onChange={(e) => {
+                          const max = Number(e.target.value);
+                          setEditingItem({ 
+                            ...editingItem, 
+                            durabilityMax: max,
+                            durabilityCurrent: Math.min(editingItem.durabilityCurrent, max)
+                          });
+                        }}
+                        className="w-full bg-black/60 border border-white/10 rounded p-1 text-white font-mono text-xs"
                       />
                     </div>
                   </div>
@@ -3674,9 +3869,10 @@ export const InventoryManager: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Resumo de Locais do Armazém */}
-            <div className="px-5 sm:px-6 py-3 border-b border-white/5 bg-black/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-0.5 max-w-xl">
+            {/* Resumo de Locais do Armazém: 3/4 para Tags e 1/4 para o Botão */}
+            <div className="px-5 sm:px-6 py-3 border-b border-white/5 bg-black/40 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shrink-0">
+              {/* Box 1 (3/4): Tags com Itens Guardados (sem scrollbar feia) */}
+              <div className="w-full md:w-3/4 flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
                 <button
                   type="button"
                   onClick={() => setWarehouseLocationFilter('all')}
@@ -3688,37 +3884,42 @@ export const InventoryManager: React.FC<Props> = ({
                 >
                   Todos ({warehouseItems.length})
                 </button>
-                {availableLocations.map(loc => {
-                  const count = warehouseItems.filter(i => (i.storageLocation || i.location || '').toLowerCase() === loc.toLowerCase()).length;
-                  return (
-                    <button
-                      key={loc}
-                      type="button"
-                      onClick={() => setWarehouseLocationFilter(loc)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                        warehouseLocationFilter.toLowerCase() === loc.toLowerCase()
-                          ? 'bg-amber-500/25 border border-amber-400 text-amber-200'
-                          : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
-                      }`}
-                    >
-                      <MapPin size={11} className="text-amber-400" />
-                      <span>{loc}</span>
-                      <span className="text-[10px] opacity-70">({count})</span>
-                    </button>
-                  );
-                })}
+                {availableLocations
+                  .filter(loc => warehouseItems.some(i => (i.storageLocation || i.location || '').toLowerCase() === loc.toLowerCase()))
+                  .map(loc => {
+                    const count = warehouseItems.filter(i => (i.storageLocation || i.location || '').toLowerCase() === loc.toLowerCase()).length;
+                    return (
+                      <button
+                        key={loc}
+                        type="button"
+                        onClick={() => setWarehouseLocationFilter(loc)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                          warehouseLocationFilter.toLowerCase() === loc.toLowerCase()
+                            ? 'bg-amber-500/25 border border-amber-400 text-amber-200'
+                            : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+                        }`}
+                      >
+                        <MapPin size={11} className="text-amber-400" />
+                        <span>{loc}</span>
+                        <span className="text-[10px] opacity-70">({count})</span>
+                      </button>
+                    );
+                  })}
               </div>
 
-              {!readonly && (
-                <button
-                  type="button"
-                  onClick={() => setIsPickingItemToStore(!isPickingItemToStore)}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
-                >
-                  <Plus size={13} />
-                  <span>Guardar Item da Mochila</span>
-                </button>
-              )}
+              {/* Box 2 (1/4): Botão Guardar item */}
+              <div className="w-full md:w-1/4 flex items-center justify-end">
+                {!readonly && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPickingItemToStore(!isPickingItemToStore)}
+                    className="w-full md:w-auto px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>Guardar item</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Subpainel para Escolher Item da Mochila para Guardar */}
@@ -3891,7 +4092,7 @@ export const InventoryManager: React.FC<Props> = ({
                           className="p-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 border border-amber-500/40 transition-colors cursor-pointer"
                           title="Equipar diretamente no personagem (o item atual do slot vai para a mochila)"
                         >
-                          <ShieldCheck size={14} />
+                          <User size={14} />
                         </button>
 
                         {/* Excluir (somente ícone) */}
